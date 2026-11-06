@@ -27,5 +27,10 @@ jobs:
       - name: Build Next.js
         run: npm run build
 
+      - name: Initialize Test Database
+        run: |
+          npx prisma db push
+          node prisma/seed.js
+
       - name: Run 37 Audit Test Scenarios
         run: node scripts/test-scenarios.js
