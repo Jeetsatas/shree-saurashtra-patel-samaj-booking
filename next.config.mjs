@@ -2,8 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  output: "standalone",
+  experimental: {
+    outputFileTracingIncludes: {
+      "/**/*": ["./prisma/**/*"],
+    },
+  },
 };
 
 export default nextConfig;
-
