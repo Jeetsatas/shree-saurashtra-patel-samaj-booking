@@ -235,7 +235,7 @@ export default function AdminDashboardPage() {
                   className="p-4 sm:p-5 hover:bg-slate-50 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <span className="text-xs font-extrabold text-red-900 bg-red-100 px-2 py-0.5 rounded">
                         {b.bookingNumber}
                       </span>

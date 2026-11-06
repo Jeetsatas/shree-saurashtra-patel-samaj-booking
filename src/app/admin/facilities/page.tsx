@@ -224,9 +224,9 @@ export default function FacilitiesManagementPage() {
       </div>
 
       {/* Category Tabs (Synchronized with Frontend) */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-bold text-slate-500 flex items-center mr-1">
+      <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+        <div className="flex items-center overflow-x-auto no-scrollbar scroll-smooth gap-1.5 pb-1 max-w-full">
+          <span className="text-[11px] sm:text-xs font-bold text-slate-500 flex items-center mr-1 flex-shrink-0">
             <Filter className="w-3.5 h-3.5 mr-1" />
             Category:
           </span>
@@ -240,7 +240,7 @@ export default function FacilitiesManagementPage() {
             <button
               key={tab.id}
               onClick={() => setFilterType(tab.id)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full transition ${
+              className={`text-[11px] sm:text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-full transition whitespace-nowrap flex-shrink-0 min-h-[32px] ${
                 filterType === tab.id
                   ? "bg-red-800 text-white shadow-sm"
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
@@ -251,9 +251,9 @@ export default function FacilitiesManagementPage() {
           ))}
         </div>
 
-        <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2.5 py-1 rounded-lg flex items-center">
+        <span className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 font-semibold px-2.5 py-1 rounded-lg flex items-center self-start sm:self-auto flex-shrink-0">
           <CheckCircle className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-          {facilities.length} Facilities Active & Synced
+          {facilities.length} Facilities Active
         </span>
       </div>
 

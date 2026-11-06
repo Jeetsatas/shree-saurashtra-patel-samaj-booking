@@ -623,7 +623,7 @@ export default function BookingsManagementPage() {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full md:w-auto md:flex md:items-center">
             {/* Clean Facility Dropdown */}
             <select
               value={facilityFilter}
@@ -631,7 +631,7 @@ export default function BookingsManagementPage() {
                 setFacilityFilter(e.target.value);
                 setCategoryFilter("ALL");
               }}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-semibold"
+              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-semibold w-full md:w-auto"
             >
               <option value="ALL">All Facilities ({facilities.length})</option>
               {facilities.map((f) => (
@@ -644,7 +644,7 @@ export default function BookingsManagementPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-semibold"
+              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-semibold w-full md:w-auto"
             >
               <option value="ALL">All Statuses</option>
               <option value="CONFIRMED">CONFIRMED</option>
@@ -656,7 +656,7 @@ export default function BookingsManagementPage() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-semibold"
+              className="text-xs bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-slate-700 font-semibold w-full md:w-auto"
             >
               <option value="NEWEST">Sort: Newest First</option>
               <option value="EVENT_DATE_ASC">Event Date: Earliest First</option>
@@ -709,9 +709,10 @@ export default function BookingsManagementPage() {
         </div>
       </div>
 
-      {/* Bookings Table */}
+      {/* Bookings Container: Responsive Dual-View (Cards for Mobile/Tablet, Full Table for Desktop) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* 1. Desktop & iPad Landscape Table View (md+) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -852,6 +853,116 @@ export default function BookingsManagementPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* 2. Mobile & Tablet Touch-Friendly Booking Cards (< md) */}
+        <div className="block md:hidden divide-y divide-slate-100">
+          {sortedBookings.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No booking records found matching your filters.
+            </div>
+          ) : (
+            sortedBookings.map((b) => (
+              <div key={b.id} className="p-3.5 sm:p-4 space-y-3 bg-white hover:bg-slate-50/70 transition">
+                {/* Card Header: Booking # & Status */}
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setDetailBooking(b)}
+                    className="text-xs font-black text-red-900 bg-red-100/90 hover:bg-red-200 px-2.5 py-1 rounded-lg flex items-center tracking-wide"
+                  >
+                    {b.bookingNumber}
+                  </button>
+                  <span
+                    className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
+                      b.status === "CONFIRMED"
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : b.status === "CANCELLED"
+                        ? "bg-rose-50 text-rose-800 border-rose-200"
+                        : "bg-amber-50 text-amber-800 border-amber-200"
+                    }`}
+                  >
+                    {b.status}
+                  </span>
+                </div>
+
+                {/* Applicant Name, Event & Quick Call Link */}
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-extrabold text-sm text-slate-900 leading-snug">{b.customerName}</div>
+                    <div className="text-xs text-slate-600 font-semibold mt-0.5">{b.eventType}</div>
+                  </div>
+                  {b.customerPhone && (
+                    <a
+                      href={`tel:${b.customerPhone}`}
+                      className="text-xs font-bold text-red-800 bg-red-50 hover:bg-red-100 active:bg-red-200 px-3 py-1.5 rounded-xl border border-red-200 flex items-center flex-shrink-0 min-h-[36px]"
+                    >
+                      <Phone className="w-3.5 h-3.5 mr-1.5 text-red-700" />
+                      Call
+                    </a>
+                  )}
+                </div>
+
+                {/* Facility, Event Date & Tariff Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Facility</span>
+                    <span className="font-bold text-slate-800 truncate block mt-0.5">{b.facility?.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Date & Slot</span>
+                    <span className="font-bold text-slate-800 block mt-0.5">
+                      {new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} • {b.slot}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Tariff</span>
+                    <span className="font-black text-slate-900 block mt-0.5">₹{b.totalAmount.toLocaleString("en-IN")}</span>
+                  </div>
+                  {b.discountPercent > 0 ? (
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Discount</span>
+                      <span className="font-bold text-emerald-700 block mt-0.5">
+                        -₹{b.discountAmount.toLocaleString("en-IN")} ({b.discountPercent}%)
+                      </span>
+                    </div>
+                  ) : (
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Payment</span>
+                      <span className="font-bold text-slate-600 block mt-0.5">{b.paymentStatus || "Cash at Office"}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mobile Tap-Friendly Actions */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => setDetailBooking(b)}
+                    className="flex-1 py-2 px-3 text-xs font-bold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 rounded-xl border border-slate-300 transition flex items-center justify-center min-h-[40px]"
+                  >
+                    <Eye className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                    Details
+                  </button>
+                  <Link
+                    href={`/admin/bookings/${b.id}/receipt`}
+                    target="_blank"
+                    className="flex-1 py-2 px-3 text-xs font-bold bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 rounded-xl transition flex items-center justify-center min-h-[40px] shadow-xs"
+                  >
+                    <Printer className="w-3.5 h-3.5 mr-1.5" />
+                    Print Slip
+                  </Link>
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => handleDeleteBooking(b.id)}
+                      className="p-2 text-slate-400 hover:text-rose-600 active:text-rose-700 rounded-xl border border-slate-200 min-h-[40px] min-w-[40px] flex items-center justify-center"
+                      title="Delete Booking"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

@@ -51,12 +51,12 @@ export default function BookingReceiptPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-200 py-6 px-4 print:bg-white print:p-0">
+    <div className="min-h-screen bg-slate-200 py-3 sm:py-6 px-2 sm:px-4 print:bg-white print:p-0">
       {/* Top Action Bar (hidden on print) */}
-      <div className="max-w-3xl mx-auto mb-4 flex items-center justify-between no-print">
+      <div className="max-w-3xl mx-auto mb-3 sm:mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 no-print">
         <Link
           href="/admin/bookings"
-          className="text-xs font-semibold text-slate-700 hover:text-slate-950 flex items-center"
+          className="text-xs font-semibold text-slate-700 hover:text-slate-950 flex items-center self-start"
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1" />
           Back to Bookings
@@ -64,7 +64,7 @@ export default function BookingReceiptPage() {
 
         <button
           onClick={() => window.print()}
-          className="bg-red-800 hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-lg shadow transition flex items-center"
+          className="bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center min-h-[40px]"
         >
           <Printer className="w-4 h-4 mr-1.5" />
           Print Official Booking Voucher (A4)
@@ -72,7 +72,7 @@ export default function BookingReceiptPage() {
       </div>
 
       {/* A4 Sheet Card */}
-      <div className="max-w-3xl mx-auto bg-white border border-slate-300 shadow-md p-8 sm:p-10 rounded-xl print:border-none print:shadow-none print:p-4 text-slate-900">
+      <div className="max-w-3xl mx-auto bg-white border border-slate-300 shadow-md p-4 sm:p-8 md:p-10 rounded-xl print:border-none print:shadow-none print:p-4 text-slate-900">
         
         {/* Trust Header */}
         <div className="border-b-2 border-red-900 pb-4 text-center space-y-1">

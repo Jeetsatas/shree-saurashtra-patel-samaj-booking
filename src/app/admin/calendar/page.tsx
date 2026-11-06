@@ -167,10 +167,10 @@ export default function AdminCalendarPage() {
           <span className="text-xs font-bold text-red-800 uppercase tracking-wide">
             {isSuper ? "Internal Availability System" : "Interactive Availability Calendar"}
           </span>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
             Booking & Availability Calendar
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 mt-0.5">
             {isSuper
               ? "Multi-view calendar for Outside Party Plot, Multipurpose Hall, Dormitories, and AC Suites."
               : "Click on any date to inspect booked facilities, applicant names, slots, and availability status."}
@@ -179,10 +179,10 @@ export default function AdminCalendarPage() {
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* View Mode Switcher (Month, Week, Day) */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs font-bold">
+          <div className="flex items-center bg-slate-100 p-0.5 sm:p-1 rounded-xl border border-slate-200 text-xs font-bold">
             <button
               onClick={() => setViewMode("MONTH")}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition min-h-[36px] sm:min-h-0 flex items-center justify-center ${
                 viewMode === "MONTH" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -190,7 +190,7 @@ export default function AdminCalendarPage() {
             </button>
             <button
               onClick={() => setViewMode("WEEK")}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition min-h-[36px] sm:min-h-0 flex items-center justify-center ${
                 viewMode === "WEEK" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -198,7 +198,7 @@ export default function AdminCalendarPage() {
             </button>
             <button
               onClick={() => setViewMode("DAY")}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition min-h-[36px] sm:min-h-0 flex items-center justify-center ${
                 viewMode === "DAY" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
               }`}
             >
@@ -207,16 +207,17 @@ export default function AdminCalendarPage() {
           </div>
 
           {/* Month / Date Navigation */}
-          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <div className="flex items-center space-x-1 bg-slate-100 p-0.5 sm:p-1 rounded-xl border border-slate-200">
             <button
               onClick={prevMonth}
-              className="p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition shadow-xs"
+              aria-label="Previous Period"
+              className="p-1 sm:p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition shadow-xs min-h-[36px] min-w-[36px] flex items-center justify-center"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={goToToday}
-              className="px-3 py-1 text-xs font-bold text-slate-800 hover:bg-white rounded-lg transition"
+              className="px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-bold text-slate-800 hover:bg-white rounded-lg transition whitespace-nowrap min-h-[36px] flex items-center justify-center"
             >
               {viewMode === "MONTH" && `${monthNames[month]} ${year}`}
               {viewMode === "WEEK" && `Week of ${currentWeekDays[0].toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`}
@@ -224,7 +225,8 @@ export default function AdminCalendarPage() {
             </button>
             <button
               onClick={nextMonth}
-              className="p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition shadow-xs"
+              aria-label="Next Period"
+              className="p-1 sm:p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition shadow-xs min-h-[36px] min-w-[36px] flex items-center justify-center"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -233,7 +235,7 @@ export default function AdminCalendarPage() {
           {isSuper && (
             <Link
               href="/admin/bookings"
-              className="bg-red-800 hover:bg-red-700 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow-sm transition flex items-center"
+              className="bg-red-800 hover:bg-red-700 text-white text-xs font-bold px-3 sm:px-3.5 py-2 rounded-xl shadow-sm transition flex items-center min-h-[36px]"
             >
               <Plus className="w-3.5 h-3.5 mr-1.5" />
               New Booking
@@ -243,16 +245,16 @@ export default function AdminCalendarPage() {
       </div>
 
       {/* Category Tabs & Direct Facility Selector */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-4">
-        {/* Category Filter Tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-500 flex items-center mr-1">
+      <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-5 shadow-sm space-y-3 sm:space-y-4">
+        {/* Category Filter Tabs: Horizontal swipeable pill list */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 sm:pb-3 border-b border-slate-200">
+          <div className="flex items-center overflow-x-auto no-scrollbar scroll-smooth gap-1.5 pb-1 max-w-full">
+            <span className="text-[11px] sm:text-xs font-bold text-slate-500 flex items-center mr-1 flex-shrink-0">
               <Filter className="w-3.5 h-3.5 mr-1" />
               Category:
             </span>
             {[
-              { id: "ALL", label: `All Facilities (${facilities.length})` },
+              { id: "ALL", label: `All (${facilities.length})` },
               { id: "PLOT", label: "Outside Party Plot (1)" },
               { id: "HALL", label: "Halls (2)" },
               { id: "DORMITORY", label: "Dormitories (2)" },
@@ -264,10 +266,10 @@ export default function AdminCalendarPage() {
                   setFilterType(tab.id);
                   setSelectedFacilityId("ALL");
                 }}
-                className={`text-xs font-bold px-3 py-1.5 rounded-full transition ${
+                className={`text-[11px] sm:text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-full transition whitespace-nowrap flex-shrink-0 min-h-[32px] ${
                   filterType === tab.id
                     ? "bg-red-800 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300"
                 }`}
               >
                 {tab.label}
@@ -281,22 +283,22 @@ export default function AdminCalendarPage() {
                 setSelectedFacilityId("ALL");
                 setFilterType("ALL");
               }}
-              className="inline-flex items-center text-xs font-bold text-red-800 hover:text-red-950 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg transition"
+              className="inline-flex items-center text-[11px] sm:text-xs font-bold text-red-800 hover:text-red-950 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg transition self-start sm:self-auto flex-shrink-0"
             >
               ✕ Show All Facilities
             </button>
           )}
         </div>
 
-        {/* Direct Facility Cards */}
+        {/* Direct Facility Cards Grid */}
         <div className="space-y-2">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
             <button
               onClick={() => {
                 setSelectedFacilityId("ALL");
                 setFilterType("ALL");
               }}
-              className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
+              className={`p-2 sm:p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
                 selectedFacilityId === "ALL" && filterType === "ALL"
                   ? "bg-gradient-to-br from-red-800 to-amber-900 text-white border-red-900 shadow-md ring-2 ring-amber-400/50"
                   : "bg-white text-slate-800 hover:bg-slate-100 border-slate-200"
@@ -310,9 +312,9 @@ export default function AdminCalendarPage() {
                   <Check className="w-3.5 h-3.5 text-amber-300" />
                 )}
               </div>
-              <div className="mt-1.5">
-                <div className="font-extrabold text-xs">All Facilities</div>
-                <div className="text-[10px] opacity-75">Combined Master View</div>
+              <div className="mt-1">
+                <div className="font-extrabold text-[11px] sm:text-xs truncate">All Facilities</div>
+                <div className="text-[9px] sm:text-[10px] opacity-75 truncate">Combined Master View</div>
               </div>
             </button>
 
@@ -329,7 +331,7 @@ export default function AdminCalendarPage() {
                     setSelectedFacilityId(f.id);
                     setFilterType(f.type);
                   }}
-                  className={`p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
+                  className={`p-2 sm:p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
                     isSelected
                       ? "bg-red-800 text-white border-red-900 shadow-md ring-2 ring-red-600"
                       : "bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50 border-slate-200"
@@ -337,7 +339,7 @@ export default function AdminCalendarPage() {
                 >
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+                      className={`text-[8px] sm:text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
                         isSelected
                           ? "bg-white/20 text-white"
                           : isPlot
@@ -349,17 +351,17 @@ export default function AdminCalendarPage() {
                           : "bg-amber-100 text-amber-900"
                       }`}
                     >
-                      {isPlot ? "Party Plot" : isDorm ? "Dorm" : isRoom ? "Room" : "Hall"}
+                      {isPlot ? "Plot" : isDorm ? "Dorm" : isRoom ? "Room" : "Hall"}
                     </span>
                     {isSelected && <Check className="w-3.5 h-3.5 text-amber-300" />}
                   </div>
 
-                  <div className="mt-1.5">
-                    <div className="font-bold text-xs leading-tight line-clamp-1">
+                  <div className="mt-1">
+                    <div className="font-bold text-[11px] sm:text-xs leading-tight truncate">
                       {f.name.replace("Dormitory — ", "")}
                     </div>
-                    <div className={`text-[10px] mt-0.5 ${isSelected ? "text-amber-200" : "text-slate-500"}`}>
-                      {isPlot ? "1500 Persons • Wedding & Family" : `${f.capacity} ${isDorm || isRoom ? "Beds" : "Persons"}`}
+                    <div className={`text-[9px] sm:text-[10px] mt-0.5 truncate ${isSelected ? "text-amber-200" : "text-slate-500"}`}>
+                      {isPlot ? "1500 Persons" : `${f.capacity} ${isDorm || isRoom ? "Beds" : "Persons"}`}
                     </div>
                   </div>
                 </button>
@@ -371,10 +373,10 @@ export default function AdminCalendarPage() {
 
       {/* VIEW MODE 1: MONTH VIEW */}
       {viewMode === "MONTH" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar Grid (2 Cols) */}
-          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
-            <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-500 uppercase pb-2 border-b border-slate-100 mb-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* Calendar Grid (2 Cols on Desktop, Full Width on Mobile) */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm p-3 sm:p-5">
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] sm:text-xs font-bold text-slate-500 uppercase pb-2 border-b border-slate-100 mb-2">
               <span className="text-red-600">Sun</span>
               <span>Mon</span>
               <span>Tue</span>
@@ -384,9 +386,9 @@ export default function AdminCalendarPage() {
               <span>Sat</span>
             </div>
 
-            <div className="grid grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
               {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div key={`blank-${i}`} className="min-h-[75px] bg-slate-50/50 rounded-lg"></div>
+                <div key={`blank-${i}`} className="min-h-[48px] sm:min-h-[64px] md:min-h-[75px] bg-slate-50/50 rounded-lg"></div>
               ))}
 
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -399,44 +401,61 @@ export default function AdminCalendarPage() {
                 return (
                   <div
                     key={`day-${dayNum}`}
-                    onClick={() => setSelectedDate(dayDate)}
-                    className={`min-h-[75px] p-1.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                    onClick={() => {
+                      setSelectedDate(dayDate);
+                      if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                        const el = document.getElementById("day-inspector-section");
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                        }
+                      }
+                    }}
+                    className={`min-h-[48px] sm:min-h-[64px] md:min-h-[75px] p-1 sm:p-1.5 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between active:scale-95 ${
                       isSelected
-                        ? "border-amber-500 bg-amber-50/70 ring-2 ring-amber-400"
+                        ? "border-amber-500 bg-amber-50/80 ring-2 ring-amber-400 shadow-xs"
                         : isBooked
                         ? "bg-rose-50/50 border-rose-200 hover:bg-rose-100/50"
                         : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-800">{dayNum}</span>
+                      <span className={`text-[11px] sm:text-xs font-bold ${isSelected ? "text-amber-900 font-black" : "text-slate-800"}`}>
+                        {dayNum}
+                      </span>
                       {isBooked ? (
-                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-rose-500"></span>
                       ) : (
-                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500"></span>
                       )}
                     </div>
 
-                    <div className="mt-1 space-y-1">
+                    <div className="mt-0.5 sm:mt-1 space-y-0.5">
                       {isBooked ? (
-                        <div className="space-y-0.5">
-                          {dayBookings.slice(0, 2).map((b, idx) => (
-                            <div
-                              key={idx}
-                              className="text-[9px] font-semibold bg-rose-200/80 text-rose-900 px-1 py-0.5 rounded truncate"
-                              title={`${b.customerName} - ${b.eventType}`}
-                            >
-                              {b.customerName.split(" ")[0]}: {b.eventType}
-                            </div>
-                          ))}
-                          {dayBookings.length > 2 && (
-                            <span className="text-[9px] text-rose-700 font-bold block text-right">
-                              +{dayBookings.length - 2} more
+                        <>
+                          <div className="hidden md:block space-y-0.5">
+                            {dayBookings.slice(0, 2).map((b, idx) => (
+                              <div
+                                key={idx}
+                                className="text-[9px] font-semibold bg-rose-200/80 text-rose-900 px-1 py-0.5 rounded truncate"
+                                title={`${b.customerName} - ${b.eventType}`}
+                              >
+                                {b.customerName.split(" ")[0]}: {b.eventType}
+                              </div>
+                            ))}
+                            {dayBookings.length > 2 && (
+                              <span className="text-[9px] text-rose-700 font-bold block text-right">
+                                +{dayBookings.length - 2} more
+                              </span>
+                            )}
+                          </div>
+                          <div className="block md:hidden">
+                            <span className="text-[9px] font-extrabold text-rose-800 bg-rose-200/90 px-1 py-0.5 rounded block text-center truncate">
+                              {dayBookings.length} {dayBookings.length === 1 ? "Book" : "Books"}
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        </>
                       ) : (
-                        <div className="text-[10px] text-emerald-700 font-medium text-center">
+                        <div className="text-[9px] sm:text-[10px] text-emerald-700 font-medium text-center">
                           Open
                         </div>
                       )}
@@ -447,8 +466,11 @@ export default function AdminCalendarPage() {
             </div>
           </div>
 
-          {/* Selected Day Inspector (1 Col) */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4 flex flex-col">
+          {/* Selected Day Inspector */}
+          <div
+            id="day-inspector-section"
+            className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5 space-y-4 flex flex-col scroll-mt-20"
+          >
             <div className="border-b border-slate-200 pb-3">
               <span className="text-xs font-bold text-slate-500 uppercase">Day Inspector</span>
               <h3 className="text-lg font-bold text-slate-900 mt-0.5">

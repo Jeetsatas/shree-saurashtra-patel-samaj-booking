@@ -177,29 +177,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen flex flex-col bg-slate-100 text-slate-800">
       {/* Admin Top Navigation */}
-      <header className="bg-slate-900 text-white shadow-md sticky top-0 z-40 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-16">
+      <header className="bg-slate-900/95 backdrop-blur-md text-white shadow-md sticky top-0 z-40 border-b border-slate-800">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 flex items-center justify-between h-14 sm:h-16">
           {/* Logo / Brand */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2.5 sm:space-x-3">
             <Link
               href={isSuper ? "/admin" : "/admin/calendar"}
-              className="flex items-center space-x-2.5"
+              className="flex items-center space-x-2 sm:space-x-2.5 active:scale-95 transition-transform"
             >
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-red-800 to-amber-700 text-amber-300 flex items-center justify-center font-black text-sm shadow">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-red-800 to-amber-700 text-amber-300 flex items-center justify-center font-black text-xs sm:text-sm shadow border border-amber-500/30">
                 SSPS
               </div>
-              <div className="hidden sm:block">
-                <span className="font-extrabold text-sm text-white tracking-wide block">
+              <div className="leading-tight">
+                <span className="font-extrabold text-xs sm:text-sm text-white tracking-wide block truncate max-w-[170px] xs:max-w-[210px] sm:max-w-none">
                   શ્રી સૌરાષ્ટ્ર પટેલ સમાજ
                 </span>
-                <span className="text-[10px] text-amber-400 block -mt-0.5">
-                  Nikol - Naroda Private Admin System
+                <span className="text-[9px] sm:text-[10px] text-amber-400 block font-medium">
+                  Nikol - Naroda Private Admin
                 </span>
               </div>
             </Link>
           </div>
 
-          {/* Desktop Nav Links */}
+          {/* Desktop Nav Links (Visible on Large Screens) */}
           <nav className="hidden lg:flex items-center space-x-1">
             {navLinks.map((link) => {
               const Icon = link.icon;
@@ -221,11 +221,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             })}
           </nav>
 
-          {/* User Profile & Actions */}
-          <div className="hidden sm:flex items-center space-x-3">
-            {/* Tab-Isolated Admin Switcher (Allows testing multiple admins in separate tabs simultaneously) */}
+          {/* User Profile & Actions (Desktop / Tablet) */}
+          <div className="hidden md:flex items-center space-x-2.5 sm:space-x-3">
+            {/* Tab-Isolated Admin Switcher */}
             <div className="flex items-center space-x-1 bg-slate-800/90 border border-slate-700/80 rounded-lg p-1">
-              <span className="text-[10px] text-slate-400 font-bold px-1.5 hidden xl:inline">
+              <span className="text-[10px] text-slate-400 font-bold px-1 hidden xl:inline">
                 This Tab:
               </span>
               <button
@@ -279,61 +279,113 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </button>
           </div>
 
-          {/* Mobile Menu Button */}
-          <div className="flex lg:hidden items-center space-x-2">
+          {/* Mobile Quick Role Indicator & Hamburger Menu Button */}
+          <div className="flex md:hidden items-center space-x-1.5">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 truncate max-w-[100px]">
+              {isSuper ? "Super Admin" : "View Only"}
+            </span>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 rounded-lg"
+              aria-label="Toggle navigation menu"
+              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 rounded-xl transition min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 text-amber-400" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
         {/* View-Only Read-Only Notice Banner */}
         {!isSuper && (
-          <div className="bg-amber-950/80 border-t border-amber-600/30 px-4 py-1.5 text-center text-xs text-amber-300 font-semibold flex items-center justify-center space-x-2">
-            <Lock className="w-3.5 h-3.5 text-amber-400" />
-            <span>
-              View-Only Mode ({currentUser?.name}): You have viewing access to booking records and calendars. Data modification is restricted to the Super Admin.
+          <div className="bg-amber-950/90 border-t border-amber-600/30 px-3 py-1.5 text-center text-[11px] sm:text-xs text-amber-300 font-semibold flex items-center justify-center space-x-1.5">
+            <Lock className="w-3 h-3 text-amber-400 flex-shrink-0" />
+            <span className="truncate">
+              View-Only Mode ({currentUser?.name}): Viewing only • Data changes restricted to Super Admin.
             </span>
           </div>
         )}
 
-        {/* Mobile Dropdown Nav */}
+        {/* Mobile Dropdown & Quick Control Sheet */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-800 px-4 pt-2 pb-4 space-y-1 bg-slate-900">
-            <div className="pb-2 border-b border-slate-800 mb-2">
-              <div className="text-xs font-bold text-white">{currentUser?.name}</div>
-              <div className="mt-0.5">{currentUser && getRoleBadge(currentUser.role)}</div>
+          <div className="lg:hidden border-t border-slate-800 px-4 pt-3 pb-6 space-y-3 bg-slate-900/98 backdrop-blur-lg shadow-2xl animate-in slide-in-from-top-2">
+            {/* User Profile Card */}
+            <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 flex items-center justify-between">
+              <div>
+                <div className="text-xs font-bold text-white">{currentUser?.name}</div>
+                <div className="text-[10px] text-slate-400 truncate max-w-[190px]">{currentUser?.email}</div>
+              </div>
+              <div>{currentUser && getRoleBadge(currentUser.role)}</div>
             </div>
 
-            {navLinks.map((link) => {
-              const Icon = link.icon;
-              const isActive = pathname === link.href;
-              return (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={`flex items-center px-3 py-2 rounded-lg text-xs font-semibold ${
-                    isActive
-                      ? "bg-amber-500 text-slate-950 font-bold"
-                      : "text-slate-300 hover:bg-slate-800"
+            {/* Mobile Tab Admin Switcher: Test as Super Admin or View-Only directly on Phone/Tablet */}
+            <div className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-700/50 space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Switch Admin View in this Phone:
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  onClick={() => handleSwitchTabAdmin("superadmin@patelsamaj.com")}
+                  className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
+                    currentUser?.email === "superadmin@patelsamaj.com"
+                      ? "bg-red-800 text-white shadow-sm ring-1 ring-amber-400"
+                      : "bg-slate-800 text-slate-300 hover:text-white"
                   }`}
                 >
-                  <Icon className="w-4 h-4 mr-2" />
-                  {link.label}
-                </Link>
-              );
-            })}
+                  Super Admin
+                </button>
+                <button
+                  onClick={() => handleSwitchTabAdmin("admin2@patelsamaj.com")}
+                  className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
+                    currentUser?.email === "admin2@patelsamaj.com"
+                      ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-300"
+                      : "bg-slate-800 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  Admin 2
+                </button>
+                <button
+                  onClick={() => handleSwitchTabAdmin("admin3@patelsamaj.com")}
+                  className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
+                    currentUser?.email === "admin3@patelsamaj.com"
+                      ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-300"
+                      : "bg-slate-800 text-slate-300 hover:text-white"
+                  }`}
+                >
+                  Admin 3
+                </button>
+              </div>
+            </div>
 
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-end">
+            {/* Mobile Nav Links */}
+            <div className="space-y-1 pt-1">
+              {navLinks.map((link) => {
+                const Icon = link.icon;
+                const isActive = pathname === link.href;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center px-3.5 py-2.5 rounded-xl text-xs font-bold transition min-h-[44px] ${
+                      isActive
+                        ? "bg-amber-500 text-slate-950 shadow-sm"
+                        : "text-slate-200 hover:bg-slate-800 active:bg-slate-700"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 mr-2.5" />
+                    {link.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Mobile Sign Out */}
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+              <span className="text-[10px] text-slate-500">SSPS Nikol - Naroda</span>
               <button
                 onClick={handleLogout}
-                className="text-xs text-red-400 font-semibold flex items-center"
+                className="px-3 py-2 text-xs text-red-400 hover:text-red-300 font-bold flex items-center bg-red-950/40 rounded-lg border border-red-900/50"
               >
-                <LogOut className="w-3.5 h-3.5 mr-1" />
+                <LogOut className="w-3.5 h-3.5 mr-1.5" />
                 Sign Out
               </button>
             </div>
@@ -341,10 +393,95 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       </header>
 
-      {/* Admin Body Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+      {/* Admin Body Content with safe-padding for mobile bottom navigation */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-8 pb-24 lg:pb-8">
         {children}
       </main>
+
+      {/* Native-Style Mobile Bottom Navigation Bar (Phone & iPod & Tablet) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-2 pt-1.5 pb-safe flex items-center justify-around shadow-lg">
+        {isSuper ? (
+          <>
+            <Link
+              href="/admin"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] transition ${
+                pathname === "/admin"
+                  ? "text-amber-400 font-extrabold"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <LayoutDashboard className="w-5 h-5 mb-0.5" />
+              <span>Overview</span>
+            </Link>
+
+            <Link
+              href="/admin/calendar"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] transition ${
+                pathname.startsWith("/admin/calendar")
+                  ? "text-amber-400 font-extrabold"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Calendar className="w-5 h-5 mb-0.5" />
+              <span>Calendar</span>
+            </Link>
+
+            <Link
+              href="/admin/bookings"
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] transition ${
+                pathname.startsWith("/admin/bookings")
+                  ? "text-amber-400 font-extrabold"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <BookOpen className="w-5 h-5 mb-0.5" />
+              <span>Bookings</span>
+            </Link>
+
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] text-slate-400 hover:text-slate-200"
+            >
+              <Menu className="w-5 h-5 mb-0.5" />
+              <span>Menu</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/admin/calendar"
+              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-xs font-bold min-h-[44px] transition ${
+                pathname.startsWith("/admin/calendar")
+                  ? "bg-amber-500 text-slate-950 font-black shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <Calendar className="w-5 h-5 mb-0.5" />
+              <span>Calendar View</span>
+            </Link>
+
+            <Link
+              href="/admin/bookings"
+              className={`flex-1 flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-xs font-bold min-h-[44px] transition ml-2 ${
+                pathname.startsWith("/admin/bookings")
+                  ? "bg-amber-500 text-slate-950 font-black shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <BookOpen className="w-5 h-5 mb-0.5" />
+              <span>All Bookings</span>
+            </Link>
+
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 ml-1 text-slate-400 hover:text-white rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center"
+              aria-label="More options"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          </>
+        )}
+      </nav>
     </div>
   );
 }
