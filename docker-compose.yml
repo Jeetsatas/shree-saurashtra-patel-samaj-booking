@@ -1,0 +1,49 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: patel_samaj_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://samaj_admin:SamajSecure2026@postgres:5432/patel_samaj_db?schema=public
+      - SESSION_SECRET=patel_samaj_super_secret_jwt_key_2026_change_in_production
+      - PORT=3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - patel_net
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: patel_samaj_db
+    restart: always
+    environment:
+      - POSTGRES_USER=samaj_admin
+      - POSTGRES_PASSWORD=SamajSecure2026
+      - POSTGRES_DB=patel_samaj_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backups:/backups
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samaj_admin -d patel_samaj_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - patel_net
+
+volumes:
+  pgdata:
+    driver: local
+
+networks:
+  patel_net:
+    driver: bridge
+

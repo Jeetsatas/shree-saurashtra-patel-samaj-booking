@@ -1,0 +1,164 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Roles: SUPER_ADMIN | VIEW_ONLY_ADMIN
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         String    @default("VIEW_ONLY_ADMIN") // SUPER_ADMIN | VIEW_ONLY_ADMIN
+  phone        String?
+  canExport    Boolean   @default(false)             // Super Admin can toggle export permission for View-Only admins
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  bookings     Booking[]
+}
+
+model Facility {
+  id               String       @id @default(cuid())
+  name             String
+  code             String       @unique
+  type             String       @default("HALL") // HALL | PLOT | DORMITORY | ROOM | SERVICE
+  resourceGroup    String       @default("")     // Shared physical resource group (e.g. RESOURCE_PARTY_PLOT)
+  capacity         Int          @default(0)
+  floor            String?
+  description      String?
+  amenities        String?
+  photos           String?      // JSON array of photo URLs/paths
+  baseRent         Float        @default(0)
+  weddingRent      Float?       @default(0)  // Specific tariff for Wedding Functions
+  familyRent       Float?       @default(0)  // Specific tariff for Family Functions
+  cautionDeposit   Float        @default(0)
+  cleaningCharge   Float        @default(0)
+  isRateConfigured Boolean      @default(false)
+  bookingDuration  String?      // e.g. "Whole Day — 6:00 AM to 12:00 Midnight"
+  availableSlots   String?      // JSON array of configurable time slots
+  bookingUnit      String?      @default("ENTIRE_FACILITY") // ENTIRE_FACILITY | PER_BED | PER_ROOM
+  isActive         Boolean      @default(true)
+  order            Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  bookings         Booking[]
+  enquiries        Enquiry[]
+}
+
+model AddonService {
+  id               String   @id @default(cuid())
+  name             String   @unique // "Cleaning Service", "Waste Food Collection Service"
+  code             String   @unique // "SERVICE_CLEANING", "SERVICE_WASTE_FOOD"
+  description      String?
+  price            Float    @default(0)
+  isRateConfigured Boolean  @default(false)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model DiscountRule {
+  id          String   @id @default(cuid())
+  code        String   @unique // "TRUSTEE_OPT_1", "TRUSTEE_OPT_2", "ROOM_DONORS"
+  name        String   // "Trustee — Option 1", "Trustee — Option 2", "Room Donors"
+  percentage  Float    @default(0)
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Booking {
+  id                     String        @id @default(cuid())
+  bookingNumber          String        @unique
+  facilityId             String
+  facility               Facility      @relation(fields: [facilityId], references: [id])
+  customerName           String
+  customerPhone          String
+  customerEmail          String?
+  customerAddress        String?
+  customerAadhar         String?
+  eventType              String
+  startDate              DateTime
+  endDate                DateTime
+  slot                   String        @default("FULL_DAY") // WHOLE_DAY | MORNING | AFTERNOON | NIGHT_STAY
+  status                 String        @default("CONFIRMED") // CONFIRMED | PENDING_APPROVAL | CANCELLED | BLOCKED_BY_TRUST
+  
+  // Financial breakdown & Discounts
+  facilityAmount         Float         @default(0)
+  discountCode           String?       // "TRUSTEE_OPT_1", "TRUSTEE_OPT_2", "ROOM_DONORS", "MANUAL_OVERRIDE"
+  discountPercent        Float         @default(0)
+  discountAmount         Float         @default(0)
+  discountOverridden     Boolean       @default(false)
+  discountOverrideReason String?
+  selectedServices       String?       // JSON array of selected add-on services
+  servicesAmount         Float         @default(0)
+  totalAmount            Float         @default(0) // (facilityAmount - discountAmount) + servicesAmount
+  depositAmount          Float         @default(0)
+  
+  paymentStatus          String        @default("PENDING") // PENDING | PAID_CASH | PAID_ONLINE | CHEQUE_RECEIVED | REFUNDED
+  paymentMethod          String?       @default("OFFLINE_CASH")
+  paymentRefNo           String?
+  notes                  String?
+  bookedByUserId         String?
+  bookedByUser           User?         @relation(fields: [bookedByUserId], references: [id])
+  createdByName          String?
+  lastUpdatedByName      String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  @@index([facilityId, startDate, endDate])
+  @@index([status])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  userName   String
+  userEmail  String
+  userRole   String
+  action     String   // CREATE_BOOKING | UPDATE_BOOKING | CANCEL_BOOKING | UPDATE_FACILITY | UPDATE_RATE | UPDATE_DISCOUNT | RESET_ADMIN_PASSWORD
+  details    String?
+  recordId   String?
+  recordType String?  // BOOKING | FACILITY | DISCOUNT | USER | SETTING
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Enquiry {
+  id            String    @id @default(cuid())
+  facilityId    String?
+  facility      Facility? @relation(fields: [facilityId], references: [id])
+  name          String
+  phone         String
+  email         String?
+  preferredDate DateTime
+  slot          String    @default("FULL_DAY")
+  eventType     String
+  guestCount    Int?
+  message       String?
+  status        String    @default("NEW") // NEW, CONTACTED, CONVERTED, CLOSED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model TrustSetting {
+  id          String   @id @default("default")
+  trustName   String   @default("Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda")
+  address     String   @default("Nikol - Naroda Road, Nikol, Ahmedabad, Gujarat 382350")
+  phone       String   @default("+91 98765 43210")
+  email       String   @default("info@patelsamajnikol.org")
+  officeHours String   @default("9:00 AM - 7:00 PM (All Days)")
+  gstNumber   String?  // Pending registration
+  trustRegNo  String?  @default("A/1234/Ahmedabad")
+  rules       String?
+  updatedAt   DateTime @updatedAt
+}

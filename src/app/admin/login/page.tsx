@@ -1,0 +1,188 @@
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Lock, Mail, Building, ShieldCheck, AlertCircle } from "lucide-react";
+
+export default function AdminLoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed");
+      }
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("tab_admin_email", email.trim().toLowerCase());
+      }
+
+      if (data.user?.role === "VIEW_ONLY_ADMIN") {
+        router.push("/admin/calendar");
+      } else {
+        router.push("/admin");
+      }
+      router.refresh();
+    } catch (err: any) {
+      setError(err.message || "An error occurred during authentication");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        <div className="w-16 h-16 bg-gradient-to-tr from-red-900 to-amber-700 text-amber-300 rounded-2xl flex items-center justify-center mx-auto shadow-2xl border border-amber-500/30">
+          <Building className="w-9 h-9" />
+        </div>
+
+        <p className="mt-3 text-amber-400 font-bold text-xs tracking-wider uppercase">
+          ॥ ૐ નમઃ શિવાય ॥ ॥ જય શ્રી ખોડિયાર માં ॥
+        </p>
+
+        <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-1">
+          શ્રી સૌરાષ્ટ્ર લેઉવા પટેલ સમાજ
+        </h1>
+        <p className="text-xs text-amber-200/80 font-medium mt-0.5">
+          Nikol - Naroda, Ahmedabad • Internal Booking Management
+        </p>
+      </div>
+
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-slate-900/90 backdrop-blur-md py-8 px-6 shadow-2xl rounded-2xl sm:px-10 border border-slate-800">
+          <div className="mb-6 pb-4 border-b border-slate-800">
+            <h2 className="text-base font-bold text-white flex items-center">
+              <ShieldCheck className="w-4 h-4 mr-2 text-amber-400" />
+              Private Administrator Sign-In
+            </h2>
+            <p className="text-xs text-slate-400 mt-1">
+              Internal system restricted to designated Trust Administrators.
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-4 bg-red-950/80 border border-red-700/60 text-red-200 px-3.5 py-2.5 rounded-xl text-xs flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form className="space-y-4" onSubmit={handleLogin}>
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Administrator Email / Username
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <Mail className="w-4 h-4" />
+                </div>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@patelsamaj.com"
+                  className="block w-full pl-9 pr-3 py-2.5 text-xs bg-slate-950/90 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  className="block w-full pl-9 pr-3 py-2.5 text-xs bg-slate-950/90 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-2.5 px-4 rounded-xl shadow-md text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition disabled:opacity-50"
+            >
+              {loading ? "Authenticating..." : "Sign In to Management Console"}
+            </button>
+          </form>
+
+          {/* Quick Credential Selectors for Multi-Admin Testing */}
+          <div className="mt-5 pt-4 border-t border-slate-800 space-y-2">
+            <span className="text-[11px] text-slate-400 font-semibold block text-center">
+              Quick Test Administrator Select:
+            </span>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("superadmin@patelsamaj.com");
+                  setPassword("Admin@Patel2026");
+                }}
+                className="py-1.5 px-1 rounded-lg bg-red-950/60 hover:bg-red-900/60 text-red-200 border border-red-800/60 text-[10px] font-bold text-center transition"
+              >
+                Super Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("admin2@patelsamaj.com");
+                  setPassword("Admin2@Patel2026");
+                }}
+                className="py-1.5 px-1 rounded-lg bg-amber-950/60 hover:bg-amber-900/60 text-amber-200 border border-amber-800/60 text-[10px] font-bold text-center transition"
+              >
+                Admin 2
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail("admin3@patelsamaj.com");
+                  setPassword("Admin3@Patel2026");
+                }}
+                className="py-1.5 px-1 rounded-lg bg-blue-950/60 hover:bg-blue-900/60 text-blue-200 border border-blue-800/60 text-[10px] font-bold text-center transition"
+              >
+                Admin 3
+              </button>
+            </div>
+          </div>
+
+          {/* Secure Access Notice */}
+          <div className="mt-6 pt-4 border-t border-slate-800 text-center">
+            <p className="text-[11px] text-slate-400">
+              Only authorized Trust administrators (Super Admin, Admin 2, Admin 3) can access this system.
+            </p>
+            <p className="text-[10px] text-slate-500 mt-1">
+              All administrative access and modifications are audit-logged.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

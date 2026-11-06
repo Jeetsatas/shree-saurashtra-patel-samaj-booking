@@ -1,0 +1,23 @@
+import type { Metadata } from "next";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda | Hall & Dormitory Booking",
+  description:
+    "Official facility booking portal for Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda, Ahmedabad. Check live availability of AC Banquet Halls, Community Dining Hall, and AC Dormitories.",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen flex flex-col bg-slate-50 text-slate-900 antialiased">
+        {children}
+      </body>
+    </html>
+  );
+}
+
