@@ -1,19 +1,19 @@
 const { PrismaClient } = require("@prisma/client");
-const argon2 = require("argon2");
+const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log("Seeding Patel Samaj Private Admin Booking Database...");
 
-  // 1. Create / Upsert the 3 Authorized Admin Accounts with Argon2id Hashing
+  // 1. Create / Upsert the 3 Authorized Admin Accounts with bcrypt Hashing
   const superAdminPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || "Admin@Patel2026";
   const admin2Password = process.env.INITIAL_ADMIN2_PASSWORD || "Admin2@Patel2026";
   const admin3Password = process.env.INITIAL_ADMIN3_PASSWORD || "Admin3@Patel2026";
 
-  const superAdminHash = await argon2.hash(superAdminPassword, { type: argon2.argon2id });
-  const admin2Hash = await argon2.hash(admin2Password, { type: argon2.argon2id });
-  const admin3Hash = await argon2.hash(admin3Password, { type: argon2.argon2id });
+  const superAdminHash = await bcrypt.hash(superAdminPassword, 10);
+  const admin2Hash = await bcrypt.hash(admin2Password, 10);
+  const admin3Hash = await bcrypt.hash(admin3Password, 10);
 
   const adminUsers = [
     {

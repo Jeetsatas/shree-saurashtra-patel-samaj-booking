@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify } from "jose";
-import argon2 from "argon2";
 import bcrypt from "bcryptjs";
 import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -20,21 +19,17 @@ export interface SessionUser {
 }
 
 /**
- * Hash password using Argon2id per security specification
+ * Hash password securely using pure-JS bcrypt (100% serverless & Vercel compatible)
  */
 export async function hashPassword(password: string): Promise<string> {
-  return argon2.hash(password, { type: argon2.argon2id });
+  return bcrypt.hash(password, 10);
 }
 
 /**
- * Verify password with Argon2id, with automatic backward compatibility for bcrypt hashes
+ * Verify password with bcrypt
  */
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   try {
-    if (hash.startsWith("$argon2")) {
-      return await argon2.verify(hash, password);
-    }
-    // Fallback for bcrypt hashes if any exist
     return await bcrypt.compare(password, hash);
   } catch (err) {
     return false;

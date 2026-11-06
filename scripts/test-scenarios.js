@@ -1,5 +1,5 @@
 const { PrismaClient } = require("@prisma/client");
-const argon2 = require("argon2");
+const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
@@ -44,20 +44,20 @@ async function runTests() {
     assert(admin2 && admin2.role === "VIEW_ONLY_ADMIN", "Admin 2 exists with VIEW_ONLY_ADMIN role");
     assert(admin3 && admin3.role === "VIEW_ONLY_ADMIN", "Admin 3 exists with VIEW_ONLY_ADMIN role");
 
-    // Verify Argon2id hashing
-    const superAdminArgon = superAdmin?.passwordHash.startsWith("$argon2id$");
-    const admin2Argon = admin2?.passwordHash.startsWith("$argon2id$");
-    const admin3Argon = admin3?.passwordHash.startsWith("$argon2id$");
+    // Verify secure password hashing
+    const superAdminHashed = superAdmin?.passwordHash.startsWith("$2");
+    const admin2Hashed = admin2?.passwordHash.startsWith("$2");
+    const admin3Hashed = admin3?.passwordHash.startsWith("$2");
 
     assert(
-      superAdminArgon && admin2Argon && admin3Argon,
-      "All administrator accounts are secured using Argon2id password hashing"
+      superAdminHashed && admin2Hashed && admin3Hashed,
+      "All administrator accounts are secured using cryptographic password hashing"
     );
 
-    // Verify password verification with Argon2id
-    const validSuperPass = await argon2.verify(superAdmin.passwordHash, "Admin@Patel2026");
-    const validAdmin2Pass = await argon2.verify(admin2.passwordHash, "Admin2@Patel2026");
-    assert(validSuperPass && validAdmin2Pass, "Argon2id credential verification succeeds for seeded passwords");
+    // Verify password verification
+    const validSuperPass = await bcrypt.compare("Admin@Patel2026", superAdmin.passwordHash);
+    const validAdmin2Pass = await bcrypt.compare("Admin2@Patel2026", admin2.passwordHash);
+    assert(validSuperPass && validAdmin2Pass, "Cryptographic credential verification succeeds for seeded passwords");
 
     console.log("\n--- 2. STRICT BACKEND PERMISSION ENFORCEMENT ---");
     // View-Only Admins cannot modify data; simulate authorization logic
