@@ -7,9 +7,9 @@ async function main() {
   console.log("Seeding Patel Samaj Private Admin Booking Database...");
 
   // 1. Create / Upsert the 3 Authorized Admin Accounts with bcrypt Hashing
-  const superAdminPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || "Admin@Patel2026";
-  const admin2Password = process.env.INITIAL_ADMIN2_PASSWORD || "Admin2@Patel2026";
-  const admin3Password = process.env.INITIAL_ADMIN3_PASSWORD || "Admin3@Patel2026";
+  const superAdminPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || "JNPatel@Patel2026";
+  const admin2Password = process.env.INITIAL_ADMIN2_PASSWORD || "Hareshbhai@Patel2026";
+  const admin3Password = process.env.INITIAL_ADMIN3_PASSWORD || "Shaileshbhai@Patel2026";
 
   const superAdminHash = await bcrypt.hash(superAdminPassword, 10);
   const admin2Hash = await bcrypt.hash(admin2Password, 10);
@@ -18,7 +18,8 @@ async function main() {
   const adminUsers = [
     {
       name: "J N Patel",
-      email: "superadmin@patelsamaj.com",
+      email: "jnpatel@patelsamaj.com",
+      legacyEmails: ["superadmin@patelsamaj.com"],
       passwordHash: superAdminHash,
       role: "SUPER_ADMIN",
       canExport: true,
@@ -27,7 +28,8 @@ async function main() {
     },
     {
       name: "Hareshbhai Ramani",
-      email: "admin2@patelsamaj.com",
+      email: "hareshbhai@patelsamaj.com",
+      legacyEmails: ["admin2@patelsamaj.com"],
       passwordHash: admin2Hash,
       role: "VIEW_ONLY_ADMIN",
       canExport: false,
@@ -36,7 +38,8 @@ async function main() {
     },
     {
       name: "Shaileshbhai Kathriya",
-      email: "admin3@patelsamaj.com",
+      email: "shaileshbhai@patelsamaj.com",
+      legacyEmails: ["admin3@patelsamaj.com"],
       passwordHash: admin3Hash,
       role: "VIEW_ONLY_ADMIN",
       canExport: false,
@@ -46,6 +49,18 @@ async function main() {
   ];
 
   for (const u of adminUsers) {
+    // Migrate legacy email if exists
+    for (const legEmail of u.legacyEmails) {
+      const legacyUser = await prisma.user.findUnique({ where: { email: legEmail } });
+      const targetUser = await prisma.user.findUnique({ where: { email: u.email } });
+      if (legacyUser && !targetUser) {
+        await prisma.user.update({
+          where: { id: legacyUser.id },
+          data: { email: u.email },
+        });
+      }
+    }
+
     await prisma.user.upsert({
       where: { email: u.email },
       update: {
@@ -55,14 +70,31 @@ async function main() {
         passwordHash: u.passwordHash,
         isActive: u.isActive,
       },
-      create: u,
+      create: {
+        name: u.name,
+        email: u.email,
+        passwordHash: u.passwordHash,
+        role: u.role,
+        canExport: u.canExport,
+        phone: u.phone,
+        isActive: u.isActive,
+      },
     });
   }
 
-  // Update any existing users (manager/staff) to VIEW_ONLY_ADMIN if they exist
-  await prisma.user.updateMany({
-    where: { email: { in: ["manager@patelsamaj.com", "staff@patelsamaj.com"] } },
-    data: { role: "VIEW_ONLY_ADMIN", canExport: false },
+  // Remove any legacy admin emails
+  await prisma.user.deleteMany({
+    where: {
+      email: {
+        in: [
+          "superadmin@patelsamaj.com",
+          "admin2@patelsamaj.com",
+          "admin3@patelsamaj.com",
+          "manager@patelsamaj.com",
+          "staff@patelsamaj.com",
+        ],
+      },
+    },
   });
 
   console.log("✓ Admin accounts initialized with Argon2id hashing.");

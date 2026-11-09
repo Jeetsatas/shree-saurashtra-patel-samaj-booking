@@ -36,9 +36,9 @@ async function runTests() {
       `Found ${adminUsers.length} accounts`
     );
 
-    const superAdmin = adminUsers.find((u) => u.email === "superadmin@patelsamaj.com");
-    const admin2 = adminUsers.find((u) => u.email === "admin2@patelsamaj.com");
-    const admin3 = adminUsers.find((u) => u.email === "admin3@patelsamaj.com");
+    const superAdmin = adminUsers.find((u) => u.email === "jnpatel@patelsamaj.com");
+    const admin2 = adminUsers.find((u) => u.email === "hareshbhai@patelsamaj.com");
+    const admin3 = adminUsers.find((u) => u.email === "shaileshbhai@patelsamaj.com");
 
     assert(superAdmin && superAdmin.role === "SUPER_ADMIN", "Super Admin account exists with SUPER_ADMIN role");
     assert(admin2 && admin2.role === "VIEW_ONLY_ADMIN", "Admin 2 exists with VIEW_ONLY_ADMIN role");

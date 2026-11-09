@@ -135,7 +135,7 @@ export async function PUT(req: NextRequest) {
 
     const dataToUpdate: any = {};
     if (name) dataToUpdate.name = name;
-    if (role && targetUser.email !== "superadmin@patelsamaj.com") {
+    if (role && targetUser.email !== "jnpatel@patelsamaj.com" && targetUser.email !== "superadmin@patelsamaj.com") {
       dataToUpdate.role = role === "SUPER_ADMIN" ? "SUPER_ADMIN" : "VIEW_ONLY_ADMIN";
     }
     if (canExport !== undefined) dataToUpdate.canExport = Boolean(canExport);

@@ -54,9 +54,9 @@ function LoginForm() {
 
   const getAccountTitle = (emailVal: string) => {
     const lower = emailVal.toLowerCase().trim();
-    if (lower.includes("superadmin")) return "J N Patel (Super Admin)";
-    if (lower.includes("admin2")) return "Hareshbhai Ramani (Admin 2)";
-    if (lower.includes("admin3")) return "Shaileshbhai Kathriya (Admin 3)";
+    if (lower.includes("jnpatel") || lower.includes("superadmin")) return "J N Patel (Super Admin)";
+    if (lower.includes("haresh") || lower.includes("admin2")) return "Hareshbhai Ramani (Admin 2)";
+    if (lower.includes("shailesh") || lower.includes("admin3")) return "Shaileshbhai Kathriya (Admin 3)";
     return null;
   };
 
@@ -124,7 +124,7 @@ function LoginForm() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@patelsamaj.com"
+                  placeholder="jnpatel@patelsamaj.com"
                   className="block w-full pl-9 pr-3 py-2.5 text-xs bg-slate-950/90 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium min-h-[44px]"
                 />
               </div>
@@ -184,7 +184,7 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => {
-                  setEmail("superadmin@patelsamaj.com");
+                  setEmail("jnpatel@patelsamaj.com");
                   setPassword("");
                 }}
                 className="py-2 px-1 rounded-xl bg-red-950/60 hover:bg-red-900/60 active:bg-red-800 text-red-200 border border-red-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[42px] flex flex-col items-center justify-center leading-tight"
@@ -195,7 +195,7 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => {
-                  setEmail("admin2@patelsamaj.com");
+                  setEmail("hareshbhai@patelsamaj.com");
                   setPassword("");
                 }}
                 className="py-2 px-1 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 active:bg-amber-800 text-amber-200 border border-amber-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[42px] flex flex-col items-center justify-center leading-tight"
@@ -206,7 +206,7 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => {
-                  setEmail("admin3@patelsamaj.com");
+                  setEmail("shaileshbhai@patelsamaj.com");
                   setPassword("");
                 }}
                 className="py-2 px-1 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 active:bg-blue-800 text-blue-200 border border-blue-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[42px] flex flex-col items-center justify-center leading-tight"
