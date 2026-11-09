@@ -147,10 +147,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Fetch Target Facility to determine Physical Resource Group
-    const targetFacility = await prisma.facility.findUnique({
-      where: { id: facilityId },
-    });
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const requestedSlot = (slot || "FULL_DAY").toUpperCase();
+
+    // 1. Fetch Target Facility, optional Discount Rule, and latest booking in parallel
+    const [targetFacility, discountRule, latestBooking] = await Promise.all([
+      prisma.facility.findUnique({
+        where: { id: facilityId },
+      }),
+      discountCode && discountCode !== "NONE" && !discountOverridden
+        ? prisma.discountRule.findUnique({ where: { code: discountCode } })
+        : Promise.resolve(null),
+      prisma.booking.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { bookingNumber: true },
+      }),
+    ]);
 
     if (!targetFacility) {
       return NextResponse.json({ error: "Facility not found" }, { status: 404 });
@@ -158,56 +171,39 @@ export async function POST(req: NextRequest) {
 
     const resourceGroup = targetFacility.resourceGroup || targetFacility.code;
 
-    // 2. Find all facility IDs that share this physical resource
-    const sharedFacilities = await prisma.facility.findMany({
-      where: {
-        OR: [{ id: targetFacility.id }, { resourceGroup: resourceGroup }],
-      },
-      select: { id: true, name: true, code: true },
-    });
-    const sharedFacilityIds = sharedFacilities.map((f) => f.id);
-
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const requestedSlot = (slot || "FULL_DAY").toUpperCase();
-
-    // 3. Robust Physical Resource Conflict & Overlap Check
+    // 2. Direct single-query conflict check matching either this facility or shared resource group
     const activeConflicts = await prisma.booking.findMany({
       where: {
-        facilityId: { in: sharedFacilityIds },
+        facility: {
+          OR: [{ id: targetFacility.id }, { resourceGroup: resourceGroup }],
+        },
         status: { in: ["CONFIRMED", "BLOCKED_BY_TRUST"] },
-        OR: [
-          {
-            startDate: { lte: end },
-            endDate: { gte: start },
-          },
-        ],
+        startDate: { lte: end },
+        endDate: { gte: start },
       },
-      include: {
+      select: {
+        id: true,
+        slot: true,
         facility: { select: { name: true, code: true, resourceGroup: true } },
       },
     });
 
     // Check if slots overlap on the same date
-    const hasOverlap = activeConflicts.some((existing) => {
-      // If dates match, test slot overlap
-      return doSlotsOverlap(existing.slot, requestedSlot);
-    });
+    const conflictingBooking = activeConflicts.find((existing) =>
+      doSlotsOverlap(existing.slot, requestedSlot)
+    );
 
-    if (hasOverlap) {
-      const conflictingBooking = activeConflicts.find((b) =>
-        doSlotsOverlap(b.slot, requestedSlot)
-      );
+    if (conflictingBooking) {
       return NextResponse.json(
         {
-          error: `Physical resource conflict: ${conflictingBooking?.facility.name || "This physical facility"} is already booked for date and slot (${conflictingBooking?.slot}).`,
+          error: `Physical resource conflict: ${conflictingBooking.facility?.name || "This physical facility"} is already booked for date and slot (${conflictingBooking.slot}).`,
           conflicts: activeConflicts,
         },
         { status: 409 }
       );
     }
 
-    // 4. Financial & Discount Validation
+    // 3. Financial & Discount Validation
     let defaultFacilityRent = targetFacility.baseRent || 0;
     if (targetFacility.code === "PLOT-OUTSIDE" || targetFacility.type === "PLOT") {
       const ev = (eventType || "").toLowerCase();
@@ -224,19 +220,13 @@ export async function POST(req: NextRequest) {
     let finalDiscountPercent = Number(discountPercent) || 0;
     let finalDiscountAmount = Number(discountAmount) || 0;
 
-    // If a discount rule code was chosen and not manually overridden, compute standard discount
-    if (discountCode && discountCode !== "NONE" && !discountOverridden) {
-      const rule = await prisma.discountRule.findUnique({
-        where: { code: discountCode },
-      });
-      if (rule && rule.isActive) {
-        finalDiscountPercent = rule.percentage;
-        finalDiscountAmount = (baseFacilityCost * rule.percentage) / 100;
-      }
+    // If discountRule was fetched and valid, compute standard discount
+    if (discountRule && discountRule.isActive) {
+      finalDiscountPercent = discountRule.percentage;
+      finalDiscountAmount = (baseFacilityCost * discountRule.percentage) / 100;
     }
 
     const finalServicesCost = Number(servicesAmount) || 0;
-    // Final total = (Facility Cost - Discount) + Addon Services Cost
     const calculatedTotal = Math.max(
       0,
       baseFacilityCost - finalDiscountAmount
@@ -245,10 +235,16 @@ export async function POST(req: NextRequest) {
     const finalTotalAmount =
       totalAmount !== undefined ? Number(totalAmount) : calculatedTotal;
 
-    // Generate unique booking number
+    // Generate unique booking number from latest sequence
     const currentYear = new Date().getFullYear();
-    const count = await prisma.booking.count();
-    const bookingNumber = `SSPS-${currentYear}-${String(count + 1).padStart(4, "0")}`;
+    let nextNum = 1;
+    if (latestBooking?.bookingNumber) {
+      const match = latestBooking.bookingNumber.match(/SSPS-\d{4}-(\d+)/);
+      if (match) {
+        nextNum = parseInt(match[1], 10) + 1;
+      }
+    }
+    const bookingNumber = `SSPS-${currentYear}-${String(nextNum).padStart(4, "0")}`;
 
     const newBooking = await prisma.booking.create({
       data: {
@@ -287,9 +283,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Record activity
-    try {
-      await prisma.activityLog.create({
+    // Record activity non-blocking so client receives response immediately
+    prisma.activityLog
+      .create({
         data: {
           userId: user.id,
           userName: user.name,
@@ -300,10 +296,8 @@ export async function POST(req: NextRequest) {
           recordId: newBooking.id,
           recordType: "BOOKING",
         },
-      });
-    } catch (logErr) {
-      console.error("Activity log error:", logErr);
-    }
+      })
+      .catch((err) => console.error("Activity log non-blocking error:", err));
 
     return NextResponse.json({ success: true, booking: newBooking });
   } catch (error: any) {

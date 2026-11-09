@@ -97,18 +97,20 @@ export default function BookingsManagementPage() {
         fetch("/api/services"),
       ]);
 
-      if (userRes.ok) {
-        const uData = await userRes.json();
+      const [uData, bookData, facData, discData, servData] = await Promise.all([
+        userRes.ok ? userRes.json() : Promise.resolve({ user: null }),
+        bookRes.ok ? bookRes.json() : Promise.resolve({ bookings: [] }),
+        facRes.ok ? facRes.json() : Promise.resolve({ facilities: [] }),
+        discRes.ok ? discRes.json() : Promise.resolve({ discounts: [] }),
+        servRes.ok ? servRes.json() : Promise.resolve({ services: [] }),
+      ]);
+
+      if (uData?.user) {
         setCurrentUser(uData.user);
       }
 
-      const bookData = await bookRes.json();
-      const facData = await facRes.json();
-      const discData = await discRes.json();
-      const servData = await servRes.json();
-
-      if (bookData.bookings) setBookings(bookData.bookings);
-      if (facData.facilities) {
+      if (bookData?.bookings) setBookings(bookData.bookings);
+      if (facData?.facilities) {
         setFacilities(facData.facilities);
         if (facData.facilities.length > 0 && !formData.facilityId) {
           const firstFac = facData.facilities[0];
@@ -121,8 +123,8 @@ export default function BookingsManagementPage() {
           }));
         }
       }
-      if (discData.discounts) setDiscounts(discData.discounts);
-      if (servData.services) setServices(servData.services);
+      if (discData?.discounts) setDiscounts(discData.discounts);
+      if (servData?.services) setServices(servData.services);
     } catch (err) {
       console.error(err);
     } finally {
@@ -325,6 +327,18 @@ export default function BookingsManagementPage() {
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to create booking");
+      }
+
+      // Optimistic update: inject new booking immediately into UI without waiting
+      if (data.booking) {
+        const fac = facilities.find((f) => f.id === data.booking.facilityId);
+        const enriched = {
+          ...data.booking,
+          facilityName: fac?.name || data.booking.facility?.name || "",
+          facilityCode: fac?.code || data.booking.facility?.code || "",
+          resourceGroup: fac?.resourceGroup || data.booking.facility?.resourceGroup || "",
+        };
+        setBookings((prev) => [enriched, ...prev]);
       }
 
       setShowCreateModal(false);

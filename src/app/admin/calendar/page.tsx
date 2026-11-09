@@ -43,13 +43,15 @@ export default function AdminCalendarPage() {
         fetch("/api/bookings"),
         fetch("/api/auth/me"),
       ]);
-      const facData = await facRes.json();
-      const bookData = await bookRes.json();
-      const userData = await userRes.json();
+      const [facData, bookData, userData] = await Promise.all([
+        facRes.ok ? facRes.json() : Promise.resolve({ facilities: [] }),
+        bookRes.ok ? bookRes.json() : Promise.resolve({ bookings: [] }),
+        userRes.ok ? userRes.json() : Promise.resolve({ user: null }),
+      ]);
 
-      if (facData.facilities) setFacilities(facData.facilities);
-      if (bookData.bookings) setBookings(bookData.bookings);
-      if (userData.user) setCurrentUser(userData.user);
+      if (facData?.facilities) setFacilities(facData.facilities);
+      if (bookData?.bookings) setBookings(bookData.bookings);
+      if (userData?.user) setCurrentUser(userData.user);
     } catch (err) {
       console.error(err);
     } finally {

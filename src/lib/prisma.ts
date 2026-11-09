@@ -2,16 +2,16 @@ import { PrismaClient } from "@prisma/client";
 import fs from "fs";
 import path from "path";
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+const globalForPrisma = global as unknown as { prisma?: PrismaClient };
 
 function getPrismaClient(): PrismaClient {
-  const dbUrl =
+  const rawDbUrl =
     process.env.DATABASE_URL ||
     process.env.POSTGRES_PRISMA_URL ||
     process.env.POSTGRES_URL ||
     "";
   const isPostgres =
-    dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://");
+    rawDbUrl.startsWith("postgres://") || rawDbUrl.startsWith("postgresql://");
 
   if (!isPostgres) {
     const isVercel =
@@ -32,22 +32,16 @@ function getPrismaClient(): PrismaClient {
           path.join(__dirname, "..", "prisma", "seed.db"),
         ];
 
-        let copied = false;
         for (const candidate of candidatePaths) {
           if (fs.existsSync(candidate)) {
             try {
               fs.copyFileSync(candidate, targetDbPath);
-              copied = true;
               console.log(`✓ Copied SQLite seed database from ${candidate} to ${targetDbPath}`);
               break;
             } catch (err) {
               console.error(`Error copying ${candidate} to ${targetDbPath}:`, err);
             }
           }
-        }
-
-        if (!copied) {
-          console.warn("⚠️ Warning: seed.db not found in candidates, fallback to direct path.");
         }
       }
     }
@@ -59,15 +53,31 @@ function getPrismaClient(): PrismaClient {
           url: sqliteUrl,
         },
       },
-      log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+      log: ["error"],
     });
   }
 
+  // Optimize PostgreSQL / Neon connection for serverless:
+  // When using connection pooler, pgbouncer=true prevents prepared statement stalls.
+  let optimizedUrl = rawDbUrl;
+  if (optimizedUrl.includes("-pooler") && !optimizedUrl.includes("pgbouncer=true")) {
+    const separator = optimizedUrl.includes("?") ? "&" : "?";
+    optimizedUrl = `${optimizedUrl}${separator}pgbouncer=true&connect_timeout=15&connection_limit=5`;
+  }
+
   return new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
+    datasources: {
+      db: {
+        url: optimizedUrl,
+      },
+    },
+    log: ["error"],
   });
 }
 
-export const prisma = globalForPrisma.prisma || getPrismaClient();
+export const prisma = globalForPrisma.prisma ?? getPrismaClient();
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// In serverless / Next.js, reuse client across warm invocations
+if (!globalForPrisma.prisma) {
+  globalForPrisma.prisma = prisma;
+}

@@ -20,14 +20,16 @@ export async function GET(req: NextRequest) {
     const facilities = await prisma.facility.findMany({
       where,
       orderBy: { order: "asc" },
-      include: {
-        _count: {
-          select: { bookings: true },
-        },
-      },
     });
 
-    return NextResponse.json({ facilities });
+    return NextResponse.json(
+      { facilities },
+      {
+        headers: {
+          "Cache-Control": "private, s-maxage=30, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Facilities GET error:", error);
     return NextResponse.json({ error: "Failed to fetch facilities" }, { status: 500 });

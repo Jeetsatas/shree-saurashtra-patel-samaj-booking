@@ -14,7 +14,14 @@ export async function GET() {
     const discounts = await prisma.discountRule.findMany({
       orderBy: { percentage: "desc" },
     });
-    return NextResponse.json({ discounts });
+    return NextResponse.json(
+      { discounts },
+      {
+        headers: {
+          "Cache-Control": "private, s-maxage=30, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Discounts GET error:", error);
     return NextResponse.json({ error: "Failed to fetch discounts" }, { status: 500 });

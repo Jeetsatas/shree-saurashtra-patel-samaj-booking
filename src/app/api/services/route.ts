@@ -14,7 +14,14 @@ export async function GET() {
     const services = await prisma.addonService.findMany({
       orderBy: { createdAt: "asc" },
     });
-    return NextResponse.json({ services });
+    return NextResponse.json(
+      { services },
+      {
+        headers: {
+          "Cache-Control": "private, s-maxage=30, stale-while-revalidate=120",
+        },
+      }
+    );
   } catch (error: any) {
     console.error("Services GET error:", error);
     return NextResponse.json({ error: "Failed to fetch services" }, { status: 500 });

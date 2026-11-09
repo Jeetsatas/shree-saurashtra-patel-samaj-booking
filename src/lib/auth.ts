@@ -61,20 +61,12 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const session = await verifySessionToken(token);
   if (!session) return null;
 
-  // Verify user still active in DB strictly by session identity
-  const user = await prisma.user.findUnique({
-    where: { email: session.email },
-    select: { id: true, name: true, email: true, role: true, canExport: true, isActive: true },
-  });
-
-  if (!user || !user.isActive) return null;
-
   return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    canExport: user.canExport,
+    id: session.id,
+    name: session.name,
+    email: session.email,
+    role: session.role,
+    canExport: Boolean(session.canExport),
   };
 }
 
