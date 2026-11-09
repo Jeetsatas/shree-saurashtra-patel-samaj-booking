@@ -18,37 +18,7 @@ import {
   History,
   Lock,
   User,
-  Eye,
-  EyeOff,
-  AlertCircle,
 } from "lucide-react";
-
-export const ADMIN_ACCOUNTS = [
-  {
-    name: "Trustee Office (Super Admin)",
-    shortName: "Super Admin",
-    email: "superadmin@patelsamaj.com",
-    role: "SUPER_ADMIN",
-    badgeColor: "bg-red-800 text-white",
-    desc: "Full System Control & Settings",
-  },
-  {
-    name: "Admin 2 (View Only)",
-    shortName: "Admin 2",
-    email: "admin2@patelsamaj.com",
-    role: "VIEW_ONLY_ADMIN",
-    badgeColor: "bg-amber-600 text-white",
-    desc: "Interactive Calendar & Booking Slips",
-  },
-  {
-    name: "Admin 3 (View Only)",
-    shortName: "Admin 3",
-    email: "admin3@patelsamaj.com",
-    role: "VIEW_ONLY_ADMIN",
-    badgeColor: "bg-blue-600 text-white",
-    desc: "Interactive Calendar & Booking Slips",
-  },
-];
 
 interface AdminUser {
   id: string;
@@ -106,20 +76,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     checkAuth();
   }, [pathname, isLoginPage, router]);
-
-  const handleAdminAccountClick = async (target: typeof ADMIN_ACCOUNTS[0]) => {
-    // If user is already on this account, do nothing
-    if (currentUser?.email === target.email) {
-      return;
-    }
-    // Strictly log out the current session and redirect to the official login screen
-    try {
-      await fetch("/api/auth/logout", { method: "POST" });
-    } catch (e) {
-      // safe fallback
-    }
-    window.location.href = `/admin/login?email=${encodeURIComponent(target.email)}`;
-  };
 
   const handleLogout = async () => {
     try {
@@ -229,51 +185,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             })}
           </nav>
 
-          {/* User Profile & Actions (Desktop / Tablet) */}
+          {/* User Profile & Prominent Log Out Button (Desktop / Tablet) */}
           <div className="hidden md:flex items-center space-x-2.5 sm:space-x-3">
-            {/* Administrator Account Switcher (Strict Password Required) */}
-            <div className="flex items-center space-x-1 bg-slate-800/90 border border-slate-700/80 rounded-lg p-1">
-              <span className="text-[10px] text-slate-400 font-bold px-1 hidden xl:inline">
-                Admin:
+            <div className="text-right leading-tight hidden xl:block">
+              <span className="text-xs font-bold text-white block truncate max-w-[170px]">
+                {currentUser?.name || "Administrator"}
               </span>
-              {ADMIN_ACCOUNTS.map((acc) => {
-                const isCurrent = currentUser?.email === acc.email;
-                return (
-                  <button
-                    key={acc.email}
-                    type="button"
-                    onClick={() => handleAdminAccountClick(acc)}
-                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center space-x-1 ${
-                      isCurrent
-                        ? `${acc.badgeColor} shadow-xs ring-1 ring-white/30 cursor-default`
-                        : "text-slate-400 hover:text-white hover:bg-slate-700/60"
-                    }`}
-                    title={
-                      isCurrent
-                        ? `Currently active: ${acc.name}`
-                        : `Switch to ${acc.name} (Strict Login Required)`
-                    }
-                  >
-                    <span>{acc.shortName}</span>
-                    {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
-                  </button>
-                );
-              })}
+              <span className="text-[10px] font-medium text-amber-400 block">
+                {currentUser?.email}
+              </span>
             </div>
 
-            <div className="text-right">
-              <span className="text-xs font-bold text-white block leading-tight">
-                {currentUser?.name}
-              </span>
-              {currentUser && getRoleBadge(currentUser.role)}
-            </div>
+            {currentUser && getRoleBadge(currentUser.role)}
 
+            {/* Clear, Prominent Log Out Button */}
             <button
               onClick={handleLogout}
-              title="Sign Out"
-              className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition"
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs shadow-md border border-red-600/50 transition cursor-pointer"
+              title="Log out and switch administrator"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5 text-amber-300" />
+              <span>Log Out</span>
             </button>
           </div>
 
@@ -314,32 +246,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div>{currentUser && getRoleBadge(currentUser.role)}</div>
             </div>
 
-            {/* Mobile Administrator Account Switcher */}
-            <div className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-700/50 space-y-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Switch Admin Account (Password Required):
-              </span>
-              <div className="grid grid-cols-3 gap-1.5">
-                {ADMIN_ACCOUNTS.map((acc) => {
-                  const isCurrent = currentUser?.email === acc.email;
-                  return (
-                    <button
-                      key={acc.email}
-                      type="button"
-                      onClick={() => handleAdminAccountClick(acc)}
-                      className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
-                        isCurrent
-                          ? `${acc.badgeColor} shadow-sm ring-1 ring-amber-400 font-black`
-                          : "bg-slate-800 text-slate-300 hover:text-white"
-                      }`}
-                    >
-                      {acc.shortName}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
             {/* Mobile Nav Links */}
             <div className="space-y-1 pt-1">
               {navLinks.map((link) => {
@@ -363,16 +269,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               })}
             </div>
 
-            {/* Mobile Sign Out */}
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-              <span className="text-[10px] text-slate-500">SSPS Nikol - Naroda</span>
+            {/* Mobile Prominent Log Out Button */}
+            <div className="pt-2 border-t border-slate-800 space-y-2">
               <button
                 onClick={handleLogout}
-                className="px-3 py-2 text-xs text-red-400 hover:text-red-300 font-bold flex items-center bg-red-950/40 rounded-lg border border-red-900/50"
+                className="w-full py-2.5 px-4 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white text-xs font-bold flex items-center justify-center space-x-2 shadow-md border border-red-600/50 transition min-h-[44px]"
               >
-                <LogOut className="w-3.5 h-3.5 mr-1.5" />
-                Sign Out
+                <LogOut className="w-4 h-4 text-amber-300" />
+                <span>Log Out</span>
               </button>
+              <div className="text-center text-[10px] text-slate-500">
+                Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda
+              </div>
             </div>
           </div>
         )}
