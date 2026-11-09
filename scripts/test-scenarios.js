@@ -132,7 +132,7 @@ async function runTests() {
         facilityId: plotOutside.id,
         customerName: "Patel Wedding Applicant",
         customerPhone: "+91 98250 11111",
-        eventType: "Lagna (Wedding Ceremony)",
+        eventType: "Wedding",
         startDate: testDate1,
         endDate: testDate1End,
         slot: "WHOLE_DAY",

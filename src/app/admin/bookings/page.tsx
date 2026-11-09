@@ -53,7 +53,7 @@ export default function BookingsManagementPage() {
     customerEmail: "",
     customerAddress: "",
     customerAadhar: "",
-    eventType: "Lagna (Wedding Ceremony)",
+    eventType: "Wedding",
     startDate: new Date().toISOString().split("T")[0],
     endDate: new Date().toISOString().split("T")[0],
     slot: "WHOLE_DAY",
@@ -185,7 +185,7 @@ export default function BookingsManagementPage() {
         : fac.familyRent || fac.baseRent || 0;
     const newEventType =
       purpose === "WEDDING"
-        ? "Lagna (Wedding Ceremony)"
+        ? "Wedding"
         : "Family Function / Sagai";
     setFormData((prev) => ({
       ...prev,
@@ -1331,7 +1331,7 @@ export default function BookingsManagementPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. Lagna, Sagai, Birthday"
+                    placeholder="e.g. Wedding, Sagai, Birthday"
                     value={formData.eventType}
                     onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
                     className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800"
