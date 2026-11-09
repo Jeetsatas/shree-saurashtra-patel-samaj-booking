@@ -4,9 +4,11 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "patel_samaj_nikol_naroda_secret_key_2026_trust_secure"
-);
+const jwtSecretValue = process.env.JWT_SECRET;
+if (!jwtSecretValue || new TextEncoder().encode(jwtSecretValue).length < 32) {
+  throw new Error("JWT_SECRET must be configured with at least 32 bytes of unpredictable data.");
+}
+const JWT_SECRET = new TextEncoder().encode(jwtSecretValue);
 
 export const COOKIE_NAME = "patel_samaj_admin_session";
 
