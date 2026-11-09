@@ -1,60 +1,72 @@
-# Shree Saurashtra Leuva Patel Samaj, Nikol–Naroda
-## Private Admin-Only Booking Management System
+# Shree Saurashtra Leuva Patel Samaj Booking System
 
-A private, secure, internal booking management system designed exclusively for the trust administration of **Shree Saurashtra Leuva Patel Samaj, Nikol–Naroda, Ahmedabad**.
+An internal booking management application for managing facility bookings, availability, rates, and administrative access for Shree Saurashtra Leuva Patel Samaj, Nikol–Naroda, Ahmedabad.
 
----
+## Project overview
 
-## 🏛️ Architecture & Security
+The application is built with Next.js, TypeScript, Prisma, and PostgreSQL. The repository also includes SQLite-oriented schema and database preparation scripts for local development. Review the deployment configuration and database provider before using it in a production environment.
 
-- **Private Admin System**: Strictly not a public booking website. Root visits automatically redirect to `/admin/login` or to the respective admin dashboard according to role.
-- **Three Designated Administrator Accounts**:
-  1. **Super Admin**: The sole administrator authorized to create, edit, confirm, cancel bookings, adjust tariffs, configure discounts, and manage administrative accounts.
-  2. **Admin 2 (View Only)**: Dedicated interactive calendar and bookings inspection view. Ultra-simplified interface. Direct backend mutation enforcement (HTTP 403 Forbidden on write attempts).
-  3. **Admin 3 (View Only)**: Identical view-only access as Admin 2.
-- **Argon2id Cryptographic Security**: State-of-the-art password hashing with HMAC-SHA256 JWT sessions and safe per-tab administration testing.
-- **Vercel & PostgreSQL Ready**: Seamless dual-engine database layer — zero-config SQLite for local development and high-performance serverless PostgreSQL (Neon / Supabase / Vercel Postgres) for cloud production.
+## Features
 
----
+- Admin sign-in and role-based access
+- Facility and availability management
+- Booking, enquiry, and discount workflows
+- Administrative user and settings screens
+- Booking export and activity routes
 
-## 🔐 Administrator Credentials
+## Requirements
 
-| Account | Role | Email | Password | Access Rights |
-|---|---|---|---|---|
-| **J N Patel** (Super Admin) | `SUPER_ADMIN` | `jnpatel@patelsamaj.com` | `JNPatel@Patel2026` | Full system control: bookings, facility tariffs, discounts, settings, accounts |
-| **Hareshbhai Ramani** (Admin 2) | `VIEW_ONLY_ADMIN` | `hareshbhai@patelsamaj.com` | `Hareshbhai@Patel2026` | View-only: Interactive Calendar & Booking Slips |
-| **Shaileshbhai Kathriya** (Admin 3) | `VIEW_ONLY_ADMIN` | `shaileshbhai@patelsamaj.com` | `Shaileshbhai@Patel2026` | View-only: Interactive Calendar & Booking Slips |
+- Node.js compatible with the versions supported by the project dependencies
+- npm
+- A PostgreSQL database for the default Prisma schema
 
----
+## Local setup
 
-## 🏟️ Facility Inventory
+1. Clone this repository and install dependencies:
 
-1. **Outside Party Plot (Capacity 1500)**: Shared availability calendar with dual purposes:
-   - Wedding Functions
-   - Family Functions
-2. **Multipurpose Hall (Capacity 600)**: Slot options with 1-hour sanitation gap:
-   - Whole Day (6:00 AM – 12:00 Midnight)
-   - Morning Slot (6:00 AM – 2:00 PM)
-   - Afternoon Slot (3:00 PM – 12:00 Midnight)
-3. **Ground Floor Hall (Capacity 500)**
-4. **Dormitory — 28 Beds**
-5. **Dormitory — 42 Beds**
-6. **AC Room — 8 Beds (Unit 1)**
-7. **AC Room — 6 Beds**
-8. **AC Room — 8 Beds (Unit 2)** *(Independent physical room from Unit 1)*
+   ```sh
+   npm install
+   ```
 
-### Optional Add-on Services:
-- **Cleaning Service**
-- **Waste Food Collection Service**
+2. Copy `.env.example` to `.env` and set the required values for your local database and authentication configuration. Use unique, private values; never commit `.env`.
 
----
+3. Prepare and update the database schema using the project scripts appropriate to your chosen database provider. Review the Prisma schemas and scripts before running them against production data.
 
-## 🚀 Deployment to Vercel via GitHub
+4. Start the development server:
 
-Every push to the `main` branch automatically triggers an optimized Vercel production build via the configured `npm run vercel-build` pipeline.
+   ```sh
+   npm run dev
+   ```
 
-```bash
-git add .
-git commit -m "feat: updates"
-git push origin main
-```
+5. Open `http://localhost:3000`.
+
+## Initial administrator setup
+
+Do not use credentials from documentation, source control, or sample data. Provision the first administrator through a trusted, private process, set a unique password, and verify that the account is stored using the application's password hashing flow. The production build does not seed administrator accounts. Run the seed script only as a deliberate, private one-time setup step, then remove bootstrap password values from the deployment environment. The seed script updates account hashes when run, so do not run it as part of routine deployments.
+
+## Environment configuration
+
+The application uses a database connection and an authentication signing secret. Refer to `.env.example` and the application configuration for the exact variable names. Supply values through your local environment or deployment platform's secret manager. Do not paste real credentials into README files, issue trackers, screenshots, or committed `.env` files.
+
+## Security notes
+
+- Treat any credentials previously published in this repository as compromised and rotate them immediately, including reused passwords.
+- Review administrator accounts, revoke active sessions where possible, and check relevant access logs.
+- Enforce authorization on server-side API routes; a hidden or disabled UI control is not an access control.
+- Review seed scripts, deployment settings, database access, and backup handling before production use.
+- Removing a secret from the latest README does not erase it from earlier Git commits or forks.
+
+## Deployment
+
+The repository includes Vercel and container-related configuration. Review the build and database scripts before deployment, especially the schema push operation. Bootstrap administrator creation is a separate one-time step. Configure production environment variables in the hosting provider and use a managed database backup and migration plan.
+
+## Repository structure
+
+- `src/app/` — Next.js pages and API routes
+- `src/lib/` — authentication and database helpers
+- `prisma/` — database schemas and seed script
+- `scripts/` — database preparation and maintenance utilities
+
+## License
+
+No license is currently documented. Contact the repository owner before reusing this project.
