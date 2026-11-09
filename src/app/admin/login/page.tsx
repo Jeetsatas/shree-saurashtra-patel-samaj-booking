@@ -28,10 +28,6 @@ export default function AdminLoginPage() {
         throw new Error(data.error || "Login failed");
       }
 
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("tab_admin_email", email.trim().toLowerCase());
-      }
-
       if (data.user?.role === "VIEW_ONLY_ADMIN") {
         router.push("/admin/calendar");
       } else {
@@ -133,17 +129,17 @@ export default function AdminLoginPage() {
             </button>
           </form>
 
-          {/* Quick Credential Selectors for Multi-Admin Testing */}
+          {/* Quick Account Email Selectors */}
           <div className="mt-4 sm:mt-5 pt-3.5 sm:pt-4 border-t border-slate-800 space-y-2">
             <span className="text-[10px] sm:text-[11px] text-slate-400 font-semibold block text-center">
-              Quick Test Administrator Select:
+              Select Administrator Account (Password Required):
             </span>
             <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setEmail("superadmin@patelsamaj.com");
-                  setPassword("Admin@Patel2026");
+                  setPassword("");
                 }}
                 className="py-2 px-1 rounded-xl bg-red-950/60 hover:bg-red-900/60 active:bg-red-800 text-red-200 border border-red-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[38px] flex items-center justify-center"
               >
@@ -153,7 +149,7 @@ export default function AdminLoginPage() {
                 type="button"
                 onClick={() => {
                   setEmail("admin2@patelsamaj.com");
-                  setPassword("Admin2@Patel2026");
+                  setPassword("");
                 }}
                 className="py-2 px-1 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 active:bg-amber-800 text-amber-200 border border-amber-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[38px] flex items-center justify-center"
               >
@@ -163,7 +159,7 @@ export default function AdminLoginPage() {
                 type="button"
                 onClick={() => {
                   setEmail("admin3@patelsamaj.com");
-                  setPassword("Admin3@Patel2026");
+                  setPassword("");
                 }}
                 className="py-2 px-1 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 active:bg-blue-800 text-blue-200 border border-blue-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[38px] flex items-center justify-center"
               >

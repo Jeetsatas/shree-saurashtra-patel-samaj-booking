@@ -1,6 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { prisma } from "./prisma";
 
@@ -61,26 +61,9 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const session = await verifySessionToken(token);
   if (!session) return null;
 
-  // Multi-tab simultaneous support: check if tab passed specific admin identity
-  let targetEmail = session.email;
-  try {
-    const reqHeaders = headers();
-    const tabAdminEmail = reqHeaders.get("x-admin-email");
-    if (
-      tabAdminEmail &&
-      ["superadmin@patelsamaj.com", "admin2@patelsamaj.com", "admin3@patelsamaj.com"].includes(
-        tabAdminEmail.toLowerCase().trim()
-      )
-    ) {
-      targetEmail = tabAdminEmail.toLowerCase().trim();
-    }
-  } catch (headerErr) {
-    // Fall back to session cookie email if headers() not accessible
-  }
-
-  // Verify user still active in DB
+  // Verify user still active in DB strictly by session identity
   const user = await prisma.user.findUnique({
-    where: { email: targetEmail },
+    where: { email: session.email },
     select: { id: true, name: true, email: true, role: true, canExport: true, isActive: true },
   });
 

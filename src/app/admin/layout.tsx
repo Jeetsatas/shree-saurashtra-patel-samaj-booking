@@ -18,30 +18,37 @@ import {
   History,
   Lock,
   User,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from "lucide-react";
 
-// Client-side fetch interceptor for tab-isolated multi-admin testing
-if (typeof window !== "undefined" && !(window as any).__tabFetchPatched) {
-  (window as any).__tabFetchPatched = true;
-  const originalFetch = window.fetch.bind(window);
-  window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
-    try {
-      const tabEmail = sessionStorage.getItem("tab_admin_email");
-      // Only attach to internal API requests; never touch Next.js static asset / chunk loading
-      if (tabEmail && typeof input === "string" && input.startsWith("/api/")) {
-        init = init || {};
-        const headers = new Headers(init.headers || {});
-        if (!headers.has("x-admin-email")) {
-          headers.set("x-admin-email", tabEmail);
-        }
-        init.headers = headers;
-      }
-    } catch (e) {
-      // safe fallback
-    }
-    return originalFetch(input, init);
-  };
-}
+export const ADMIN_ACCOUNTS = [
+  {
+    name: "Trustee Office (Super Admin)",
+    shortName: "Super Admin",
+    email: "superadmin@patelsamaj.com",
+    role: "SUPER_ADMIN",
+    badgeColor: "bg-red-800 text-white",
+    desc: "Full System Control & Settings",
+  },
+  {
+    name: "Admin 2 (View Only)",
+    shortName: "Admin 2",
+    email: "admin2@patelsamaj.com",
+    role: "VIEW_ONLY_ADMIN",
+    badgeColor: "bg-amber-600 text-white",
+    desc: "Interactive Calendar & Booking Slips",
+  },
+  {
+    name: "Admin 3 (View Only)",
+    shortName: "Admin 3",
+    email: "admin3@patelsamaj.com",
+    role: "VIEW_ONLY_ADMIN",
+    badgeColor: "bg-blue-600 text-white",
+    desc: "Interactive Calendar & Booking Slips",
+  },
+];
 
 interface AdminUser {
   id: string;
@@ -57,6 +64,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Strict Account Switch Login Modal
+  const [switchTarget, setSwitchTarget] = useState<typeof ADMIN_ACCOUNTS[0] | null>(null);
+  const [switchPassword, setSwitchPassword] = useState("");
+  const [showSwitchPassword, setShowSwitchPassword] = useState(false);
+  const [switchError, setSwitchError] = useState("");
+  const [switchLoading, setSwitchLoading] = useState(false);
 
   const isLoginPage = pathname === "/admin/login";
 
@@ -79,9 +93,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           return;
         }
         setCurrentUser(data.user);
-        if (typeof window !== "undefined" && !sessionStorage.getItem("tab_admin_email")) {
-          sessionStorage.setItem("tab_admin_email", data.user.email);
-        }
 
         // View-only admins can only access Calendar and Bookings (Calendar is default)
         const isUserSuper = data.user.role === "SUPER_ADMIN";
@@ -103,18 +114,66 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAuth();
   }, [pathname, isLoginPage, router]);
 
-  const handleSwitchTabAdmin = (email: string) => {
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("tab_admin_email", email);
-      window.location.reload();
+  const handleAdminAccountClick = (target: typeof ADMIN_ACCOUNTS[0]) => {
+    // If user is already on this account, do nothing
+    if (currentUser?.email === target.email) {
+      return;
+    }
+    setSwitchTarget(target);
+    setSwitchPassword("");
+    setSwitchError("");
+    setShowSwitchPassword(false);
+    if (mobileMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+  };
+
+  const handleSwitchLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!switchTarget) return;
+
+    if (!switchPassword) {
+      setSwitchError("Password is required to authenticate.");
+      return;
+    }
+
+    setSwitchLoading(true);
+    setSwitchError("");
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: switchTarget.email,
+          password: switchPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Invalid password for this administrator account.");
+      }
+
+      const targetRole = data.user?.role;
+      setSwitchTarget(null);
+      setSwitchPassword("");
+
+      // Redirect cleanly according to authorized role
+      if (targetRole === "SUPER_ADMIN") {
+        window.location.href = "/admin";
+      } else {
+        window.location.href = "/admin/calendar";
+      }
+    } catch (err: any) {
+      setSwitchError(err.message || "Invalid password. Access denied.");
+    } finally {
+      setSwitchLoading(false);
     }
   };
 
   const handleLogout = async () => {
     try {
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("tab_admin_email");
-      }
       await fetch("/api/auth/logout", { method: "POST" });
       router.push("/admin/login");
       router.refresh();
@@ -223,44 +282,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           {/* User Profile & Actions (Desktop / Tablet) */}
           <div className="hidden md:flex items-center space-x-2.5 sm:space-x-3">
-            {/* Tab-Isolated Admin Switcher */}
+            {/* Administrator Account Switcher (Strict Password Required) */}
             <div className="flex items-center space-x-1 bg-slate-800/90 border border-slate-700/80 rounded-lg p-1">
               <span className="text-[10px] text-slate-400 font-bold px-1 hidden xl:inline">
-                This Tab:
+                Admin:
               </span>
-              <button
-                onClick={() => handleSwitchTabAdmin("superadmin@patelsamaj.com")}
-                className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
-                  currentUser?.email === "superadmin@patelsamaj.com"
-                    ? "bg-red-800 text-white shadow-xs"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700/60"
-                }`}
-                title="Switch this tab to Super Admin (Full Access)"
-              >
-                Super Admin
-              </button>
-              <button
-                onClick={() => handleSwitchTabAdmin("admin2@patelsamaj.com")}
-                className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
-                  currentUser?.email === "admin2@patelsamaj.com"
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700/60"
-                }`}
-                title="Switch this tab to Admin 2 (View-Only)"
-              >
-                Admin 2
-              </button>
-              <button
-                onClick={() => handleSwitchTabAdmin("admin3@patelsamaj.com")}
-                className={`px-2 py-0.5 rounded text-[11px] font-bold transition ${
-                  currentUser?.email === "admin3@patelsamaj.com"
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "text-slate-400 hover:text-white hover:bg-slate-700/60"
-                }`}
-                title="Switch this tab to Admin 3 (View-Only)"
-              >
-                Admin 3
-              </button>
+              {ADMIN_ACCOUNTS.map((acc) => {
+                const isCurrent = currentUser?.email === acc.email;
+                return (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    onClick={() => handleAdminAccountClick(acc)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold transition flex items-center space-x-1 ${
+                      isCurrent
+                        ? `${acc.badgeColor} shadow-xs ring-1 ring-white/30 cursor-default`
+                        : "text-slate-400 hover:text-white hover:bg-slate-700/60"
+                    }`}
+                    title={
+                      isCurrent
+                        ? `Currently active: ${acc.name}`
+                        : `Switch to ${acc.name} (Strict Login Required)`
+                    }
+                  >
+                    <span>{acc.shortName}</span>
+                    {isCurrent && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="text-right">
@@ -316,42 +365,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div>{currentUser && getRoleBadge(currentUser.role)}</div>
             </div>
 
-            {/* Mobile Tab Admin Switcher: Test as Super Admin or View-Only directly on Phone/Tablet */}
+            {/* Mobile Administrator Account Switcher */}
             <div className="p-2.5 bg-slate-800/40 rounded-xl border border-slate-700/50 space-y-1.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Switch Admin View in this Phone:
+                Switch Admin Account (Password Required):
               </span>
               <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  onClick={() => handleSwitchTabAdmin("superadmin@patelsamaj.com")}
-                  className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
-                    currentUser?.email === "superadmin@patelsamaj.com"
-                      ? "bg-red-800 text-white shadow-sm ring-1 ring-amber-400"
-                      : "bg-slate-800 text-slate-300 hover:text-white"
-                  }`}
-                >
-                  Super Admin
-                </button>
-                <button
-                  onClick={() => handleSwitchTabAdmin("admin2@patelsamaj.com")}
-                  className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
-                    currentUser?.email === "admin2@patelsamaj.com"
-                      ? "bg-amber-600 text-white shadow-sm ring-1 ring-amber-300"
-                      : "bg-slate-800 text-slate-300 hover:text-white"
-                  }`}
-                >
-                  Admin 2
-                </button>
-                <button
-                  onClick={() => handleSwitchTabAdmin("admin3@patelsamaj.com")}
-                  className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
-                    currentUser?.email === "admin3@patelsamaj.com"
-                      ? "bg-blue-600 text-white shadow-sm ring-1 ring-blue-300"
-                      : "bg-slate-800 text-slate-300 hover:text-white"
-                  }`}
-                >
-                  Admin 3
-                </button>
+                {ADMIN_ACCOUNTS.map((acc) => {
+                  const isCurrent = currentUser?.email === acc.email;
+                  return (
+                    <button
+                      key={acc.email}
+                      type="button"
+                      onClick={() => handleAdminAccountClick(acc)}
+                      className={`py-2 px-1 rounded-lg text-xs font-bold transition text-center ${
+                        isCurrent
+                          ? `${acc.badgeColor} shadow-sm ring-1 ring-amber-400 font-black`
+                          : "bg-slate-800 text-slate-300 hover:text-white"
+                      }`}
+                    >
+                      {acc.shortName}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -482,6 +518,116 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </>
         )}
       </nav>
+
+      {/* Strict Administrator Authentication Modal */}
+      {switchTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden text-white">
+            {/* Modal Header */}
+            <div className="bg-slate-950/90 px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Administrator Login Required</h3>
+                  <p className="text-[11px] text-slate-400">Strict password verification required</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSwitchTarget(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSwitchLogin} className="p-5 space-y-4">
+              {/* Target Account Info */}
+              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
+                    Target Administrator
+                  </span>
+                  <div className="text-xs font-bold text-white mt-0.5">{switchTarget.name}</div>
+                  <div className="text-[11px] text-amber-400/90 font-mono mt-0.5">{switchTarget.email}</div>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                  {switchTarget.role === "SUPER_ADMIN" ? "Super Admin" : "View Only"}
+                </span>
+              </div>
+
+              {switchError && (
+                <div className="bg-red-950/80 border border-red-700/60 text-red-200 px-3.5 py-2.5 rounded-xl text-xs flex items-start space-x-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                  <span>{switchError}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Enter Password for {switchTarget.shortName}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showSwitchPassword ? "text" : "password"}
+                    required
+                    autoFocus
+                    value={switchPassword}
+                    onChange={(e) => setSwitchPassword(e.target.value)}
+                    placeholder="Enter administrator password..."
+                    className="w-full bg-slate-950/90 border border-slate-700 rounded-xl px-3 py-2.5 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSwitchPassword(!showSwitchPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                    tabIndex={-1}
+                  >
+                    {showSwitchPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-400 bg-amber-500/5 border border-amber-500/20 rounded-xl p-2.5">
+                <span className="font-semibold text-amber-300">Strict Authentication: </span>
+                Switching accounts strictly requires entering the designated administrator password. Unauthorized access is blocked.
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center space-x-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSwitchTarget(null)}
+                  disabled={switchLoading}
+                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-700 hover:bg-slate-800 text-xs font-bold text-slate-300 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={switchLoading}
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md transition disabled:opacity-50 flex items-center justify-center space-x-1.5"
+                >
+                  {switchLoading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Verifying...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Log In & Switch</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
