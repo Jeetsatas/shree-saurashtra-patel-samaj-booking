@@ -17,7 +17,7 @@ async function main() {
 
   const adminUsers = [
     {
-      name: "Trustee Office (Super Admin)",
+      name: "J N Patel",
       email: "superadmin@patelsamaj.com",
       passwordHash: superAdminHash,
       role: "SUPER_ADMIN",
@@ -26,7 +26,7 @@ async function main() {
       isActive: true,
     },
     {
-      name: "Admin 2 (View Only)",
+      name: "Hareshbhai Ramani",
       email: "admin2@patelsamaj.com",
       passwordHash: admin2Hash,
       role: "VIEW_ONLY_ADMIN",
@@ -35,7 +35,7 @@ async function main() {
       isActive: true,
     },
     {
-      name: "Admin 3 (View Only)",
+      name: "Shaileshbhai Kathriya",
       email: "admin3@patelsamaj.com",
       passwordHash: admin3Hash,
       role: "VIEW_ONLY_ADMIN",

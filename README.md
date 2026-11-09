@@ -21,9 +21,9 @@ A private, secure, internal booking management system designed exclusively for t
 
 | Account | Role | Email | Password | Access Rights |
 |---|---|---|---|---|
-| **Super Admin** | `SUPER_ADMIN` | `superadmin@patelsamaj.com` | `Admin@Patel2026` | Full system control: bookings, facility tariffs, discounts, settings, accounts |
-| **Admin 2** | `VIEW_ONLY_ADMIN` | `admin2@patelsamaj.com` | `Admin2@Patel2026` | View-only: Interactive Calendar & Booking Slips |
-| **Admin 3** | `VIEW_ONLY_ADMIN` | `admin3@patelsamaj.com` | `Admin3@Patel2026` | View-only: Interactive Calendar & Booking Slips |
+| **J N Patel** (Super Admin) | `SUPER_ADMIN` | `superadmin@patelsamaj.com` | `Admin@Patel2026` | Full system control: bookings, facility tariffs, discounts, settings, accounts |
+| **Hareshbhai Ramani** (Admin 2) | `VIEW_ONLY_ADMIN` | `admin2@patelsamaj.com` | `Admin2@Patel2026` | View-only: Interactive Calendar & Booking Slips |
+| **Shaileshbhai Kathriya** (Admin 3) | `VIEW_ONLY_ADMIN` | `admin3@patelsamaj.com` | `Admin3@Patel2026` | View-only: Interactive Calendar & Booking Slips |
 
 ---
 

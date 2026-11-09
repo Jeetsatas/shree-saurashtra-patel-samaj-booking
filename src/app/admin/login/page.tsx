@@ -54,9 +54,9 @@ function LoginForm() {
 
   const getAccountTitle = (emailVal: string) => {
     const lower = emailVal.toLowerCase().trim();
-    if (lower.includes("superadmin")) return "Trustee Office (Super Admin)";
-    if (lower.includes("admin2")) return "Admin 2 (View Only)";
-    if (lower.includes("admin3")) return "Admin 3 (View Only)";
+    if (lower.includes("superadmin")) return "J N Patel (Super Admin)";
+    if (lower.includes("admin2")) return "Hareshbhai Ramani (Admin 2)";
+    if (lower.includes("admin3")) return "Shaileshbhai Kathriya (Admin 3)";
     return null;
   };
 
@@ -187,9 +187,10 @@ function LoginForm() {
                   setEmail("superadmin@patelsamaj.com");
                   setPassword("");
                 }}
-                className="py-2 px-1 rounded-xl bg-red-950/60 hover:bg-red-900/60 active:bg-red-800 text-red-200 border border-red-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[38px] flex items-center justify-center"
+                className="py-2 px-1 rounded-xl bg-red-950/60 hover:bg-red-900/60 active:bg-red-800 text-red-200 border border-red-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[42px] flex flex-col items-center justify-center leading-tight"
               >
-                Super Admin
+                <span>J N Patel</span>
+                <span className="text-[9px] text-red-300/80 font-normal mt-0.5">Super Admin</span>
               </button>
               <button
                 type="button"
@@ -197,9 +198,10 @@ function LoginForm() {
                   setEmail("admin2@patelsamaj.com");
                   setPassword("");
                 }}
-                className="py-2 px-1 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 active:bg-amber-800 text-amber-200 border border-amber-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[38px] flex items-center justify-center"
+                className="py-2 px-1 rounded-xl bg-amber-950/60 hover:bg-amber-900/60 active:bg-amber-800 text-amber-200 border border-amber-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[42px] flex flex-col items-center justify-center leading-tight"
               >
-                Admin 2
+                <span>Hareshbhai</span>
+                <span className="text-[9px] text-amber-300/80 font-normal mt-0.5">Ramani</span>
               </button>
               <button
                 type="button"
@@ -207,9 +209,10 @@ function LoginForm() {
                   setEmail("admin3@patelsamaj.com");
                   setPassword("");
                 }}
-                className="py-2 px-1 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 active:bg-blue-800 text-blue-200 border border-blue-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[38px] flex items-center justify-center"
+                className="py-2 px-1 rounded-xl bg-blue-950/60 hover:bg-blue-900/60 active:bg-blue-800 text-blue-200 border border-blue-800/60 text-[10px] sm:text-[11px] font-bold text-center transition min-h-[42px] flex flex-col items-center justify-center leading-tight"
               >
-                Admin 3
+                <span>Shaileshbhai</span>
+                <span className="text-[9px] text-blue-300/80 font-normal mt-0.5">Kathriya</span>
               </button>
             </div>
           </div>
@@ -217,7 +220,7 @@ function LoginForm() {
           {/* Secure Access Notice */}
           <div className="mt-6 pt-4 border-t border-slate-800 text-center">
             <p className="text-[11px] text-slate-400">
-              Only authorized Trust administrators (Super Admin, Admin 2, Admin 3) can access this system.
+              Only designated Trust trustees (J N Patel, Hareshbhai Ramani, Shaileshbhai Kathriya) can access this system.
             </p>
             <p className="text-[10px] text-slate-500 mt-1">
               All administrative access and modifications are audit-logged.
