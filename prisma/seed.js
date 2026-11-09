@@ -7,9 +7,9 @@ async function main() {
   console.log("Seeding Patel Samaj Private Admin Booking Database...");
 
   // 1. Create / Upsert the 3 Authorized Admin Accounts with bcrypt Hashing
-  const superAdminPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || "JNPatel@Patel2026";
-  const admin2Password = process.env.INITIAL_ADMIN2_PASSWORD || "Hareshbhai@Patel2026";
-  const admin3Password = process.env.INITIAL_ADMIN3_PASSWORD || "Shaileshbhai@Patel2026";
+  const superAdminPassword = process.env.INITIAL_SUPER_ADMIN_PASSWORD || "";
+  const admin2Password = process.env.INITIAL_ADMIN2_PASSWORD || "";
+  const admin3Password = process.env.INITIAL_ADMIN3_PASSWORD || "";
 
   const superAdminHash = await bcrypt.hash(superAdminPassword, 10);
   const admin2Hash = await bcrypt.hash(admin2Password, 10);
@@ -97,7 +97,7 @@ async function main() {
     },
   });
 
-  console.log("✓ Admin accounts initialized with Argon2id hashing.");
+  console.log("✓ Admin accounts initialized with bcrypt hashing.");
 
   // 2. Multipurpose Hall configurable time slots
   const multipurposeSlots = JSON.stringify([
