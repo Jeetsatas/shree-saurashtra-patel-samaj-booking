@@ -418,30 +418,35 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Booking ID is required" }, { status: 400 });
     }
 
-    const booking = await prisma.booking.findUnique({ where: { id } });
-    if (!booking) {
-      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    // Single-query delete (returns deleted record without needing a prior findUnique query)
+    let deletedBooking;
+    try {
+      deletedBooking = await prisma.booking.delete({
+        where: { id },
+        select: { id: true, bookingNumber: true, customerName: true },
+      });
+    } catch (dbErr: any) {
+      if (dbErr.code === "P2025") {
+        return NextResponse.json({ error: "Booking not found or already deleted" }, { status: 404 });
+      }
+      throw dbErr;
     }
 
-    await prisma.booking.delete({ where: { id } });
-
-    // Record activity
-    try {
-      await prisma.activityLog.create({
+    // Record activity non-blocking so the delete response is returned to client instantly
+    prisma.activityLog
+      .create({
         data: {
           userId: user.id,
           userName: user.name,
           userEmail: user.email,
           userRole: user.role,
           action: "CANCEL_BOOKING",
-          details: `Cancelled and removed booking record ${booking.bookingNumber} (${booking.customerName})`,
+          details: `Cancelled and removed booking record ${deletedBooking.bookingNumber} (${deletedBooking.customerName})`,
           recordId: id,
           recordType: "BOOKING",
         },
-      });
-    } catch (logErr) {
-      console.error("Activity log error:", logErr);
-    }
+      })
+      .catch((logErr) => console.error("Activity log non-blocking error:", logErr));
 
     return NextResponse.json({ success: true, message: "Booking removed" });
   } catch (error: any) {

@@ -380,16 +380,27 @@ export default function BookingsManagementPage() {
     }
 
     if (!confirm("Are you sure you want to cancel and delete this booking record?")) return;
+
+    // Optimistic instant removal: row disappears in 0ms without waiting for network
+    const previousBookings = [...bookings];
+    setBookings((prev) => prev.filter((b) => b.id !== id));
+    if (detailBooking?.id === id) {
+      setDetailBooking(null);
+    }
+
     try {
       const res = await fetch(`/api/bookings?id=${id}`, { method: "DELETE" });
-      if (res.ok) {
-        refreshBookings();
-      } else {
+      if (!res.ok) {
         const err = await res.json();
+        // Revert on failure
+        setBookings(previousBookings);
         alert(err.error || "Failed to delete booking");
       }
     } catch (err) {
+      // Revert on network failure
+      setBookings(previousBookings);
       console.error(err);
+      alert("Network error: Could not delete booking.");
     }
   };
 
