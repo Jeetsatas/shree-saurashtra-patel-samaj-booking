@@ -1,15 +1,26 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Lock, Mail, Building, ShieldCheck, AlertCircle } from "lucide-react";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Lock, Mail, Building, ShieldCheck, AlertCircle, Eye, EyeOff } from "lucide-react";
 
-export default function AdminLoginPage() {
+function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const searchParams = useSearchParams();
+  const emailQuery = searchParams.get("email") || "";
+
+  const [email, setEmail] = useState(emailQuery);
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (emailQuery) {
+      setEmail(emailQuery);
+      setPassword("");
+    }
+  }, [emailQuery]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +52,16 @@ export default function AdminLoginPage() {
     }
   };
 
+  const getAccountTitle = (emailVal: string) => {
+    const lower = emailVal.toLowerCase().trim();
+    if (lower.includes("superadmin")) return "Trustee Office (Super Admin)";
+    if (lower.includes("admin2")) return "Admin 2 (View Only)";
+    if (lower.includes("admin3")) return "Admin 3 (View Only)";
+    return null;
+  };
+
+  const accountTitle = getAccountTitle(email);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 flex flex-col justify-center py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
@@ -71,6 +92,15 @@ export default function AdminLoginPage() {
               Internal system restricted to designated Trust Administrators.
             </p>
           </div>
+
+          {emailQuery && (
+            <div className="mb-4 bg-amber-500/10 border border-amber-500/30 text-amber-200 px-3.5 py-2.5 rounded-xl text-xs flex items-start space-x-2">
+              <Lock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+              <span>
+                Switching to <strong>{accountTitle || emailQuery}</strong>. Please enter the administrator password.
+              </span>
+            </div>
+          )}
 
           {error && (
             <div className="mb-4 bg-red-950/80 border border-red-700/60 text-red-200 px-3.5 py-2.5 rounded-xl text-xs flex items-start space-x-2">
@@ -109,14 +139,23 @@ export default function AdminLoginPage() {
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
+                  autoFocus={Boolean(emailQuery)}
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="block w-full pl-9 pr-3 py-2.5 text-xs bg-slate-950/90 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium min-h-[44px]"
+                  placeholder="Enter administrator password..."
+                  className="block w-full pl-9 pr-10 py-2.5 text-xs bg-slate-950/90 border border-slate-700 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 font-medium min-h-[44px]"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
@@ -125,7 +164,14 @@ export default function AdminLoginPage() {
               disabled={loading}
               className="w-full flex justify-center items-center py-2.5 px-4 rounded-xl shadow-md text-xs font-bold text-slate-950 bg-amber-500 hover:bg-amber-400 active:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition disabled:opacity-50 min-h-[44px]"
             >
-              {loading ? "Authenticating..." : "Sign In to Management Console"}
+              {loading ? (
+                <div className="flex items-center space-x-2">
+                  <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
+                  <span>Authenticating...</span>
+                </div>
+              ) : (
+                "Sign In to Management Console"
+              )}
             </button>
           </form>
 
@@ -180,5 +226,19 @@ export default function AdminLoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white text-xs">
+          Loading sign-in...
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }

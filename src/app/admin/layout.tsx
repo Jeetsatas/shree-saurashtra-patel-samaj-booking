@@ -65,13 +65,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Strict Account Switch Login Modal
-  const [switchTarget, setSwitchTarget] = useState<typeof ADMIN_ACCOUNTS[0] | null>(null);
-  const [switchPassword, setSwitchPassword] = useState("");
-  const [showSwitchPassword, setShowSwitchPassword] = useState(false);
-  const [switchError, setSwitchError] = useState("");
-  const [switchLoading, setSwitchLoading] = useState(false);
-
   const isLoginPage = pathname === "/admin/login";
 
   useEffect(() => {
@@ -114,62 +107,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAuth();
   }, [pathname, isLoginPage, router]);
 
-  const handleAdminAccountClick = (target: typeof ADMIN_ACCOUNTS[0]) => {
+  const handleAdminAccountClick = async (target: typeof ADMIN_ACCOUNTS[0]) => {
     // If user is already on this account, do nothing
     if (currentUser?.email === target.email) {
       return;
     }
-    setSwitchTarget(target);
-    setSwitchPassword("");
-    setSwitchError("");
-    setShowSwitchPassword(false);
-    if (mobileMenuOpen) {
-      setMobileMenuOpen(false);
-    }
-  };
-
-  const handleSwitchLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!switchTarget) return;
-
-    if (!switchPassword) {
-      setSwitchError("Password is required to authenticate.");
-      return;
-    }
-
-    setSwitchLoading(true);
-    setSwitchError("");
-
+    // Strictly log out the current session and redirect to the official login screen
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: switchTarget.email,
-          password: switchPassword,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Invalid password for this administrator account.");
-      }
-
-      const targetRole = data.user?.role;
-      setSwitchTarget(null);
-      setSwitchPassword("");
-
-      // Redirect cleanly according to authorized role
-      if (targetRole === "SUPER_ADMIN") {
-        window.location.href = "/admin";
-      } else {
-        window.location.href = "/admin/calendar";
-      }
-    } catch (err: any) {
-      setSwitchError(err.message || "Invalid password. Access denied.");
-    } finally {
-      setSwitchLoading(false);
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch (e) {
+      // safe fallback
     }
+    window.location.href = `/admin/login?email=${encodeURIComponent(target.email)}`;
   };
 
   const handleLogout = async () => {
@@ -518,116 +467,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </>
         )}
       </nav>
-
-      {/* Strict Administrator Authentication Modal */}
-      {switchTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden text-white">
-            {/* Modal Header */}
-            <div className="bg-slate-950/90 px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-white">Administrator Login Required</h3>
-                  <p className="text-[11px] text-slate-400">Strict password verification required</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSwitchTarget(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <form onSubmit={handleSwitchLogin} className="p-5 space-y-4">
-              {/* Target Account Info */}
-              <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex items-center justify-between">
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
-                    Target Administrator
-                  </span>
-                  <div className="text-xs font-bold text-white mt-0.5">{switchTarget.name}</div>
-                  <div className="text-[11px] text-amber-400/90 font-mono mt-0.5">{switchTarget.email}</div>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                  {switchTarget.role === "SUPER_ADMIN" ? "Super Admin" : "View Only"}
-                </span>
-              </div>
-
-              {switchError && (
-                <div className="bg-red-950/80 border border-red-700/60 text-red-200 px-3.5 py-2.5 rounded-xl text-xs flex items-start space-x-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                  <span>{switchError}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                  Enter Password for {switchTarget.shortName}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showSwitchPassword ? "text" : "password"}
-                    required
-                    autoFocus
-                    value={switchPassword}
-                    onChange={(e) => setSwitchPassword(e.target.value)}
-                    placeholder="Enter administrator password..."
-                    className="w-full bg-slate-950/90 border border-slate-700 rounded-xl px-3 py-2.5 pr-10 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowSwitchPassword(!showSwitchPassword)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1"
-                    tabIndex={-1}
-                  >
-                    {showSwitchPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="text-[11px] text-slate-400 bg-amber-500/5 border border-amber-500/20 rounded-xl p-2.5">
-                <span className="font-semibold text-amber-300">Strict Authentication: </span>
-                Switching accounts strictly requires entering the designated administrator password. Unauthorized access is blocked.
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center space-x-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setSwitchTarget(null)}
-                  disabled={switchLoading}
-                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-700 hover:bg-slate-800 text-xs font-bold text-slate-300 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={switchLoading}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold shadow-md transition disabled:opacity-50 flex items-center justify-center space-x-1.5"
-                >
-                  {switchLoading ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Verifying...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Log In & Switch</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
