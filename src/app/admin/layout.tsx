@@ -34,6 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const isLoginPage = pathname === "/admin/login";
 
@@ -77,13 +78,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAuth();
   }, [pathname, isLoginPage, router]);
 
-  const handleLogout = async () => {
+  const handleLogout = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setLoggingOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
-      router.push("/admin/login");
-      router.refresh();
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
     } catch (err) {
-      console.error(err);
+      console.error("Logout error:", err);
+    } finally {
+      window.location.href = "/admin/login";
     }
   };
 
@@ -200,12 +209,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {/* Clear, Prominent Log Out Button */}
             <button
+              type="button"
               onClick={handleLogout}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs shadow-md border border-red-600/50 transition cursor-pointer"
+              disabled={loggingOut}
+              className="relative z-50 flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs shadow-md border border-red-600/50 transition cursor-pointer disabled:opacity-60"
               title="Log out and switch administrator"
             >
               <LogOut className="w-3.5 h-3.5 text-amber-300" />
-              <span>Log Out</span>
+              <span>{loggingOut ? "Logging out..." : "Log Out"}</span>
             </button>
           </div>
 
@@ -272,11 +283,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* Mobile Prominent Log Out Button */}
             <div className="pt-2 border-t border-slate-800 space-y-2">
               <button
+                type="button"
                 onClick={handleLogout}
-                className="w-full py-2.5 px-4 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white text-xs font-bold flex items-center justify-center space-x-2 shadow-md border border-red-600/50 transition min-h-[44px]"
+                disabled={loggingOut}
+                className="w-full py-2.5 px-4 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white text-xs font-bold flex items-center justify-center space-x-2 shadow-md border border-red-600/50 transition min-h-[44px] cursor-pointer disabled:opacity-60"
               >
                 <LogOut className="w-4 h-4 text-amber-300" />
-                <span>Log Out</span>
+                <span>{loggingOut ? "Logging out..." : "Log Out"}</span>
               </button>
               <div className="text-center text-[10px] text-slate-500">
                 Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda
