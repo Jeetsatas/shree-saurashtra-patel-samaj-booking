@@ -82,8 +82,25 @@ export default function BookingsManagementPage() {
   // Export State
   const [exporting, setExporting] = useState(false);
 
+  // Senior-Friendly Delete Modal State
+  const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
+
   useEffect(() => {
     fetchInitialData();
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("new") === "true") {
+        setShowCreateModal(true);
+        const dateParam = params.get("date");
+        if (dateParam) {
+          setFormData((prev) => ({
+            ...prev,
+            startDate: dateParam,
+            endDate: dateParam,
+          }));
+        }
+      }
+    }
   }, []);
 
   const fetchInitialData = async () => {
@@ -373,20 +390,22 @@ export default function BookingsManagementPage() {
     }
   };
 
-  const handleDeleteBooking = async (id: string) => {
+  const handleDeleteClick = (b: any) => {
     if (!isSuperAdmin) {
       alert("Only the Super Admin is authorized to cancel or delete bookings.");
       return;
     }
+    setBookingToDelete(b);
+  };
 
-    if (!confirm("Are you sure you want to cancel and delete this booking record?")) return;
-
+  const confirmDeleteBooking = async (id: string) => {
     // Optimistic instant removal: row disappears in 0ms without waiting for network
     const previousBookings = [...bookings];
     setBookings((prev) => prev.filter((b) => b.id !== id));
     if (detailBooking?.id === id) {
       setDetailBooking(null);
     }
+    setBookingToDelete(null);
 
     try {
       const res = await fetch(`/api/bookings?id=${id}`, { method: "DELETE" });
@@ -865,7 +884,7 @@ export default function BookingsManagementPage() {
 
                       {isSuperAdmin && (
                         <button
-                          onClick={() => handleDeleteBooking(b.id)}
+                          onClick={() => handleDeleteClick(b)}
                           title="Cancel & Delete Booking"
                           className="p-1 text-slate-400 hover:text-red-600 rounded transition"
                         >
@@ -977,7 +996,7 @@ export default function BookingsManagementPage() {
                   </Link>
                   {isSuperAdmin && (
                     <button
-                      onClick={() => handleDeleteBooking(b.id)}
+                      onClick={() => handleDeleteClick(b)}
                       className="p-2 text-slate-400 hover:text-rose-600 active:text-rose-700 rounded-xl border border-slate-200 min-h-[40px] min-w-[40px] flex items-center justify-center"
                       title="Delete Booking"
                     >
@@ -1606,6 +1625,80 @@ export default function BookingsManagementPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Senior-Friendly Delete Confirmation Modal */}
+      {bookingToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-red-200 space-y-5 text-center">
+            {/* Warning Icon */}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-100 text-red-700 rounded-3xl flex items-center justify-center mx-auto shadow-inner border border-red-200">
+              <Trash2 className="w-8 h-8 sm:w-10 sm:h-10 text-red-700 stroke-[2.2]" />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-xs sm:text-sm font-extrabold text-red-800 uppercase tracking-wider bg-red-50 px-3 py-1 rounded-full border border-red-200 inline-block">
+                બુકિંગ રદ કરવાની ખાતરી (Cancel Booking)
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight pt-1">
+                શું તમે આ બુકિંગ રદ કરવા માંગો છો?
+              </h2>
+              <p className="text-sm sm:text-base font-semibold text-slate-600">
+                Cancel Booking for <span className="font-extrabold text-slate-950 underline decoration-red-400">{bookingToDelete.customerName}</span>?
+              </p>
+            </div>
+
+            {/* High-Contrast Info Card for Seniors */}
+            <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-left space-y-2 text-sm sm:text-base">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500 font-semibold text-xs sm:text-sm">બુકિંગ નંબર (No):</span>
+                <span className="font-mono font-black text-slate-900 text-sm sm:text-base">{bookingToDelete.bookingNumber}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500 font-semibold text-xs sm:text-sm">સુવિધા (Facility):</span>
+                <span className="font-bold text-slate-900 text-right max-w-[240px] truncate">{bookingToDelete.facilityName}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500 font-semibold text-xs sm:text-sm">તારીખ (Event Date):</span>
+                <span className="font-black text-red-950">
+                  {new Date(bookingToDelete.startDate).toLocaleDateString("en-IN", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-slate-500 font-semibold text-xs sm:text-sm">મોબાઇલ (Phone):</span>
+                <span className="font-mono font-bold text-slate-900">{bookingToDelete.customerPhone}</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 font-medium">
+              નોંધ: રદ કર્યા પછી આ તારીખ ફરીથી બીજા લોકો માટે ખાલી (Open) થઈ જશે.
+            </p>
+
+            {/* Big Chunky Action Buttons for Elders */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setBookingToDelete(null)}
+                className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer min-h-[52px]"
+              >
+                <CheckCircle className="w-5 h-5 text-emerald-200" />
+                <span>રાખો (Keep Booking)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => confirmDeleteBooking(bookingToDelete.id)}
+                className="w-full py-3.5 px-4 rounded-2xl bg-red-700 hover:bg-red-800 active:bg-red-900 text-white font-extrabold text-sm sm:text-base shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer min-h-[52px]"
+              >
+                <Trash2 className="w-5 h-5 text-red-200" />
+                <span>રદ કરો (Yes, Delete)</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
