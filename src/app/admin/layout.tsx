@@ -471,7 +471,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span>{loggingOut ? "Logging out..." : "Log Out"}</span>
               </button>
               <div className="text-center text-[10px] text-slate-500">
-                Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda
+                Shree Saurashtra Patel Samaj, Nikol - Naroda
               </div>
             </div>
           </div>

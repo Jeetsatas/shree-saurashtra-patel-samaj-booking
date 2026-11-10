@@ -1187,7 +1187,7 @@ export default function BookingsManagementPage() {
               <div>
                 <h3 className="text-base font-bold">New Booking Entry (With Discounts & Add-ons)</h3>
                 <p className="text-xs text-amber-200">
-                  Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda
+                  Shree Saurashtra Patel Samaj, Nikol - Naroda
                 </p>
               </div>
               <button

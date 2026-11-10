@@ -2,9 +2,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda | Hall & Dormitory Booking",
+  title: "Shree Saurashtra Patel Samaj, Nikol - Naroda | Hall & Dormitory Booking",
   description:
-    "Official facility booking portal for Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda, Ahmedabad. Check live availability of AC Banquet Halls, Community Dining Hall, and AC Dormitories.",
+    "Official facility booking portal for Shree Saurashtra Patel Samaj, Nikol - Naroda, Ahmedabad. Check live availability of AC Banquet Halls, Community Dining Hall, and AC Dormitories.",
 };
 
 export const viewport: Viewport = {

@@ -151,7 +151,7 @@ model Enquiry {
 
 model TrustSetting {
   id          String   @id @default("default")
-  trustName   String   @default("Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda")
+  trustName   String   @default("Shree Saurashtra Patel Samaj, Nikol - Naroda")
   address     String   @default("Nikol - Naroda Road, Nikol, Ahmedabad, Gujarat 382350")
   phone       String   @default("+91 98765 43210")
   email       String   @default("info@patelsamajnikol.org")

@@ -378,7 +378,7 @@ async function main() {
     update: {},
     create: {
       id: "default",
-      trustName: "Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda",
+      trustName: "Shree Saurashtra Patel Samaj, Nikol - Naroda",
       address: "Near Nikol Lake & Ring Road, Nikol - Naroda, Ahmedabad, Gujarat 382350",
       phone: "+91 79 2298 5600 / +91 98250 12345",
       email: "info@saurashtrapatelsamajnikol.org",

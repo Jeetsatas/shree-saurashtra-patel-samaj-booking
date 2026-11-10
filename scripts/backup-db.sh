@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================================
-# Shree Saurashtra Leuva Patel Samaj, Nikol–Naroda
+# Shree Saurashtra Patel Samaj, Nikol–Naroda
 # Automated Database Backup Script (PostgreSQL / SQLite)
 # Retention Policy: 30 days
 # =============================================================================

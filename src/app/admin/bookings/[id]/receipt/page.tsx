@@ -80,10 +80,10 @@ export default function BookingReceiptPage() {
             ॥ શ્રી ગણેશાય નમઃ ॥ ॥ શ્રી ખોડિયાર કૃપા ॥
           </p>
           <h1 className="text-2xl font-black text-red-900 tracking-tight">
-            શ્રી સૌરાષ્ટ્ર લેઉવા પટેલ સમાજ
+            શ્રી સૌરાષ્ટ્ર પટેલ સમાજ
           </h1>
           <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
-            Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda
+            Shree Saurashtra Patel Samaj, Nikol - Naroda
           </h2>
           <p className="text-[11px] text-slate-600">
             Near Nikol Lake & Ring Road, Nikol - Naroda, Ahmedabad - 382350 | Phone: +91 98250 12345 / 079-22985600
@@ -286,7 +286,7 @@ export default function BookingReceiptPage() {
               ટ્રસ્ટી / મેનેજર શ્રી (Authorized Trustee / Manager)
             </div>
             <span className="text-[10px] text-slate-500">
-              શ્રી સૌરાષ્ટ્ર લેઉવા પટેલ સમાજ, નિકોલ - નરોડા
+              શ્રી સૌરાષ્ટ્ર પટેલ સમાજ, નિકોલ - નરોડા
             </span>
           </div>
         </div>

@@ -74,7 +74,7 @@ function LoginForm() {
         </p>
 
         <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight mt-0.5 sm:mt-1">
-          શ્રી સૌરાષ્ટ્ર લેઉવા પટેલ સમાજ
+          શ્રી સૌરાષ્ટ્ર પટેલ સમાજ
         </h1>
         <p className="text-[11px] sm:text-xs text-amber-200/80 font-medium mt-0.5">
           Nikol - Naroda, Ahmedabad • Internal Booking Management

@@ -97,7 +97,7 @@ export default function AdminDashboardPage() {
         <div>
           <div className="flex items-center space-x-2">
             <span className="text-amber-400 text-xs font-bold uppercase tracking-wider">
-              ॥ ૐ નમઃ શિવાય ॥ Shree Saurashtra Leuva Patel Samaj, Nikol - Naroda
+              ॥ ૐ નમઃ શિવાય ॥ Shree Saurashtra Patel Samaj, Nikol - Naroda
             </span>
           </div>
           <h1 className="text-xl sm:text-2xl font-black mt-1">

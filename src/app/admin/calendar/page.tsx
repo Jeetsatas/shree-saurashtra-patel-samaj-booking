@@ -533,7 +533,7 @@ export default function AdminCalendarPage() {
               ) : (
                 selectedDayBookings.map((b) => {
                   const cleanPhone = b.customerPhone?.replace(/\D/g, "") || "";
-                  const waMessage = `શ્રી સૌરાષ્ટ્ર લેઉવા પટેલ સમાજ (નિકોલ-નરોડા)\nજય શ્રી ખોડિયાર 🙏\n\nઆપનું બુકિંગ કન્ફર્મ થયેલ છે:\n• બુકિંગ નંબર: ${b.bookingNumber}\n• અરજદાર: ${b.customerName}\n• સુવિધા: ${b.facility?.name || ""}\n• પ્રસંગ: ${b.eventType}\n• તારીખ: ${new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}\n• સમય: ${b.slot}\n\nશ્રી સૌરાષ્ટ્ર લેઉવા પટેલ સમાજ ટ્રસ્ટ, નિકોલ-નરોડા, અમદાવાદ.`;
+                  const waMessage = `શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ-નરોડા)\nજય શ્રી ખોડિયાર 🙏\n\nઆપનું બુકિંગ કન્ફર્મ થયેલ છે:\n• બુકિંગ નંબર: ${b.bookingNumber}\n• અરજદાર: ${b.customerName}\n• સુવિધા: ${b.facility?.name || ""}\n• પ્રસંગ: ${b.eventType}\n• તારીખ: ${new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}\n• સમય: ${b.slot}\n\nશ્રી સૌરાષ્ટ્ર પટેલ સમાજ ટ્રસ્ટ, નિકોલ-નરોડા, અમદાવાદ.`;
 
                   return (
                     <div

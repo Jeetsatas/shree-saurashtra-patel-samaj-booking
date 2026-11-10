@@ -1,6 +1,6 @@
-# Shree Saurashtra Leuva Patel Samaj Booking System
+# Shree Saurashtra Patel Samaj Booking System
 
-An internal booking management application for managing facility bookings, availability, rates, and administrative access for Shree Saurashtra Leuva Patel Samaj, Nikol–Naroda, Ahmedabad.
+An internal booking management application for managing facility bookings, availability, rates, and administrative access for Shree Saurashtra Patel Samaj, Nikol–Naroda, Ahmedabad.
 
 ## Project overview
 

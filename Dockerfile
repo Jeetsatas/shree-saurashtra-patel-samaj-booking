@@ -1,5 +1,5 @@
 # =============================================================================
-# Shree Saurashtra Leuva Patel Samaj, Nikol–Naroda
+# Shree Saurashtra Patel Samaj, Nikol–Naroda
 # Production Dockerfile — Standalone Multi-Stage Build
 # =============================================================================
 
