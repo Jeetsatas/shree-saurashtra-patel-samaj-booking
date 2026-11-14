@@ -297,6 +297,56 @@ body {
   border-color: var(--admin-blue) !important;
 }
 
+/* Booking creation is a workspace form, not a red warning panel. */
+.booking-modal [class*="bg-amber-50"],
+.booking-modal [class*="bg-amber-950"] {
+  background-color: var(--admin-canvas, #f5f5f7) !important;
+}
+
+.booking-modal [class*="bg-amber-100"] {
+  background-color: #f5f5f7 !important;
+}
+
+.booking-modal label[class*="bg-amber-100"] {
+  background-color: #eaf3ff !important;
+  border-color: var(--admin-blue, #0066cc) !important;
+  color: var(--admin-ink, #1d1d1f) !important;
+}
+
+.booking-modal [class*="border-amber-"] {
+  border-color: var(--admin-hairline, #e0e0e0) !important;
+}
+
+.booking-modal [class*="text-amber-"] {
+  color: var(--admin-muted, #6e6e73) !important;
+}
+
+.booking-modal [class*="bg-red-800"],
+.booking-modal [class*="bg-red-900"],
+.booking-modal [class*="bg-red-700"] {
+  color: #fff !important;
+  background-color: var(--admin-blue, #0066cc) !important;
+  border-color: var(--admin-blue, #0066cc) !important;
+  box-shadow: none !important;
+}
+
+.booking-modal [class*="text-red-900"],
+.booking-modal [class*="text-red-800"] {
+  color: var(--admin-blue, #0066cc) !important;
+}
+
+.booking-modal select:focus,
+.booking-modal input:focus {
+  outline: 2px solid rgba(0, 102, 204, 0.22) !important;
+  outline-offset: 1px;
+  border-color: var(--admin-blue, #0066cc) !important;
+  box-shadow: none !important;
+}
+
+.booking-modal input[type="checkbox"] {
+  accent-color: var(--admin-blue, #0066cc);
+}
+
 .admin-login {
   --admin-ink: #1d1d1f;
   --admin-muted: #6e6e73;

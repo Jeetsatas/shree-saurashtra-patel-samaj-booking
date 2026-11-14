@@ -1012,7 +1012,7 @@ export default function BookingsManagementPage() {
 
       {/* Booking Details Modal (For All Administrators) */}
       {detailBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="booking-modal fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between sticky top-0 z-10">
               <div>
@@ -1183,16 +1183,16 @@ export default function BookingsManagementPage() {
       {showCreateModal && isSuperAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200">
-            <div className="bg-red-900 text-white p-5 flex items-center justify-between sticky top-0 z-10">
+            <div className="bg-slate-50 text-slate-900 p-5 flex items-center justify-between sticky top-0 z-10 border-b border-slate-200">
               <div>
                 <h3 className="text-base font-bold">New Booking Entry (With Discounts & Add-ons)</h3>
-                <p className="text-xs text-amber-200">
+                <p className="text-xs text-slate-500">
                   Shree Saurashtra Patel Samaj, Nikol - Naroda
                 </p>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-white/70 hover:text-white text-lg font-bold"
+                className="text-slate-500 hover:text-slate-900 text-lg font-bold min-w-11 min-h-11"
               >
                 ✕
               </button>
