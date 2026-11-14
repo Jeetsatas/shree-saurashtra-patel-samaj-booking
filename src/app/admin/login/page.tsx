@@ -3,7 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Lock, Mail, Building, ShieldCheck, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { Lock, Mail, ShieldCheck, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -66,16 +66,13 @@ function LoginForm() {
   return (
     <div className="admin-login min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 flex flex-col justify-center py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-        <div className="flex items-center justify-center gap-3">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-tr from-red-900 to-amber-700 text-amber-300 rounded-2xl flex items-center justify-center shadow-2xl border border-amber-500/30">
-            <Building className="w-7 h-7 sm:w-8 sm:h-8" />
-          </div>
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden border-2 border-amber-300/80 shadow-lg bg-amber-50">
+        <div className="flex justify-center">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-amber-300/80 shadow-lg bg-amber-50">
             <Image
               src="/images/sardar-vallabhbhai-patel.jpg"
               alt="Portrait of Sardar Vallabhbhai Patel"
-              width={56}
-              height={56}
+              width={112}
+              height={112}
               priority
               className="w-full h-full object-cover"
             />
