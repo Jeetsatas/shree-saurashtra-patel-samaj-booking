@@ -81,6 +81,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAuth();
   }, [pathname, isLoginPage, router]);
 
+  // Keep open navigation predictable when a route changes, including browser back/forward.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setTrustMenuOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const closeMenusOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileMenuOpen(false);
+        setTrustMenuOpen(false);
+      }
+    };
+    document.addEventListener("keydown", closeMenusOnEscape);
+    return () => document.removeEventListener("keydown", closeMenusOnEscape);
+  }, []);
+
   const handleLogout = async (e?: React.MouseEvent) => {
     if (e) {
       e.preventDefault();
@@ -173,7 +190,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link
               href="/admin/calendar"
               className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
-                pathname === "/admin/calendar"
+                pathname.startsWith("/admin/calendar")
                   ? "bg-amber-500 text-slate-950 font-black shadow-md"
                   : "text-slate-200 hover:text-white hover:bg-slate-800"
               }`}
@@ -186,7 +203,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link
               href="/admin/bookings"
               className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
-                pathname === "/admin/bookings"
+                pathname.startsWith("/admin/bookings")
                   ? "bg-amber-500 text-slate-950 font-black shadow-md"
                   : "text-slate-200 hover:text-white hover:bg-slate-800"
               }`}
@@ -212,6 +229,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <button
                   type="button"
                   onClick={() => setTrustMenuOpen(!trustMenuOpen)}
+                  aria-expanded={trustMenuOpen}
+                  aria-controls="trust-management-menu"
                   className={`flex items-center px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
                     isManagementRoute
                       ? "bg-slate-800 text-amber-300 border border-amber-500/30"
@@ -229,7 +248,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       className="fixed inset-0 z-40"
                       onClick={() => setTrustMenuOpen(false)}
                     />
-                    <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl py-2 z-50 divide-y divide-slate-800/80 text-xs">
+                    <div id="trust-management-menu" className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl py-2 z-50 divide-y divide-slate-800/80 text-xs">
                       <div className="px-3.5 py-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
                         ટ્રસ્ટ સંચાલન (Trust Management)
                       </div>
@@ -340,8 +359,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {isSuper ? "Super Admin" : "View Only"}
             </span>
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-admin-menu"
               className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 rounded-xl transition min-w-[44px] min-h-[44px] flex items-center justify-center"
             >
               {mobileMenuOpen ? <X className="w-5 h-5 text-amber-400" /> : <Menu className="w-5 h-5" />}
@@ -361,7 +383,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Mobile Dropdown & Quick Control Sheet */}
         {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-slate-800 px-4 pt-3 pb-6 space-y-3 bg-slate-900/98 backdrop-blur-lg shadow-2xl animate-in slide-in-from-top-2">
+          <>
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 z-30 bg-slate-950/35 lg:hidden"
+          />
+          <div id="mobile-admin-menu" className="relative z-40 lg:hidden max-h-[calc(100dvh-10rem)] overflow-y-auto overscroll-contain border-t border-slate-800 px-4 pt-3 pb-6 space-y-3 bg-slate-900/98 backdrop-blur-lg shadow-2xl">
             {/* User Profile Card */}
             <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 flex items-center justify-between">
               <div>
@@ -418,7 +447,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link
                     href="/admin/facilities"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center px-3.5 py-2 rounded-xl text-xs text-slate-300 hover:bg-slate-800"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
                   >
                     <Building2 className="w-4 h-4 mr-3 text-amber-400" />
                     <span>હોલ અને રૂમ ભાડા (Facilities)</span>
@@ -426,7 +455,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link
                     href="/admin/discounts"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center px-3.5 py-2 rounded-xl text-xs text-slate-300 hover:bg-slate-800"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
                   >
                     <Percent className="w-4 h-4 mr-3 text-amber-400" />
                     <span>ડિસ્કાઉન્ટ અને સર્વિસ (Discounts)</span>
@@ -434,7 +463,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link
                     href="/admin/activity"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center px-3.5 py-2 rounded-xl text-xs text-slate-300 hover:bg-slate-800"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
                   >
                     <History className="w-4 h-4 mr-3 text-amber-400" />
                     <span>પ્રવૃત્તિ ઇતિહાસ (Audit Logs)</span>
@@ -442,7 +471,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link
                     href="/admin/users"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center px-3.5 py-2 rounded-xl text-xs text-slate-300 hover:bg-slate-800"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
                   >
                     <Users className="w-4 h-4 mr-3 text-amber-400" />
                     <span>ટ્રસ્ટી એકાઉન્ટ્સ (Accounts)</span>
@@ -450,7 +479,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <Link
                     href="/admin/settings"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center px-3.5 py-2 rounded-xl text-xs text-slate-300 hover:bg-slate-800"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
                   >
                     <Settings className="w-4 h-4 mr-3 text-amber-400" />
                     <span>ટ્રસ્ટ સેટિંગ્સ (Trust Settings)</span>
@@ -475,6 +504,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </div>
             </div>
           </div>
+          </>
         )}
       </header>
 
@@ -502,7 +532,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link
               href="/admin/bookings"
               className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] transition ${
-                pathname.startsWith("/admin/bookings") && !pathname.includes("new=true")
+                pathname.startsWith("/admin/bookings")
                   ? "text-amber-400 font-extrabold"
                   : "text-slate-400 hover:text-slate-200"
               }`}
@@ -520,7 +550,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
 
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Open navigation menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-admin-menu"
               className="flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] text-slate-400 hover:text-slate-200"
             >
               <Menu className="w-5 h-5 mb-0.5" />
@@ -554,9 +588,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </Link>
 
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 ml-1 text-slate-400 hover:text-white rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="More options"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-admin-menu"
             >
               <Menu className="w-5 h-5" />
             </button>
