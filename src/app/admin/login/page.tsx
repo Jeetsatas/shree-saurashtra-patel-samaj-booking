@@ -63,7 +63,7 @@ function LoginForm() {
   const accountTitle = getAccountTitle(email);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 flex flex-col justify-center py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
+    <div className="admin-login min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 flex flex-col justify-center py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-tr from-red-900 to-amber-700 text-amber-300 rounded-2xl flex items-center justify-center mx-auto shadow-2xl border border-amber-500/30">
           <Building className="w-8 h-8 sm:w-9 sm:h-9" />

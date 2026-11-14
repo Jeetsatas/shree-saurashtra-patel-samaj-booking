@@ -143,7 +143,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-100 text-slate-800">
+    <div className="admin-shell min-h-screen flex flex-col bg-slate-100 text-slate-800">
       {/* Admin Top Navigation */}
       <header className="bg-slate-900/95 backdrop-blur-md text-white shadow-md sticky top-0 z-40 border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 flex items-center justify-between h-14 sm:h-16">
@@ -179,7 +179,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               }`}
             >
               <Calendar className="w-4 h-4 mr-2 text-amber-400" />
-              <span>કેલેન્ડર (Live Calendar)</span>
+              <span>કેલેન્ડર</span>
             </Link>
 
             {/* 2. Bookings & Slips (બુકિંગ લિસ્ટ) */}
@@ -192,7 +192,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               }`}
             >
               <BookOpen className="w-4 h-4 mr-2 text-amber-400" />
-              <span>બુકિંગ લિસ્ટ (Bookings & Slips)</span>
+              <span>બુકિંગ્સ</span>
             </Link>
 
             {/* 3. New Booking Button (નવું બુકિંગ) - Only for Super Admin */}
@@ -202,7 +202,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 className="flex items-center px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold bg-gradient-to-r from-red-700 to-amber-700 hover:from-red-600 hover:to-amber-600 active:scale-95 text-white shadow-lg border border-amber-400/40 transition"
               >
                 <Plus className="w-4 h-4 mr-1.5 text-amber-300 stroke-[3]" />
-                <span>+ નવું બુકિંગ (New Booking)</span>
+                <span>નવું બુકિંગ</span>
               </Link>
             )}
 
@@ -219,7 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   }`}
                 >
                   <Settings className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
-                  <span>વહીવટ (Settings)</span>
+                  <span>વહીવટ</span>
                   <ChevronDown className="w-3.5 h-3.5 ml-1 text-slate-400" />
                 </button>
 
@@ -479,7 +479,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </header>
 
       {/* Admin Body Content with safe-padding for mobile bottom navigation */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-8 pb-24 lg:pb-8">
+      <main className="flex-1 max-w-[1440px] w-full mx-auto p-3 sm:p-5 lg:p-8 pb-24 lg:pb-8">
         {children}
       </main>
 

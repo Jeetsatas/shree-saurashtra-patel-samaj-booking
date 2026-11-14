@@ -36,6 +36,362 @@ body {
   padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
 }
 
+/* Admin console theme: editorial neutrals and Action Blue, adapted for dense workflows. */
+.admin-shell {
+  --admin-ink: #1d1d1f;
+  --admin-muted: #6e6e73;
+  --admin-canvas: #f5f5f7;
+  --admin-surface: #ffffff;
+  --admin-hairline: #e0e0e0;
+  --admin-divider: #f0f0f0;
+  --admin-blue: #0066cc;
+  --admin-blue-focus: #0071e3;
+  color: var(--admin-ink);
+  background: var(--admin-canvas);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px;
+  line-height: 1.45;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.admin-shell header {
+  color: var(--admin-ink) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: var(--admin-hairline) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell header .text-white,
+.admin-shell header .text-slate-200,
+.admin-shell header .text-slate-300 {
+  color: var(--admin-ink) !important;
+}
+
+.admin-shell header .text-slate-400,
+.admin-shell header .text-slate-500 {
+  color: var(--admin-muted) !important;
+}
+
+.admin-shell header .text-amber-300,
+.admin-shell header .text-amber-400,
+.admin-shell header .text-amber-200 {
+  color: var(--admin-blue) !important;
+}
+
+.admin-shell header [class*="bg-gradient-to-tr"] {
+  background: var(--admin-blue) !important;
+  color: #fff !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 11px !important;
+}
+
+.admin-shell header nav a[class*="bg-amber-500"],
+.admin-shell header a[class*="bg-gradient-to-r"],
+.admin-shell header button[class*="bg-red-800"] {
+  color: #fff !important;
+  background: var(--admin-blue) !important;
+  border-color: var(--admin-blue) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell header nav a[class*="bg-amber-500"] .text-amber-400,
+.admin-shell header a[class*="bg-gradient-to-r"] .text-amber-300,
+.admin-shell header button[class*="bg-red-800"] .text-amber-300 {
+  color: #fff !important;
+}
+
+.admin-shell header [class*="bg-slate-900"],
+.admin-shell header [class*="bg-slate-800"] {
+  background-color: #fff !important;
+}
+
+.admin-shell header [class*="bg-amber-950"] {
+  background-color: #eaf3ff !important;
+}
+
+.admin-shell header [class*="border-slate-800"],
+.admin-shell header [class*="border-slate-700"] {
+  border-color: var(--admin-hairline) !important;
+}
+
+.admin-shell header nav a:not([class*="bg-amber-500"]):not([class*="bg-gradient-to-r"]) {
+  color: var(--admin-ink) !important;
+}
+
+.admin-shell header nav a:hover,
+.admin-shell header [class*="hover:bg-slate-800"]:hover {
+  background-color: var(--admin-canvas) !important;
+}
+
+.admin-shell header [class*="bg-red-800"]:hover,
+.admin-shell header [class*="bg-gradient-to-r"]:hover {
+  background-color: var(--admin-blue-focus) !important;
+}
+
+.admin-shell main {
+  color: var(--admin-ink);
+}
+
+.admin-shell main h1,
+.admin-shell main h2,
+.admin-shell main h3 {
+  color: var(--admin-ink);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+.admin-shell main h1 {
+  font-size: clamp(1.65rem, 2.8vw, 2.5rem) !important;
+  line-height: 1.1;
+}
+
+.admin-shell main h2 {
+  font-size: clamp(1.15rem, 1.7vw, 1.45rem);
+  line-height: 1.2;
+}
+
+.admin-shell main [class~="bg-white"] {
+  background-color: var(--admin-surface) !important;
+  border-color: var(--admin-hairline) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell main [class~="shadow-sm"],
+.admin-shell main [class~="shadow-md"],
+.admin-shell main [class~="shadow-lg"],
+.admin-shell main [class~="shadow-xl"],
+.admin-shell main [class~="shadow-2xl"] {
+  box-shadow: none !important;
+}
+
+.admin-shell main [class~="bg-gradient-to-r"],
+.admin-shell main [class~="bg-gradient-to-br"] {
+  background-image: none !important;
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-ink) !important;
+  border: 1px solid var(--admin-hairline) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell main [class~="bg-gradient-to-r"] [class~="text-white"],
+.admin-shell main [class~="bg-gradient-to-br"] [class~="text-white"] {
+  color: var(--admin-ink) !important;
+}
+
+.admin-shell main [class~="text-slate-900"] {
+  color: var(--admin-ink) !important;
+}
+
+.admin-shell main [class~="text-slate-800"],
+.admin-shell main [class~="text-slate-700"] {
+  color: #333336 !important;
+}
+
+.admin-shell main [class~="text-slate-600"],
+.admin-shell main [class~="text-slate-500"],
+.admin-shell main [class~="text-slate-400"],
+.admin-shell main [class~="text-slate-300"] {
+  color: var(--admin-muted) !important;
+}
+
+.admin-shell main [class~="bg-gradient-to-r"] [class~="text-amber-300"],
+.admin-shell main [class~="bg-gradient-to-r"] [class~="text-amber-400"],
+.admin-shell main [class~="bg-gradient-to-br"] [class~="text-amber-300"],
+.admin-shell main [class~="bg-gradient-to-br"] [class~="text-amber-400"] {
+  color: var(--admin-blue) !important;
+}
+
+.admin-shell main a[class~="text-red-800"],
+.admin-shell main a[class~="text-red-700"],
+.admin-shell main a[class*="text-amber-"],
+.admin-shell main button[class*="bg-blue-"],
+.admin-shell main a[class*="bg-blue-"],
+.admin-shell main button[class*="bg-slate-900"],
+.admin-shell main a[class*="bg-slate-900"],
+.admin-shell main button[class~="bg-amber-500"],
+.admin-shell main a[class~="bg-amber-500"],
+.admin-shell main button[class~="bg-red-800"],
+.admin-shell main a[class~="bg-red-800"],
+.admin-shell main button[class~="bg-red-700"],
+.admin-shell main a[class~="bg-red-700"] {
+  color: #fff !important;
+  background-color: var(--admin-blue) !important;
+  border-color: var(--admin-blue) !important;
+  box-shadow: none !important;
+}
+
+.admin-shell main a[class~="text-red-800"]:not([class*="bg-"]) {
+  color: var(--admin-blue) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.admin-shell main a[class*="text-amber-"]:not([class*="bg-"]) {
+  color: var(--admin-blue) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+.admin-shell main button[class~="bg-amber-500"]:active,
+.admin-shell main a[class~="bg-amber-500"]:active,
+.admin-shell main button[class~="bg-red-800"]:active,
+.admin-shell main button[class~="bg-red-700"]:active {
+  background-color: var(--admin-blue-focus) !important;
+  transform: scale(0.98);
+}
+
+.admin-shell main :is(input, select, textarea) {
+  color: var(--admin-ink);
+  background: #fff !important;
+  border-color: var(--admin-hairline) !important;
+  border-radius: 11px;
+  font-size: 15px;
+  min-height: 44px;
+}
+
+.admin-shell main :is(input, select, textarea):focus {
+  border-color: var(--admin-blue) !important;
+  outline: 2px solid rgba(0, 102, 204, 0.22) !important;
+  outline-offset: 1px;
+}
+
+.admin-shell main table {
+  font-size: 13px;
+}
+
+.admin-shell main th {
+  color: var(--admin-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.admin-shell main td,
+.admin-shell main th {
+  border-color: var(--admin-divider);
+}
+
+.admin-shell > nav {
+  color: var(--admin-ink) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  border-color: var(--admin-hairline) !important;
+  box-shadow: 0 -1px 0 rgba(0, 0, 0, 0.03) !important;
+}
+
+.admin-shell > nav a[class*="bg-amber-500"],
+.admin-shell > nav a[class*="text-amber-400"],
+.admin-shell > nav a[class*="text-amber-300"] {
+  color: var(--admin-blue) !important;
+  background-color: #eaf3ff !important;
+}
+
+.admin-shell > nav a:not([class*="bg-amber-500"]):not([class*="text-amber-400"]):not([class*="text-amber-300"]),
+.admin-shell > nav button {
+  color: var(--admin-muted) !important;
+}
+
+.admin-shell > nav a[class*="bg-red-900"] {
+  color: #fff !important;
+  background-color: var(--admin-blue) !important;
+  border-color: var(--admin-blue) !important;
+}
+
+.admin-login {
+  --admin-ink: #1d1d1f;
+  --admin-muted: #6e6e73;
+  --admin-canvas: #f5f5f7;
+  --admin-surface: #fff;
+  --admin-hairline: #e0e0e0;
+  --admin-blue: #0066cc;
+  --admin-blue-focus: #0071e3;
+  color: var(--admin-ink) !important;
+  background: var(--admin-canvas) !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.admin-login [class*="bg-gradient"] {
+  background-image: none !important;
+  background-color: var(--admin-surface) !important;
+  color: var(--admin-ink) !important;
+}
+
+.admin-login [class*="bg-slate-900"],
+.admin-login [class*="bg-slate-950"] {
+  background-color: #fff !important;
+}
+
+.admin-login [class*="border-slate-800"],
+.admin-login [class*="border-slate-700"] {
+  border-color: var(--admin-hairline) !important;
+}
+
+.admin-login [class~="text-white"],
+.admin-login [class~="text-slate-300"],
+.admin-login [class~="text-slate-200"] {
+  color: var(--admin-ink) !important;
+}
+
+.admin-login [class~="text-slate-400"],
+.admin-login [class~="text-slate-500"] {
+  color: var(--admin-muted) !important;
+}
+
+.admin-login [class*="text-amber-"] {
+  color: var(--admin-blue) !important;
+}
+
+.admin-login input {
+  min-height: 48px;
+  color: var(--admin-ink) !important;
+  background: #fff !important;
+  border-color: var(--admin-hairline) !important;
+  border-radius: 11px !important;
+  font-size: 15px !important;
+}
+
+.admin-login input:focus {
+  border-color: var(--admin-blue) !important;
+  outline: 2px solid rgba(0, 102, 204, 0.22) !important;
+  outline-offset: 1px;
+}
+
+.admin-login button[type="submit"] {
+  background: var(--admin-blue) !important;
+  color: #fff !important;
+  border-radius: 9999px !important;
+  box-shadow: none !important;
+  font-size: 15px !important;
+}
+
+.admin-login button[type="submit"]:active {
+  background: var(--admin-blue-focus) !important;
+  transform: scale(0.98);
+}
+
+.admin-login button:not([type="submit"]) {
+  border-color: var(--admin-hairline) !important;
+  background: var(--admin-canvas) !important;
+  color: var(--admin-ink) !important;
+  border-radius: 11px !important;
+}
+
+@media (max-width: 640px) {
+  .admin-shell main {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .admin-shell main h1 {
+    font-size: 1.65rem !important;
+  }
+
+  .admin-shell main table {
+    min-width: 680px;
+  }
+}
+
 @media print {
   body {
     background: white !important;
