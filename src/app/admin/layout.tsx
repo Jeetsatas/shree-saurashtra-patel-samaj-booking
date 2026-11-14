@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { clearAdminClientCache } from "@/lib/admin-client-cache";
 import {
   LayoutDashboard,
   Calendar,
@@ -103,6 +104,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       e.preventDefault();
       e.stopPropagation();
     }
+    clearAdminClientCache();
     setLoggingOut(true);
     try {
       await fetch("/api/auth/logout", {
@@ -376,7 +378,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="bg-amber-950/90 border-t border-amber-600/30 px-3 py-1.5 text-center text-[11px] sm:text-xs text-amber-300 font-semibold flex items-center justify-center space-x-1.5">
             <Lock className="w-3 h-3 text-amber-400 flex-shrink-0" />
             <span className="truncate">
-              View-Only Mode ({currentUser?.name}): Viewing only • Data changes restricted to Super Admin.
+              View-Only Mode ({currentUser?.name}): Updates refresh automatically every few seconds.
             </span>
           </div>
         )}

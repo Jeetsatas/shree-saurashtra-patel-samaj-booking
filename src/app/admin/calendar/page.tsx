@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -21,6 +21,7 @@ import {
   Printer,
 } from "lucide-react";
 import Link from "next/link";
+import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
 
 export default function AdminCalendarPage() {
   const [facilities, setFacilities] = useState<any[]>([]);
@@ -32,24 +33,78 @@ export default function AdminCalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [viewMode, setViewMode] = useState<"MONTH" | "WEEK" | "DAY">("MONTH");
   const [loading, setLoading] = useState(true);
+  const bookingsRefresh = useRef<Promise<void> | null>(null);
+  const facilitiesRefresh = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
+    const cachedFacilities = getAdminCachedData<any>("/api/facilities");
+    const cachedBookings = getAdminCachedData<any>("/api/bookings");
+    if (cachedFacilities?.facilities) setFacilities(cachedFacilities.facilities);
+    if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
+    if (cachedFacilities || cachedBookings) setLoading(false);
     fetchData();
+    const refreshWhileVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshBookings();
+        refreshFacilities();
+      }
+    };
+    const refreshFacilitiesWhileVisible = () => {
+      if (document.visibilityState === "visible") refreshFacilities();
+    };
+    const timer = window.setInterval(refreshWhileVisible, 5000);
+    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 15000);
+    window.addEventListener("focus", refreshWhileVisible);
+    document.addEventListener("visibilitychange", refreshWhileVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.clearInterval(facilitiesTimer);
+      window.removeEventListener("focus", refreshWhileVisible);
+      document.removeEventListener("visibilitychange", refreshWhileVisible);
+    };
   }, []);
+
+  const refreshBookings = async () => {
+    if (bookingsRefresh.current) return bookingsRefresh.current;
+    bookingsRefresh.current = (async () => {
+      try {
+        const data = await fetchAdminJson<any>("/api/bookings");
+        if (data?.bookings) setBookings(data.bookings);
+      } catch (err) {
+        console.error("Calendar booking refresh error:", err);
+      } finally {
+        bookingsRefresh.current = null;
+      }
+    })();
+    return bookingsRefresh.current;
+  };
+
+  const refreshFacilities = async () => {
+    if (facilitiesRefresh.current) return facilitiesRefresh.current;
+    facilitiesRefresh.current = (async () => {
+      try {
+        const data = await fetchAdminJson<any>("/api/facilities");
+        if (data?.facilities) setFacilities(data.facilities);
+      } catch (err) {
+        console.error("Calendar facility refresh error:", err);
+      } finally {
+        facilitiesRefresh.current = null;
+      }
+    })();
+    return facilitiesRefresh.current;
+  };
 
   const fetchData = async () => {
     try {
-      setLoading(true);
-      const [facRes, bookRes, userRes] = await Promise.all([
-        fetch("/api/facilities"),
-        fetch("/api/bookings"),
-        fetch("/api/auth/me"),
+      if (!getAdminCachedData("/api/facilities") && !getAdminCachedData("/api/bookings")) {
+        setLoading(true);
+      }
+      const [facData, bookData, userRes] = await Promise.all([
+        fetchAdminJson<any>("/api/facilities"),
+        fetchAdminJson<any>("/api/bookings"),
+        fetch("/api/auth/me", { cache: "no-store" }),
       ]);
-      const [facData, bookData, userData] = await Promise.all([
-        facRes.ok ? facRes.json() : Promise.resolve({ facilities: [] }),
-        bookRes.ok ? bookRes.json() : Promise.resolve({ bookings: [] }),
-        userRes.ok ? userRes.json() : Promise.resolve({ user: null }),
-      ]);
+      const userData = userRes.ok ? await userRes.json() : { user: null };
 
       if (facData?.facilities) setFacilities(facData.facilities);
       if (bookData?.bookings) setBookings(bookData.bookings);

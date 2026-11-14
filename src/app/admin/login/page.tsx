@@ -3,6 +3,7 @@
 import React, { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { clearAdminClientCache } from "@/lib/admin-client-cache";
 import { Lock, Mail, ShieldCheck, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 function LoginForm() {
@@ -40,6 +41,7 @@ function LoginForm() {
         throw new Error(data.error || "Login failed");
       }
 
+      clearAdminClientCache();
       if (data.user?.role === "VIEW_ONLY_ADMIN") {
         router.push("/admin/calendar");
       } else {

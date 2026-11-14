@@ -91,7 +91,10 @@ export async function GET(req: NextRequest) {
       resourceGroup: b.facility?.resourceGroup || "",
     }));
 
-    return NextResponse.json({ bookings: adminBookings, isAdmin: true, role: user.role });
+    return NextResponse.json(
+      { bookings: adminBookings, isAdmin: true, role: user.role },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } }
+    );
   } catch (error: any) {
     console.error("Bookings GET error:", error);
     return NextResponse.json({ error: "Failed to fetch bookings" }, { status: 500 });

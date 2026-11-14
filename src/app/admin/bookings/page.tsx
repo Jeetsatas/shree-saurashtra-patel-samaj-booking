@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
 import {
   Plus,
   Search,
@@ -81,11 +82,22 @@ export default function BookingsManagementPage() {
 
   // Export State
   const [exporting, setExporting] = useState(false);
+  const bookingsRefresh = useRef<Promise<void> | null>(null);
+  const facilitiesRefresh = useRef<Promise<void> | null>(null);
 
   // Senior-Friendly Delete Modal State
   const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
 
   useEffect(() => {
+    const cachedBookings = getAdminCachedData<any>("/api/bookings");
+    const cachedFacilities = getAdminCachedData<any>("/api/facilities");
+    const cachedDiscounts = getAdminCachedData<any>("/api/discounts");
+    const cachedServices = getAdminCachedData<any>("/api/services");
+    if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
+    if (cachedFacilities?.facilities) setFacilities(cachedFacilities.facilities);
+    if (cachedDiscounts?.discounts) setDiscounts(cachedDiscounts.discounts);
+    if (cachedServices?.services) setServices(cachedServices.services);
+    if (cachedBookings) setLoading(false);
     fetchInitialData();
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -101,26 +113,38 @@ export default function BookingsManagementPage() {
         }
       }
     }
+    const refreshWhileVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshBookings();
+        refreshFacilities();
+      }
+    };
+    const refreshFacilitiesWhileVisible = () => {
+      if (document.visibilityState === "visible") refreshFacilities();
+    };
+    const timer = window.setInterval(refreshWhileVisible, 5000);
+    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 15000);
+    window.addEventListener("focus", refreshWhileVisible);
+    document.addEventListener("visibilitychange", refreshWhileVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.clearInterval(facilitiesTimer);
+      window.removeEventListener("focus", refreshWhileVisible);
+      document.removeEventListener("visibilitychange", refreshWhileVisible);
+    };
   }, []);
 
   const fetchInitialData = async () => {
     try {
-      setLoading(true);
-      const [userRes, bookRes, facRes, discRes, servRes] = await Promise.all([
-        fetch("/api/auth/me"),
-        fetch("/api/bookings"),
-        fetch("/api/facilities"),
-        fetch("/api/discounts"),
-        fetch("/api/services"),
+      if (!getAdminCachedData("/api/bookings")) setLoading(true);
+      const [userRes, bookData, facData, discData, servData] = await Promise.all([
+        fetch("/api/auth/me", { cache: "no-store" }),
+        fetchAdminJson<any>("/api/bookings"),
+        fetchAdminJson<any>("/api/facilities"),
+        fetchAdminJson<any>("/api/discounts"),
+        fetchAdminJson<any>("/api/services"),
       ]);
-
-      const [uData, bookData, facData, discData, servData] = await Promise.all([
-        userRes.ok ? userRes.json() : Promise.resolve({ user: null }),
-        bookRes.ok ? bookRes.json() : Promise.resolve({ bookings: [] }),
-        facRes.ok ? facRes.json() : Promise.resolve({ facilities: [] }),
-        discRes.ok ? discRes.json() : Promise.resolve({ discounts: [] }),
-        servRes.ok ? servRes.json() : Promise.resolve({ services: [] }),
-      ]);
+      const uData = userRes.ok ? await userRes.json() : { user: null };
 
       if (uData?.user) {
         setCurrentUser(uData.user);
@@ -149,14 +173,39 @@ export default function BookingsManagementPage() {
     }
   };
 
+  const refreshFacilities = async () => {
+    if (facilitiesRefresh.current) return facilitiesRefresh.current;
+    facilitiesRefresh.current = (async () => {
+      try {
+        const data = await fetchAdminJson<any>("/api/facilities");
+        if (data?.facilities) setFacilities(data.facilities);
+      } catch (err) {
+        console.error("Bookings facility refresh error:", err);
+      } finally {
+        facilitiesRefresh.current = null;
+      }
+    })();
+    return facilitiesRefresh.current;
+  };
+
   const refreshBookings = async () => {
-    try {
-      const res = await fetch("/api/bookings");
-      const data = await res.json();
-      if (data.bookings) setBookings(data.bookings);
-    } catch (err) {
-      console.error(err);
-    }
+    if (bookingsRefresh.current) return bookingsRefresh.current;
+    bookingsRefresh.current = (async () => {
+      try {
+        const data = await fetchAdminJson<any>("/api/bookings");
+        if (data.bookings) {
+          setBookings(data.bookings);
+          setDetailBooking((current: any) =>
+            current ? data.bookings.find((booking: any) => booking.id === current.id) || null : null
+          );
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        bookingsRefresh.current = null;
+      }
+    })();
+    return bookingsRefresh.current;
   };
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
@@ -414,6 +463,8 @@ export default function BookingsManagementPage() {
         // Revert on failure
         setBookings(previousBookings);
         alert(err.error || "Failed to delete booking");
+      } else {
+        refreshBookings();
       }
     } catch (err) {
       // Revert on network failure
