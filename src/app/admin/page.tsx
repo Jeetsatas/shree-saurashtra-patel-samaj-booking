@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Calendar,
@@ -94,21 +95,32 @@ export default function AdminDashboardPage() {
     <div className="space-y-6">
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-red-950 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <span className="text-amber-400 text-xs font-bold uppercase tracking-wider">
-              ॥ ૐ નમઃ શિવાય ॥ Shree Saurashtra Patel Samaj, Nikol - Naroda
-            </span>
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full overflow-hidden border-2 border-white/70 shadow-sm bg-white">
+            <Image
+              src="/images/sardar-vallabhbhai-patel.jpg"
+              alt="Sardar Vallabhbhai Patel"
+              width={64}
+              height={64}
+              className="w-full h-full object-cover"
+            />
           </div>
-          <h1 className="text-xl sm:text-2xl font-black mt-1">
-            Private Admin Booking Console
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300 mt-1">
-            Logged in as <strong>{currentUser?.name}</strong> ({currentUser?.email}) •{" "}
-            <span className={isSuper ? "text-amber-300 font-bold" : "text-slate-300"}>
-              {isSuper ? "Super Administrator (Full Modify & Audit Access)" : "View-Only Administrator"}
-            </span>
-          </p>
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-amber-400 text-xs font-bold uppercase tracking-wider">
+                ॥ ૐ નમઃ શિવાય ॥ Shree Saurashtra Patel Samaj, Nikol - Naroda
+              </span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black mt-1">
+              Private Admin Booking Console
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 mt-1">
+              Logged in as <strong>{currentUser?.name}</strong> ({currentUser?.email}) •{" "}
+              <span className={isSuper ? "text-amber-300 font-bold" : "text-slate-300"}>
+                {isSuper ? "Super Administrator (Full Modify & Audit Access)" : "View-Only Administrator"}
+              </span>
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center space-x-2">
