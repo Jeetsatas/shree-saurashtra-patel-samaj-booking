@@ -380,19 +380,30 @@ export default function AdminCalendarPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Calendar Grid (2 Cols on Desktop, Full Width on Mobile) */}
           <div className="lg:col-span-2 bg-white rounded-3xl border-2 border-slate-200 shadow-sm p-3.5 sm:p-6">
-            <div className="grid grid-cols-7 gap-1 text-center text-xs sm:text-sm font-black text-slate-700 pb-3 border-b-2 border-slate-200 mb-3">
-              <span className="text-red-700 font-black">રવિ (Sun)</span>
-              <span>સોમ (Mon)</span>
-              <span>મંગળ (Tue)</span>
-              <span>બુધ (Wed)</span>
-              <span>ગુરુ (Thu)</span>
-              <span>શુક્ર (Fri)</span>
-              <span>શનિ (Sat)</span>
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] sm:text-sm font-black text-slate-700 pb-2 sm:pb-3 border-b-2 border-slate-200 mb-2 sm:mb-3">
+              <span className="text-red-700 font-black"><span className="sm:hidden">રવિ</span><span className="hidden sm:inline">રવિ (Sun)</span></span>
+              <span><span className="sm:hidden">સોમ</span><span className="hidden sm:inline">સોમ (Mon)</span></span>
+              <span><span className="sm:hidden">મંગળ</span><span className="hidden sm:inline">મંગળ (Tue)</span></span>
+              <span><span className="sm:hidden">બુધ</span><span className="hidden sm:inline">બુધ (Wed)</span></span>
+              <span><span className="sm:hidden">ગુરુ</span><span className="hidden sm:inline">ગુરુ (Thu)</span></span>
+              <span><span className="sm:hidden">શુક્ર</span><span className="hidden sm:inline">શુક્ર (Fri)</span></span>
+              <span><span className="sm:hidden">શનિ</span><span className="hidden sm:inline">શનિ (Sat)</span></span>
             </div>
 
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+            <div className="mb-2 flex items-center justify-end gap-3 text-[10px] font-bold text-slate-600 sm:mb-3 sm:text-xs" aria-label="Calendar availability legend">
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
+                Available
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
+                Booked
+              </span>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 sm:gap-2">
               {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div key={`blank-${i}`} className="min-h-[58px] sm:min-h-[76px] md:min-h-[88px] bg-slate-50/60 rounded-xl border border-dashed border-slate-200/80"></div>
+                <div key={`blank-${i}`} className="min-h-[54px] sm:min-h-[76px] md:min-h-[88px] bg-slate-50/60 rounded-xl border border-dashed border-slate-200/80"></div>
               ))}
 
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -403,8 +414,11 @@ export default function AdminCalendarPage() {
                 const isSelected = selectedDate && selectedDate.getDate() === dayNum && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={`day-${dayNum}`}
+                    aria-label={`${dayDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}: ${isBooked ? `${dayBookings.length} booking${dayBookings.length === 1 ? "" : "s"}` : "available"}`}
+                    aria-pressed={Boolean(isSelected)}
                     onClick={() => {
                       setSelectedDate(dayDate);
                       if (typeof window !== "undefined" && window.innerWidth < 1024) {
@@ -414,61 +428,14 @@ export default function AdminCalendarPage() {
                         }
                       }
                     }}
-                    className={`min-h-[58px] sm:min-h-[76px] md:min-h-[92px] p-1.5 sm:p-2.5 rounded-2xl border-2 text-left transition cursor-pointer flex flex-col justify-between active:scale-95 ${
-                      isSelected
-                        ? "border-amber-500 bg-amber-50 ring-4 ring-amber-400/40 shadow-md"
-                        : isBooked
-                        ? "bg-rose-50/70 border-rose-300 hover:bg-rose-100/70 hover:border-rose-400"
-                        : "bg-emerald-50/20 border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/50"
+                    className={`min-w-0 min-h-[54px] sm:min-h-[76px] md:min-h-[92px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex items-center justify-center active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+                      isBooked
+                        ? `bg-rose-200 border-rose-400 text-rose-950 ${isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : "hover:bg-rose-300 hover:border-rose-500"}`
+                        : `bg-emerald-200 border-emerald-400 text-emerald-950 ${isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : "hover:bg-emerald-300 hover:border-emerald-500"}`
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      {/* Big Day Number 18px-20px Bold for Seniors */}
-                      <span className={`text-base sm:text-lg md:text-xl font-black leading-none ${
-                        isSelected ? "text-amber-950 font-black" : isBooked ? "text-rose-950 font-black" : "text-slate-800"
-                      }`}>
-                        {dayNum}
-                      </span>
-                      {isBooked ? (
-                        <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-rose-600 ring-2 ring-rose-200 shrink-0" title="Booked / બુકિંગ છે"></span>
-                      ) : (
-                        <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-600 ring-2 ring-emerald-200 shrink-0" title="Available / ખાલી છે"></span>
-                      )}
-                    </div>
-
-                    <div className="mt-1 space-y-1">
-                      {isBooked ? (
-                        <>
-                          <div className="hidden md:block space-y-1">
-                            {dayBookings.slice(0, 2).map((b, idx) => (
-                              <div
-                                key={idx}
-                                className="text-[10px] sm:text-xs font-black bg-rose-200/90 text-rose-950 px-1.5 py-0.5 rounded-lg truncate border border-rose-300 shadow-2xs"
-                                title={`${b.customerName} - ${b.eventType}`}
-                              >
-                                🔴 {b.customerName}
-                              </div>
-                            ))}
-                            {dayBookings.length > 2 && (
-                              <span className="text-[10px] text-rose-800 font-black block text-right">
-                                +{dayBookings.length - 2} વધુ
-                              </span>
-                            )}
-                          </div>
-                          <div className="block md:hidden">
-                            <span className="text-[10px] font-black text-rose-950 bg-rose-200 px-1.5 py-0.5 rounded-md block text-center truncate border border-rose-300">
-                              🔴 {dayBookings.length === 1 ? dayBookings[0].customerName : `${dayBookings.length} બુક`}
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-[10px] sm:text-xs font-extrabold text-emerald-800 bg-emerald-100/90 px-1.5 py-0.5 rounded-lg text-center border border-emerald-300 flex items-center justify-center space-x-1 shadow-2xs">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block"></span>
-                          <span>ખાલી છે</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    <span className="text-sm font-black leading-none sm:text-lg md:text-xl">{dayNum}</span>
+                  </button>
                 );
               })}
             </div>
