@@ -10,6 +10,10 @@ import {
   AlertCircle,
   Shield,
   Layers,
+  Plus,
+  Trash2,
+  X,
+  Tag,
 } from "lucide-react";
 
 export default function DiscountsAndServicesPage() {
@@ -18,14 +22,28 @@ export default function DiscountsAndServicesPage() {
   const [services, setServices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Create Discount Modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    code: "",
+    percentage: 10,
+    description: "",
+    isActive: true,
+  });
+
   // Edit Discount Modal
   const [editingDiscount, setEditingDiscount] = useState<any | null>(null);
   const [discountForm, setDiscountForm] = useState({
     name: "",
+    code: "",
     percentage: 0,
     description: "",
     isActive: true,
   });
+
+  // Delete Discount Confirmation Dialog
+  const [deleteConfirmDiscount, setDeleteConfirmDiscount] = useState<any | null>(null);
 
   // Edit Service Modal
   const [editingService, setEditingService] = useState<any | null>(null);
@@ -37,7 +55,9 @@ export default function DiscountsAndServicesPage() {
   });
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState("");
+  const [errMsg, setErrMsg] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -72,32 +92,85 @@ export default function DiscountsAndServicesPage() {
     setEditingDiscount(d);
     setDiscountForm({
       name: d.name,
+      code: d.code,
       percentage: d.percentage,
       description: d.description || "",
       isActive: d.isActive,
     });
   };
 
+  const handleCreateDiscount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setErrMsg("");
+    try {
+      const res = await fetch("/api/discounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(createForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to create discount rule");
+      }
+      setShowCreateModal(false);
+      setMsg(`New discount "${data.discount?.name}" added successfully.`);
+      fetchData();
+      setTimeout(() => setMsg(""), 4000);
+    } catch (err: any) {
+      setErrMsg(err.message || "Failed to create discount rule");
+      alert(err.message || "Failed to create discount rule");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleSaveDiscount = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDiscount) return;
     setSaving(true);
+    setErrMsg("");
     try {
       const res = await fetch("/api/discounts", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editingDiscount.id, ...discountForm }),
       });
-      if (res.ok) {
-        setEditingDiscount(null);
-        setMsg("Discount policy updated successfully.");
-        fetchData();
-        setTimeout(() => setMsg(""), 3500);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update discount rule");
       }
-    } catch (err) {
-      alert("Failed to update discount rule");
+      setEditingDiscount(null);
+      setMsg("Discount policy updated successfully.");
+      fetchData();
+      setTimeout(() => setMsg(""), 3500);
+    } catch (err: any) {
+      setErrMsg(err.message || "Failed to update discount rule");
+      alert(err.message || "Failed to update discount rule");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteDiscount = async () => {
+    if (!deleteConfirmDiscount) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/discounts?id=${deleteConfirmDiscount.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete discount rule");
+      }
+      setDiscounts((prev) => prev.filter((d) => d.id !== deleteConfirmDiscount.id));
+      setDeleteConfirmDiscount(null);
+      setMsg("Discount rule removed successfully.");
+      setTimeout(() => setMsg(""), 3500);
+    } catch (err: any) {
+      alert(err.message || "Failed to delete discount rule");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -145,22 +218,22 @@ export default function DiscountsAndServicesPage() {
   return (
     <div className="space-y-8">
       {/* Page Header */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-xs font-bold text-red-800 uppercase tracking-wide">
+          <span className="text-[11px] font-bold text-red-800 uppercase tracking-wider">
             Tariff & Policy Configuration
           </span>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-900">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Discounts & Add-on Services
           </h1>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 mt-0.5">
             Manage official trustee and donor discount policies and optional cleaning and food disposal services.
           </p>
         </div>
 
         {msg && (
-          <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center">
-            <CheckCircle className="w-4 h-4 mr-1.5 text-emerald-600" />
+          <div className="bg-emerald-50 text-emerald-800 border border-emerald-200 px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center shadow-sm">
+            <CheckCircle className="w-4 h-4 mr-2 text-emerald-600 shrink-0" />
             {msg}
           </div>
         )}
@@ -168,16 +241,39 @@ export default function DiscountsAndServicesPage() {
 
       {/* 1. Discount Management Section */}
       <section className="space-y-4">
-        <div className="border-b border-slate-200 pb-2 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Percent className="w-5 h-5 text-red-800" />
-            <h2 className="text-lg font-bold text-slate-900">
-              Samaj Discount Rules (Non-Stackable)
-            </h2>
+        <div className="border-b border-slate-200 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-800 shrink-0">
+              <Percent className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900">
+                Samaj Discount Rules (સમાજ ડિસ્કાઉન્ટ નીતિ)
+              </h2>
+              <span className="text-xs text-slate-500 font-medium">
+                Non-stackable trust policies applied to facility rent only
+              </span>
+            </div>
           </div>
-          <span className="text-xs text-slate-500 font-medium">
-            Applies to facility rent only
-          </span>
+
+          {currentUser?.role === "SUPER_ADMIN" && (
+            <button
+              onClick={() => {
+                setCreateForm({
+                  name: "",
+                  code: "",
+                  percentage: 10,
+                  description: "",
+                  isActive: true,
+                });
+                setShowCreateModal(true);
+              }}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-[#0066cc] hover:bg-[#0055b3] active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span>+ Add Discount (નવું ડિસ્કાઉન્ટ)</span>
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -188,14 +284,14 @@ export default function DiscountsAndServicesPage() {
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-900 border border-red-200 uppercase tracking-wider">
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-red-100 text-red-900 border border-red-200 uppercase tracking-wider font-mono">
                     {d.code}
                   </span>
                   <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
                       d.isActive
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-slate-100 text-slate-500"
+                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                        : "bg-slate-100 text-slate-500 border border-slate-200"
                     }`}
                   >
                     {d.isActive ? "Active Policy" : "Disabled"}
@@ -204,15 +300,15 @@ export default function DiscountsAndServicesPage() {
 
                 <div>
                   <h3 className="text-base font-bold text-slate-900">{d.name}</h3>
-                  <div className="mt-1 flex items-baseline space-x-1">
-                    <span className="text-3xl font-black text-red-900">
+                  <div className="mt-1 flex items-baseline space-x-1.5">
+                    <span className="text-3xl font-black text-red-900 tracking-tight">
                       {d.percentage}%
                     </span>
-                    <span className="text-xs text-slate-500">Off Facility Rent</span>
+                    <span className="text-xs font-medium text-slate-500">Off Facility Rent</span>
                   </div>
                 </div>
 
-                <p className="text-xs text-slate-600 leading-relaxed">
+                <p className="text-xs text-slate-600 leading-relaxed min-h-[32px]">
                   {d.description || "Official trust discount entitlement for authorized applicants."}
                 </p>
 
@@ -226,15 +322,25 @@ export default function DiscountsAndServicesPage() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                 {currentUser?.role === "SUPER_ADMIN" ? (
-                  <button
-                    onClick={() => handleEditDiscountClick(d)}
-                    className="text-xs font-bold text-red-800 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg border border-red-200 transition flex items-center"
-                  >
-                    <Edit2 className="w-3.5 h-3.5 mr-1" />
-                    Edit Rate
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setDeleteConfirmDiscount(d)}
+                      className="text-xs font-semibold text-slate-500 hover:text-red-700 hover:bg-red-50 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:border-red-200 transition flex items-center gap-1"
+                      title="Delete Rule"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
+                    <button
+                      onClick={() => handleEditDiscountClick(d)}
+                      className="text-xs font-bold text-[#0066cc] hover:text-[#0055b3] bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition flex items-center gap-1.5"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                      <span>Edit Details (વિગત સુધારો)</span>
+                    </button>
+                  </>
                 ) : (
                   <span className="text-xs text-slate-400 font-semibold italic">
                     Read-Only Policy
@@ -268,7 +374,7 @@ export default function DiscountsAndServicesPage() {
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wider">
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200 uppercase tracking-wider font-mono">
                     {s.code}
                   </span>
                   <span
@@ -330,24 +436,181 @@ export default function DiscountsAndServicesPage() {
         </div>
       </section>
 
-      {/* Edit Discount Modal */}
-      {editingDiscount && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      {/* CREATE Discount Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="bg-red-900 text-white p-5 flex items-center justify-between">
-              <h3 className="text-base font-bold">Edit Discount Policy</h3>
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-lg bg-[#0066cc] flex items-center justify-center text-white">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">Add New Discount Rule</h3>
+                  <p className="text-[11px] text-slate-300">નવું ડિસ્કાઉન્ટ નીતિ ઉમેરો</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDiscount} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Discount Policy Name (ડિસ્કાઉન્ટનું નામ) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Life Member / આજીવન સભ્ય અથવા Trustee Option 3"
+                  value={createForm.name}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const autoCode = val.trim().toUpperCase().replace(/[^A-Z0-9]/g, "_").slice(0, 20);
+                    setCreateForm({
+                      ...createForm,
+                      name: val,
+                      code: createForm.code ? createForm.code : autoCode,
+                    });
+                  }}
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-[#0066cc] outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Discount Percentage (%) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.5"
+                      required
+                      min="0"
+                      max="100"
+                      value={createForm.percentage}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          percentage: Number(e.target.value),
+                        })
+                      }
+                      className="w-full text-sm bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-bold focus:bg-white focus:border-[#0066cc] outline-none pr-8"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">
+                      %
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Unique Code (કૉડ) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. LIFE_MEMBER"
+                    value={createForm.code}
+                    onChange={(e) =>
+                      setCreateForm({
+                        ...createForm,
+                        code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "_"),
+                      })
+                    }
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-mono font-bold focus:bg-white focus:border-[#0066cc] outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Description / Eligibility Notes (વિગત અને પાત્રતા)
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Official discount for registered donor families and trust executives."
+                  value={createForm.description}
+                  onChange={(e) =>
+                    setCreateForm({
+                      ...createForm,
+                      description: e.target.value,
+                    })
+                  }
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-[#0066cc] outline-none"
+                ></textarea>
+              </div>
+
+              <div className="flex items-center space-x-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="createDiscActive"
+                  checked={createForm.isActive}
+                  onChange={(e) =>
+                    setCreateForm({
+                      ...createForm,
+                      isActive: e.target.checked,
+                    })
+                  }
+                  className="w-4 h-4 text-[#0066cc] rounded accent-[#0066cc]"
+                />
+                <label htmlFor="createDiscActive" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Enable this discount rule immediately for bookings (તરત જ સક્રિય કરો)
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                  className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition"
+                >
+                  Cancel (રદ કરો)
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="bg-[#0066cc] hover:bg-[#0055b3] text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition disabled:opacity-50"
+                >
+                  {saving ? "Creating..." : "+ Add Discount (ઉમેરો)"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT Discount Modal */}
+      {editingDiscount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">Edit Discount Policy</h3>
+                  <p className="text-[11px] text-slate-300">ડિસ્કાઉન્ટ વિગતોમાં સુધારો કરો</p>
+                </div>
+              </div>
               <button
                 onClick={() => setEditingDiscount(null)}
-                className="text-white/70 hover:text-white font-bold"
+                className="text-white/70 hover:text-white p-1 rounded-lg hover:bg-white/10 transition"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveDiscount} className="p-5 space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Policy Name *
+                  Policy Name (ડિસ્કાઉન્ટનું નામ) *
                 </label>
                 <input
                   type="text"
@@ -356,34 +619,59 @@ export default function DiscountsAndServicesPage() {
                   onChange={(e) =>
                     setDiscountForm({ ...discountForm, name: e.target.value })
                   }
-                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800"
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-semibold focus:bg-white focus:border-[#0066cc] outline-none"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Discount Percentage (%) *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="0.5"
+                      required
+                      min="0"
+                      max="100"
+                      value={discountForm.percentage}
+                      onChange={(e) =>
+                        setDiscountForm({
+                          ...discountForm,
+                          percentage: Number(e.target.value),
+                        })
+                      }
+                      className="w-full text-sm bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-bold focus:bg-white focus:border-[#0066cc] outline-none pr-8"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs font-bold text-slate-400">
+                      %
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Rule Code (કૉડ) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={discountForm.code}
+                    onChange={(e) =>
+                      setDiscountForm({
+                        ...discountForm,
+                        code: e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, "_"),
+                      })
+                    }
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-mono font-bold focus:bg-white focus:border-[#0066cc] outline-none"
+                  />
+                </div>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Discount Percentage (%) *
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  required
-                  min="0"
-                  max="100"
-                  value={discountForm.percentage}
-                  onChange={(e) =>
-                    setDiscountForm({
-                      ...discountForm,
-                      percentage: Number(e.target.value),
-                    })
-                  }
-                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Description / Eligibility Notes
+                  Description / Eligibility Notes (વિગત અને પાત્રતા)
                 </label>
                 <textarea
                   rows={2}
@@ -394,11 +682,11 @@ export default function DiscountsAndServicesPage() {
                       description: e.target.value,
                     })
                   }
-                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800"
+                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 focus:bg-white focus:border-[#0066cc] outline-none"
                 ></textarea>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 pt-1">
                 <input
                   type="checkbox"
                   id="discActive"
@@ -409,27 +697,27 @@ export default function DiscountsAndServicesPage() {
                       isActive: e.target.checked,
                     })
                   }
-                  className="w-4 h-4 text-red-800 rounded"
+                  className="w-4 h-4 text-[#0066cc] rounded accent-[#0066cc]"
                 />
-                <label htmlFor="discActive" className="text-xs font-semibold text-slate-700">
-                  Enable this discount rule for bookings
+                <label htmlFor="discActive" className="text-xs font-semibold text-slate-700 cursor-pointer">
+                  Enable this discount rule for bookings (બુકિંગમાં સક્રિય રાખો)
                 </label>
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200">
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => setEditingDiscount(null)}
-                  className="text-xs font-semibold px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition"
                 >
-                  Cancel
+                  Cancel (રદ કરો)
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="bg-red-800 hover:bg-red-700 text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow transition"
+                  className="bg-[#0066cc] hover:bg-[#0055b3] text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-sm transition disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Save Discount"}
+                  {saving ? "Saving..." : "Save Changes (સાચવો)"}
                 </button>
               </div>
             </form>
@@ -437,9 +725,64 @@ export default function DiscountsAndServicesPage() {
         </div>
       )}
 
+      {/* DELETE Discount Confirmation Dialog */}
+      {deleteConfirmDiscount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden p-6 space-y-4">
+            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold text-slate-900">
+                Delete Discount Rule?
+              </h3>
+              <p className="text-xs text-slate-500">
+                શું તમે આ ડિસ્કાઉન્ટ નીતિ ખરેખર કાઢી નાખવા માંગો છો?
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+              <p className="text-xs font-bold text-slate-900">
+                {deleteConfirmDiscount.name}
+              </p>
+              <p className="text-sm font-extrabold text-red-800 mt-0.5">
+                {deleteConfirmDiscount.percentage}% Off Facility Rent
+              </p>
+              <p className="text-[10px] text-slate-500 font-mono mt-1">
+                Code: {deleteConfirmDiscount.code}
+              </p>
+            </div>
+
+            <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+              Note: Existing booking slips will keep their applied discount amount for historical audit records.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmDiscount(null)}
+                disabled={deleting}
+                className="w-full text-xs font-bold py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm transition"
+              >
+                Keep (રાખો)
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteDiscount}
+                disabled={deleting}
+                className="w-full text-xs font-bold py-2.5 px-3 bg-red-700 hover:bg-red-800 text-white rounded-xl shadow-sm transition disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete (કાઢી નાખો)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Service Modal */}
       {editingService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
             <div className="bg-slate-900 text-white p-5 flex items-center justify-between">
               <h3 className="text-base font-bold">Configure Add-on Service</h3>
@@ -547,4 +890,3 @@ export default function DiscountsAndServicesPage() {
     </div>
   );
 }
-
