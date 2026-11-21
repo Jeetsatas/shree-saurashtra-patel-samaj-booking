@@ -200,6 +200,59 @@ export default function AdminCalendarPage() {
 
   const selectedDayBookings = selectedDate ? getBookingsForDate(selectedDate) : [];
 
+  // Bus Seat-Style Facility Availability Engine
+  const [availabilityFilter, setAvailabilityFilter] = useState<"AVAILABLE_FIRST" | "ALL" | "ONLY_AVAILABLE" | "ONLY_BOOKED">("AVAILABLE_FIRST");
+
+  const getFacilityAvailabilityForDate = (dateObj: Date | null) => {
+    if (!dateObj || facilities.length === 0) return [];
+
+    const targetStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
+
+    return facilities.map((fac) => {
+      const targetGroup = fac.resourceGroup || fac.code;
+      const facBookings = bookings.filter((b) => {
+        const matchesFac = b.facilityId === fac.id;
+        const matchesGroup = targetGroup && b.resourceGroup === targetGroup;
+        if (!matchesFac && !matchesGroup) return false;
+
+        const start = new Date(b.startDate);
+        const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+        const end = new Date(b.endDate || b.startDate);
+        const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+
+        const matches = targetStr >= startStr && targetStr <= endStr;
+        return matches && b.status !== "CANCELLED";
+      });
+
+      return {
+        facility: fac,
+        isAvailable: facBookings.length === 0,
+        isBooked: facBookings.length > 0,
+        bookings: facBookings,
+      };
+    });
+  };
+
+  const selectedDayFacilities = selectedDate ? getFacilityAvailabilityForDate(selectedDate) : [];
+  const availableCount = selectedDayFacilities.filter((f) => f.isAvailable).length;
+  const bookedCount = selectedDayFacilities.filter((f) => f.isBooked).length;
+
+  const filteredDayFacilities = (() => {
+    if (availabilityFilter === "ONLY_AVAILABLE") {
+      return selectedDayFacilities.filter((f) => f.isAvailable);
+    }
+    if (availabilityFilter === "ONLY_BOOKED") {
+      return selectedDayFacilities.filter((f) => f.isBooked);
+    }
+    if (availabilityFilter === "AVAILABLE_FIRST") {
+      return [...selectedDayFacilities].sort((a, b) => {
+        if (a.isAvailable === b.isAvailable) return 0;
+        return a.isAvailable ? -1 : 1;
+      });
+    }
+    return selectedDayFacilities;
+  })();
+
   // Week calculation
   const getWeekDates = (baseDate: Date) => {
     const current = new Date(baseDate);
@@ -467,12 +520,14 @@ export default function AdminCalendarPage() {
                 const dayBookings = getBookingsForDay(dayNum);
                 const isBooked = dayBookings.length > 0;
                 const isSelected = selectedDate && selectedDate.getDate() === dayNum && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
+                const dayFacs = getFacilityAvailabilityForDate(dayDate);
+                const dayAvail = dayFacs.filter((f) => f.isAvailable).length;
 
                 return (
                   <button
                     type="button"
                     key={`day-${dayNum}`}
-                    aria-label={`${dayDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}: ${isBooked ? `${dayBookings.length} booking${dayBookings.length === 1 ? "" : "s"}` : "available"}`}
+                    aria-label={`${dayDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}: ${isBooked ? `${dayBookings.length} bookings, ${dayAvail} available` : "all available"}`}
                     aria-pressed={Boolean(isSelected)}
                     onClick={() => {
                       setSelectedDate(dayDate);
@@ -483,40 +538,50 @@ export default function AdminCalendarPage() {
                         }
                       }
                     }}
-                    className={`min-w-0 min-h-[54px] sm:min-h-[76px] md:min-h-[92px] p-1 sm:p-2.5 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex items-center justify-center active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
+                    className={`min-w-0 min-h-[56px] sm:min-h-[76px] md:min-h-[92px] p-1 sm:p-2 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex flex-col items-center justify-center active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
                       isBooked
                         ? `bg-rose-200 border-rose-400 text-rose-950 ${isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : "hover:bg-rose-300 hover:border-rose-500"}`
                         : `bg-emerald-200 border-emerald-400 text-emerald-950 ${isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : "hover:bg-emerald-300 hover:border-emerald-500"}`
                     }`}
                   >
                     <span className="text-sm font-black leading-none sm:text-lg md:text-xl">{dayNum}</span>
+                    {selectedFacilityId === "ALL" && isBooked && dayAvail > 0 ? (
+                      <span className="mt-1 text-[9px] sm:text-[10px] font-extrabold text-emerald-950 bg-white/70 px-1 rounded truncate max-w-full">
+                        {dayAvail} ખાલી
+                      </span>
+                    ) : (
+                      <span className="mt-1 text-[9px] sm:text-[10px] font-bold opacity-80 truncate max-w-full">
+                        {isBooked ? "બુકિંગ" : "ખાલી"}
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Selected Day Inspector */}
+          {/* Selected Day Inspector — Bus-Seat Style Facility Availability Engine */}
           <div
             id="day-inspector-section"
             className="bg-white rounded-3xl border-2 border-slate-200 shadow-md p-4 sm:p-6 space-y-4 flex flex-col scroll-mt-20"
           >
-            <div className="border-b-2 border-slate-100 pb-3.5">
-              <div className="flex items-center justify-between mb-1.5">
+            {/* Header with Gujarati + English Date */}
+            <div className="border-b-2 border-slate-100 pb-3.5 space-y-2">
+              <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
-                  તારીખ વિગત (Day Details)
+                  તારીખ વિગત (DAY DETAILS)
                 </span>
-                {selectedDayBookings.length > 0 ? (
-                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-red-100 text-red-800 border border-red-300">
-                    🔴 {selectedDayBookings.length} બુકિંગ છે
-                  </span>
-                ) : (
+                <div className="flex items-center gap-1.5">
                   <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    🟢 ખાલી છે (Open)
+                    🟢 {availableCount} ખાલી
                   </span>
-                )}
+                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                    🔴 {bookedCount} બુક
+                  </span>
+                </div>
               </div>
-              <h3 className="text-xl sm:text-2xl font-black text-slate-900">
+
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight">
                 {selectedDate
                   ? selectedDate.toLocaleDateString("en-IN", {
                       weekday: "long",
@@ -524,115 +589,222 @@ export default function AdminCalendarPage() {
                       month: "long",
                       year: "numeric",
                     })
-                  : "Select a day"}
+                  : "તારીખ પસંદ કરો"}
               </h3>
             </div>
 
-            <div className="flex-1 space-y-3.5 overflow-y-auto">
-              {selectedDayBookings.length === 0 ? (
-                <div className="text-center py-10 space-y-3 bg-slate-50/70 rounded-2xl border-2 border-dashed border-slate-200 p-6">
-                  <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto shadow-inner border border-emerald-200">
-                    <CheckCircle className="w-8 h-8 text-emerald-600 stroke-[2.2]" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="text-base sm:text-lg font-black text-slate-900">
-                      આ દિવસે કોઈ બુકિંગ નથી
-                    </h4>
-                    <p className="text-xs sm:text-sm font-semibold text-slate-500">
-                      તમામ હોલ અને પ્લોટ સંપૂર્ણ ખાલી અને ઉપલબ્ધ છે.
-                    </p>
-                  </div>
-                  {isSuper && (
-                    <Link
-                      href={`/admin/bookings?new=true&date=${selectedDate ? selectedDate.toISOString().split("T")[0] : ""}`}
-                      className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-red-800 hover:bg-red-700 text-white font-extrabold text-xs sm:text-sm shadow-md transition space-x-1.5 mt-2 min-h-[44px]"
-                    >
-                      <Plus className="w-4 h-4 text-amber-300 stroke-[3]" />
-                      <span>આ તારીખ માટે નવું બુકિંગ કરો</span>
-                    </Link>
-                  )}
+            {/* Bus Seat Layout Overview (Mini Map) */}
+            <div className="bg-[#f5f5f7] p-3 sm:p-3.5 rounded-2xl border border-[#e5e5ea] space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-600">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <span>સુવિધા સ્થિતિ (Seat Map)</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium">કુલ ૮ સુવિધાઓ</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {selectedDayFacilities.map((item) => (
+                  <button
+                    key={item.facility.id}
+                    type="button"
+                    onClick={() => {
+                      const el = document.getElementById(`fac-seat-${item.facility.id}`);
+                      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }}
+                    className={`p-2 rounded-xl text-left border transition text-[11px] font-bold flex flex-col justify-between active:scale-95 cursor-pointer ${
+                      item.isAvailable
+                        ? "bg-emerald-100 border-emerald-300 text-emerald-950 hover:bg-emerald-200"
+                        : "bg-rose-100 border-rose-300 text-rose-950 hover:bg-rose-200"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: item.isAvailable ? "#10b981" : "#ef4444" }}
+                      />
+                      <span className="text-[9px] font-black uppercase">
+                        {item.isAvailable ? "ખાલી" : "બુક"}
+                      </span>
+                    </div>
+                    <span className="truncate mt-1 text-[10px] leading-tight block font-extrabold">
+                      {item.facility.name.replace("Dormitory — ", "").replace("AC Room — ", "AC ")}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Filter Tabs: Available First by Default */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
+              {[
+                { id: "AVAILABLE_FIRST", label: `🟢 ઉપલબ્ધ પ્રથમ (${availableCount} ખાલી)` },
+                { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત ખાલી (${availableCount})` },
+                { id: "ONLY_BOOKED", label: `🔴 ફક્ત બુક (${bookedCount})` },
+                { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setAvailabilityFilter(tab.id as any)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer ${
+                    availabilityFilter === tab.id
+                      ? "bg-[#0066cc] text-white shadow-xs"
+                      : "bg-[#f5f5f7] text-[#1d1d1f] hover:bg-[#e5e5ea]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Facilities Cards (Sorted: Available Facilities First!) */}
+            <div className="flex-1 space-y-3 overflow-y-auto max-h-[580px] pr-1">
+              {filteredDayFacilities.length === 0 ? (
+                <div className="text-center py-8 text-xs text-slate-500 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-4">
+                  આ ફિલ્ટર મુજબ કોઈ સુવિધા નથી.
                 </div>
               ) : (
-                selectedDayBookings.map((b) => {
-                  const cleanPhone = b.customerPhone?.replace(/\D/g, "") || "";
-                  const waMessage = `શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ-નરોડા)\nજય શ્રી ખોડિયાર 🙏\n\nઆપનું બુકિંગ કન્ફર્મ થયેલ છે:\n• બુકિંગ નંબર: ${b.bookingNumber}\n• અરજદાર: ${b.customerName}\n• સુવિધા: ${b.facility?.name || ""}\n• પ્રસંગ: ${b.eventType}\n• તારીખ: ${new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}\n• સમય: ${b.slot}\n\nશ્રી સૌરાષ્ટ્ર પટેલ સમાજ ટ્રસ્ટ, નિકોલ-નરોડા, અમદાવાદ.`;
+                filteredDayFacilities.map((item) => {
+                  const fac = item.facility;
+                  const isAvail = item.isAvailable;
 
-                  return (
-                    <div
-                      key={b.id}
-                      className="p-4 sm:p-5 rounded-2xl border-2 border-red-200 bg-red-50/50 space-y-3.5 shadow-sm"
-                    >
-                      <div className="flex items-center justify-between pb-2 border-b border-red-200/60">
-                        <span className="text-xs sm:text-sm font-black text-red-900 bg-red-200/90 px-3 py-1 rounded-lg font-mono border border-red-300">
-                          {b.bookingNumber}
-                        </span>
-                        <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                          {b.status}
-                        </span>
-                      </div>
-
-                      {/* Applicant & Event Details */}
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                          અરજદારનું નામ (Applicant)
-                        </span>
-                        <h4 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
-                          {b.customerName}
-                        </h4>
-                        <p className="text-xs sm:text-sm font-bold text-red-800 mt-0.5">
-                          🎉 {b.eventType} ({b.slot})
-                        </p>
-                      </div>
-
-                      {/* Facility & Phone Info */}
-                      <div className="bg-white/95 rounded-xl p-3 border border-red-200/70 space-y-2 text-xs sm:text-sm shadow-2xs">
-                        <div className="flex items-center text-slate-700 font-semibold">
-                          <Building className="w-4 h-4 mr-2 text-red-700 shrink-0" />
-                          <span className="font-bold text-slate-900">{b.facility?.name}</span>
+                  if (isAvail) {
+                    return (
+                      <div
+                        id={`fac-seat-${fac.id}`}
+                        key={fac.id}
+                        className="p-4 rounded-2xl border-2 border-emerald-300 bg-emerald-50/70 space-y-2.5 transition hover:shadow-sm scroll-mt-24 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-emerald-200 shrink-0"></span>
+                            <h4 className="text-sm sm:text-base font-black text-emerald-950">
+                              {fac.name}
+                            </h4>
+                          </div>
+                          <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-200 text-emerald-900 border border-emerald-400">
+                            🟢 ખાલી છે (Available)
+                          </span>
                         </div>
-                        {b.customerPhone && (
-                          <div className="flex items-center text-slate-900 pt-1.5 border-t border-slate-100">
-                            <Phone className="w-4 h-4 mr-2 text-emerald-600 shrink-0" />
-                            <span className="text-xs text-slate-500 mr-2 font-semibold">મોબાઇલ:</span>
-                            <span className="font-mono font-black text-sm sm:text-base text-slate-950">
-                              {b.customerPhone}
+
+                        <div className="flex items-center justify-between text-xs text-emerald-900 pt-1 border-t border-emerald-200/60">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-semibold text-slate-600">
+                              {fac.type === "PLOT" ? "🌳 પાર્ટી પ્લોટ" : fac.type === "HALL" ? "🏛️ હોલ" : fac.type === "DORMITORY" ? "🛏️ ડોર્મિટરી" : "🚪 એસી રૂમ"}
+                            </span>
+                            <span>•</span>
+                            <span className="font-bold text-slate-800">
+                              ક્ષમતા: {fac.capacity} {fac.bookingUnit === "PER_BED" ? "બેડ" : "માણસો"}
                             </span>
                           </div>
-                        )}
+
+                          {isSuper ? (
+                            <Link
+                              href={`/admin/bookings?new=true&date=${selectedDate ? selectedDate.toISOString().split("T")[0] : ""}&facilityId=${fac.id}`}
+                              className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-[#0066cc] hover:bg-[#0071e3] active:bg-[#0077ed] text-white font-bold text-xs shadow-xs transition"
+                            >
+                              <Plus className="w-3.5 h-3.5 mr-1" />
+                              <span>બુક કરો</span>
+                            </Link>
+                          ) : (
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md">
+                              ✓ ઉપલબ્ધ
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  // Booked Facility Card
+                  return (
+                    <div
+                      id={`fac-seat-${fac.id}`}
+                      key={fac.id}
+                      className="p-4 rounded-2xl border-2 border-rose-300 bg-rose-50/70 space-y-3 transition hover:shadow-sm scroll-mt-24 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between pb-2 border-b border-rose-200/70">
+                        <div className="flex items-center space-x-2">
+                          <span className="w-3 h-3 rounded-full bg-rose-500 ring-4 ring-rose-200 shrink-0"></span>
+                          <h4 className="text-sm sm:text-base font-black text-rose-950">
+                            {fac.name}
+                          </h4>
+                        </div>
+                        <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-200 text-rose-900 border border-rose-400">
+                          🔴 બુક થયેલ (Booked)
+                        </span>
                       </div>
 
-                      {/* Elder-Friendly Action Shortcuts (Big touch targets min 44px) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                        {b.customerPhone && (
-                          <a
-                            href={`tel:${b.customerPhone}`}
-                            className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-extrabold text-xs sm:text-sm shadow transition flex items-center justify-center space-x-1.5 min-h-[44px]"
-                          >
-                            <Phone className="w-4 h-4" />
-                            <span>ફોન કરો (Call)</span>
-                          </a>
-                        )}
+                      <div className="space-y-2.5">
+                        {item.bookings.map((b: any) => {
+                          const cleanPhone = b.customerPhone?.replace(/\D/g, "") || "";
+                          const waMessage = `શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ-નરોડા)\nજય શ્રી ખોડિયાર 🙏\n\nઆપનું બુકિંગ કન્ફર્મ થયેલ છે:\n• બુકિંગ નંબર: ${b.bookingNumber}\n• અરજદાર: ${b.customerName}\n• સુવિધા: ${b.facility?.name || fac.name}\n• પ્રસંગ: ${b.eventType}\n• તારીખ: ${new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}\n• સમય: ${b.slot}\n\nશ્રી સૌરાષ્ટ્ર પટેલ સમાજ ટ્રસ્ટ, નિકોલ-નરોડા, અમદાવાદ.`;
 
-                        {cleanPhone && (
-                          <a
-                            href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(waMessage)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-xs sm:text-sm shadow transition flex items-center justify-center space-x-1.5 min-h-[44px]"
-                          >
-                            <MessageSquare className="w-4 h-4" />
-                            <span>વોટ્સએપ રસીદ</span>
-                          </a>
-                        )}
+                          return (
+                            <div key={b.id} className="bg-white rounded-xl p-3 sm:p-3.5 border border-rose-200 space-y-2.5 shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-rose-900 bg-rose-100 px-2.5 py-0.5 rounded font-mono border border-rose-200">
+                                  {b.bookingNumber}
+                                </span>
+                                <span className="text-[10px] font-black px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  {b.status}
+                                </span>
+                              </div>
 
-                        <Link
-                          href={`/admin/bookings/${b.id}/receipt`}
-                          target="_blank"
-                          className="w-full py-2.5 px-3 rounded-xl bg-white hover:bg-slate-100 active:bg-slate-200 text-slate-800 border-2 border-slate-300 font-extrabold text-xs sm:text-sm shadow-2xs transition flex items-center justify-center space-x-1.5 min-h-[44px]"
-                        >
-                          <Printer className="w-4 h-4 text-slate-600" />
-                          <span>રસીદ પ્રિન્ટ</span>
-                        </Link>
+                              <div>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                  અરજદારનું નામ (Applicant)
+                                </span>
+                                <h5 className="text-sm sm:text-base font-black text-slate-900">
+                                  {b.customerName}
+                                </h5>
+                                <p className="text-xs font-bold text-rose-700 mt-0.5">
+                                  🎉 {b.eventType} ({b.slot})
+                                </p>
+                              </div>
+
+                              {b.customerPhone && (
+                                <div className="flex items-center text-slate-900 pt-1 border-t border-slate-100 text-xs">
+                                  <Phone className="w-3.5 h-3.5 mr-2 text-emerald-600 shrink-0" />
+                                  <span className="text-slate-500 mr-1.5 font-semibold">મોબાઇલ:</span>
+                                  <span className="font-mono font-black text-sm text-slate-950">{b.customerPhone}</span>
+                                </div>
+                              )}
+
+                              {/* Action buttons (Call, WhatsApp, Slip) */}
+                              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                                {b.customerPhone && (
+                                  <a
+                                    href={`tel:${b.customerPhone}`}
+                                    className="py-2 px-2 rounded-xl bg-[#0066cc] hover:bg-[#0071e3] active:bg-[#0077ed] text-white font-bold text-xs shadow-xs transition flex items-center justify-center space-x-1"
+                                  >
+                                    <Phone className="w-3.5 h-3.5" />
+                                    <span>ફોન કરો</span>
+                                  </a>
+                                )}
+                                {cleanPhone && (
+                                  <a
+                                    href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(waMessage)}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="py-2 px-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold text-xs shadow-xs transition flex items-center justify-center space-x-1"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    <span>વોટ્સએપ</span>
+                                  </a>
+                                )}
+                                <Link
+                                  href={`/admin/bookings/${b.id}/receipt`}
+                                  target="_blank"
+                                  className="py-2 px-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-bold text-xs shadow-2xs transition flex items-center justify-center space-x-1"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-slate-600" />
+                                  <span>રસીદ</span>
+                                </Link>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
