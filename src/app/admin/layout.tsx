@@ -299,17 +299,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <div className="text-[10px] text-slate-400">કોણે શું ફેરફાર કર્યો તેનો રેકોર્ડ</div>
                           </div>
                         </Link>
-                        <Link
-                          href="/admin/users"
-                          onClick={() => setTrustMenuOpen(false)}
-                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
-                        >
-                          <Users className="w-4 h-4 mr-2.5 text-amber-400" />
-                          <div>
-                            <div className="font-bold">ટ્રસ્ટી એકાઉન્ટ્સ (Admin Accounts)</div>
-                            <div className="text-[10px] text-slate-400">૩ અધિકૃત ટ્રસ્ટીઓ અને પાસવર્ડ</div>
-                          </div>
-                        </Link>
+                        {isSuper && (
+                          <Link
+                            href="/admin/users"
+                            onClick={() => setTrustMenuOpen(false)}
+                            className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                          >
+                            <Users className="w-4 h-4 mr-2.5 text-amber-400" />
+                            <div>
+                              <div className="font-bold">ટ્રસ્ટી એકાઉન્ટ્સ (Admin Accounts)</div>
+                              <div className="text-[10px] text-slate-400">અધિકૃત એડમિન અને પાસવર્ડ નિયંત્રણ</div>
+                            </div>
+                          </Link>
+                        )}
                         <Link
                           href="/admin/settings"
                           onClick={() => setTrustMenuOpen(false)}
@@ -470,14 +472,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <History className="w-4 h-4 mr-3 text-amber-400" />
                     <span>પ્રવૃત્તિ ઇતિહાસ (Audit Logs)</span>
                   </Link>
-                  <Link
-                    href="/admin/users"
-                    onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
-                  >
-                    <Users className="w-4 h-4 mr-3 text-amber-400" />
-                    <span>ટ્રસ્ટી એકાઉન્ટ્સ (Accounts)</span>
-                  </Link>
+                  {isSuper && (
+                    <Link
+                      href="/admin/users"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
+                    >
+                      <Users className="w-4 h-4 mr-3 text-amber-400" />
+                      <span>ટ્રસ્ટી એકાઉન્ટ્સ (Accounts)</span>
+                    </Link>
+                  )}
                   <Link
                     href="/admin/settings"
                     onClick={() => setMobileMenuOpen(false)}
