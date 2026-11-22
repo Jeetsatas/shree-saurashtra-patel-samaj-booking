@@ -248,6 +248,24 @@ export default function AdminCalendarPage() {
   const bookedCount = selectedDayFacilities.filter((f) => f.isBooked).length;
 
   const filteredDayFacilities = (() => {
+    if (!isSuper) {
+      // In View-Only Admin: strictly 2 states - Available (Green) or Booked (Red)
+      if (availabilityFilter === "ONLY_AVAILABLE") {
+        return selectedDayFacilities.filter((f) => f.isAvailable);
+      }
+      if (availabilityFilter === "ONLY_BOOKED") {
+        return selectedDayFacilities.filter((f) => f.isBooked);
+      }
+      if (availabilityFilter === "AVAILABLE_FIRST") {
+        return [...selectedDayFacilities].sort((a, b) => {
+          if (a.isAvailable === b.isAvailable) return 0;
+          return a.isAvailable ? -1 : 1;
+        });
+      }
+      return selectedDayFacilities;
+    }
+
+    // In Super Admin: 3 states - Available (Green), Partial (Yellow), Fully Booked (Red)
     if (availabilityFilter === "ONLY_AVAILABLE") {
       return selectedDayFacilities.filter((f) => f.isAvailable || f.isPartiallyBooked);
     }
@@ -511,11 +529,17 @@ export default function AdminCalendarPage() {
             <div className="mb-2 flex items-center justify-end gap-3 text-[10px] font-bold text-slate-600 sm:mb-3 sm:text-xs" aria-label="Calendar availability legend">
               <span className="inline-flex items-center gap-1.5">
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                Available
+                Available (ખાલી)
               </span>
+              {isSuper && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
+                  Partial (આંશિક સમય)
+                </span>
+              )}
               <span className="inline-flex items-center gap-1.5">
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
-                Booked
+                Booked (બુકિંગ)
               </span>
             </div>
 
@@ -532,6 +556,33 @@ export default function AdminCalendarPage() {
                 const isSelected = selectedDate && selectedDate.getDate() === dayNum && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
                 const dayFacs = getFacilityAvailabilityForDate(dayDate);
                 const dayAvail = dayFacs.filter((f) => f.isAvailable).length;
+                const dayIsFullyBooked = dayFacs.length > 0 && dayFacs.every((f) => f.isFullyBooked);
+
+                let cellTheme = "bg-emerald-200 border-emerald-400 text-emerald-950";
+                let hoverTheme = "hover:bg-emerald-300 hover:border-emerald-500";
+                let labelText = "ખાલી";
+
+                if (!isSuper) {
+                  // View-Only Admin: Strictly Green or Red
+                  if (isBooked) {
+                    cellTheme = "bg-rose-200 border-rose-400 text-rose-950";
+                    hoverTheme = "hover:bg-rose-300 hover:border-rose-500";
+                    labelText = "બુકિંગ";
+                  }
+                } else {
+                  // Super Admin: Green, Yellow (partial slots or partial facilities available), Red (fully booked)
+                  if (isBooked) {
+                    if (dayIsFullyBooked) {
+                      cellTheme = "bg-rose-200 border-rose-400 text-rose-950";
+                      hoverTheme = "hover:bg-rose-300 hover:border-rose-500";
+                      labelText = "પૂર્ણ બુક";
+                    } else {
+                      cellTheme = "bg-amber-200 border-amber-400 text-amber-950";
+                      hoverTheme = "hover:bg-amber-300 hover:border-amber-500";
+                      labelText = dayAvail > 0 ? `${dayAvail} ખાલી` : "સમય બુક";
+                    }
+                  }
+                }
 
                 return (
                   <button
@@ -548,22 +599,14 @@ export default function AdminCalendarPage() {
                         }
                       }
                     }}
-                    className={`min-w-0 min-h-[56px] sm:min-h-[76px] md:min-h-[92px] p-1 sm:p-2 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex flex-col items-center justify-center active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${
-                      isBooked
-                        ? `bg-rose-200 border-rose-400 text-rose-950 ${isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : "hover:bg-rose-300 hover:border-rose-500"}`
-                        : `bg-emerald-200 border-emerald-400 text-emerald-950 ${isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : "hover:bg-emerald-300 hover:border-emerald-500"}`
+                    className={`min-w-0 min-h-[56px] sm:min-h-[76px] md:min-h-[92px] p-1 sm:p-2 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex flex-col items-center justify-center active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${cellTheme} ${
+                      isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : hoverTheme
                     }`}
                   >
                     <span className="text-sm font-black leading-none sm:text-lg md:text-xl">{dayNum}</span>
-                    {selectedFacilityId === "ALL" && isBooked && dayAvail > 0 ? (
-                      <span className="mt-1 text-[9px] sm:text-[10px] font-extrabold text-emerald-950 bg-white/70 px-1 rounded truncate max-w-full">
-                        {dayAvail} ખાલી
-                      </span>
-                    ) : (
-                      <span className="mt-1 text-[9px] sm:text-[10px] font-bold opacity-80 truncate max-w-full">
-                        {isBooked ? "બુકિંગ" : "ખાલી"}
-                      </span>
-                    )}
+                    <span className="mt-1 text-[9px] sm:text-[10px] font-bold opacity-80 truncate max-w-full">
+                      {labelText}
+                    </span>
                   </button>
                 );
               })}
@@ -582,17 +625,30 @@ export default function AdminCalendarPage() {
                   તારીખ વિગત (DAY DETAILS)
                 </span>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    🟢 {availableCount} ખાલી
-                  </span>
-                  {partialCount > 0 && (
-                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                      🟠 {partialCount} આંશિક
-                    </span>
+                  {!isSuper ? (
+                    <>
+                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        🟢 {availableCount} ખાલી
+                      </span>
+                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                        🔴 {bookedCount} બુક
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        🟢 {availableCount} ખાલી
+                      </span>
+                      {partialCount > 0 && (
+                        <span className="text-xs font-black px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-900 border border-yellow-300">
+                          🟡 {partialCount} આંશિક
+                        </span>
+                      )}
+                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                        🔴 {fullyBookedCount} પૂર્ણ બુક
+                      </span>
+                    </>
                   )}
-                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                    🔴 {fullyBookedCount} પૂર્ણ બુક
-                  </span>
                 </div>
               </div>
 
@@ -618,53 +674,68 @@ export default function AdminCalendarPage() {
                 <span className="text-[10px] text-slate-400 font-medium">કુલ ૮ સુવિધાઓ</span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                {selectedDayFacilities.map((item) => (
-                  <button
-                    key={item.facility.id}
-                    type="button"
-                    onClick={() => {
-                      const el = document.getElementById(`fac-seat-${item.facility.id}`);
-                      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                    }}
-                    className={`p-2 rounded-xl text-left border transition text-[11px] font-bold flex flex-col justify-between active:scale-95 cursor-pointer ${
-                      item.isAvailable
-                        ? "bg-emerald-100 border-emerald-300 text-emerald-950 hover:bg-emerald-200"
-                        : item.isPartiallyBooked
-                        ? "bg-amber-100 border-amber-300 text-amber-950 hover:bg-amber-200"
-                        : "bg-rose-100 border-rose-300 text-rose-950 hover:bg-rose-200"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="w-2 h-2 rounded-full shrink-0"
-                        style={{
-                          backgroundColor: item.isAvailable
-                            ? "#10b981"
-                            : item.isPartiallyBooked
-                            ? "#f59e0b"
-                            : "#ef4444",
-                        }}
-                      />
-                      <span className="text-[9px] font-black uppercase">
-                        {item.isAvailable ? "ખાલી" : item.isPartiallyBooked ? "સમય બુક" : "બુક"}
+                {selectedDayFacilities.map((item) => {
+                  const isGreen = item.isAvailable;
+                  const showAsYellow = isSuper && item.isPartiallyBooked;
+
+                  let seatBg = "bg-rose-100 border-rose-300 text-rose-950 hover:bg-rose-200";
+                  let dotBg = "#ef4444";
+                  let badgeText = isSuper && item.isFullyBooked ? "પૂર્ણ બુક" : "બુક";
+
+                  if (isGreen) {
+                    seatBg = "bg-emerald-100 border-emerald-300 text-emerald-950 hover:bg-emerald-200";
+                    dotBg = "#10b981";
+                    badgeText = "ખાલી";
+                  } else if (showAsYellow) {
+                    seatBg = "bg-amber-100 border-amber-300 text-amber-950 hover:bg-amber-200";
+                    dotBg = "#f59e0b";
+                    badgeText = "સમય બુક";
+                  }
+
+                  return (
+                    <button
+                      key={item.facility.id}
+                      type="button"
+                      onClick={() => {
+                        const el = document.getElementById(`fac-seat-${item.facility.id}`);
+                        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      }}
+                      className={`p-2 rounded-xl text-left border transition text-[11px] font-bold flex flex-col justify-between active:scale-95 cursor-pointer ${seatBg}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span
+                          className="w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: dotBg }}
+                        />
+                        <span className="text-[9px] font-black uppercase">
+                          {badgeText}
+                        </span>
+                      </div>
+                      <span className="truncate mt-1 text-[10px] leading-tight block font-extrabold">
+                        {item.facility.name.replace("Dormitory — ", "").replace("AC Room — ", "AC ")}
                       </span>
-                    </div>
-                    <span className="truncate mt-1 text-[10px] leading-tight block font-extrabold">
-                      {item.facility.name.replace("Dormitory — ", "").replace("AC Room — ", "AC ")}
-                    </span>
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
             {/* Filter Tabs: Available First by Default */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
-              {[
-                { id: "AVAILABLE_FIRST", label: `🟢 ઉપલબ્ધ પ્રથમ (${availableCount + partialCount} ખાલી/આંશિક)` },
-                { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત સંપૂર્ણ ખાલી (${availableCount})` },
-                { id: "ONLY_BOOKED", label: `🔴 બુક થયેલ (${bookedCount})` },
-                { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
-              ].map((tab) => (
+              {(isSuper
+                ? [
+                    { id: "AVAILABLE_FIRST", label: `🟢 ઉપલબ્ધ પ્રથમ (${availableCount + partialCount} ખાલી/આંશિક)` },
+                    { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત સંપૂર્ણ ખાલી (${availableCount})` },
+                    { id: "ONLY_BOOKED", label: `🔴 બુક થયેલ (${bookedCount})` },
+                    { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
+                  ]
+                : [
+                    { id: "AVAILABLE_FIRST", label: `🟢 ખાલી પ્રથમ (${availableCount} ખાલી)` },
+                    { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત ખાલી (${availableCount})` },
+                    { id: "ONLY_BOOKED", label: `🔴 ફક્ત બુક (${bookedCount})` },
+                    { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
+                  ]
+              ).map((tab) => (
                 <button
                   key={tab.id}
                   type="button"
@@ -740,34 +811,34 @@ export default function AdminCalendarPage() {
                   }
 
                   // Booked Facility Card (Partially Booked OR Fully Booked)
-                  const isPartial = item.isPartiallyBooked;
+                  const showAsYellow = isSuper && item.isPartiallyBooked;
 
                   return (
                     <div
                       id={`fac-seat-${fac.id}`}
                       key={fac.id}
                       className={`p-4 rounded-2xl border-2 space-y-3 transition hover:shadow-sm scroll-mt-24 shadow-2xs ${
-                        isPartial
+                        showAsYellow
                           ? "border-amber-300 bg-amber-50/70"
                           : "border-rose-300 bg-rose-50/70"
                       }`}
                     >
                       <div
                         className={`flex items-center justify-between pb-2 border-b flex-wrap gap-2 ${
-                          isPartial ? "border-amber-200/80" : "border-rose-200/70"
+                          showAsYellow ? "border-amber-200/80" : "border-rose-200/70"
                         }`}
                       >
                         <div className="flex items-center space-x-2">
                           <span
                             className={`w-3 h-3 rounded-full shrink-0 ${
-                              isPartial
+                              showAsYellow
                                 ? "bg-amber-500 ring-4 ring-amber-200"
                                 : "bg-rose-500 ring-4 ring-rose-200"
                             }`}
                           ></span>
                           <h4
                             className={`text-sm sm:text-base font-black ${
-                              isPartial ? "text-amber-950" : "text-rose-950"
+                              showAsYellow ? "text-amber-950" : "text-rose-950"
                             }`}
                           >
                             {fac.name}
@@ -776,16 +847,18 @@ export default function AdminCalendarPage() {
                         <div className="flex items-center gap-2">
                           <span
                             className={`text-xs font-black px-2.5 py-1 rounded-full border ${
-                              isPartial
+                              showAsYellow
                                 ? "bg-amber-200 text-amber-900 border-amber-400"
                                 : "bg-rose-200 text-rose-900 border-rose-400"
                             }`}
                           >
-                            {isPartial
-                              ? "🟠 સમય મુજબ બુક (બાકી સમય ખાલી)"
-                              : "🔴 આખો દિવસ બુક (Full Day)"}
+                            {showAsYellow
+                              ? "🟡 સમય મુજબ બુક (બાકી સમય ખાલી)"
+                              : isSuper && item.isFullyBooked
+                              ? "🔴 આખો દિવસ બુક (Full Day)"
+                              : "🔴 બુક થયેલ (Booked)"}
                           </span>
-                          {isPartial && isSuper && (
+                          {showAsYellow && (
                             <Link
                               href={`/admin/bookings?new=true&date=${selectedDate ? selectedDate.toISOString().split("T")[0] : ""}&facilityId=${fac.id}`}
                               className="inline-flex items-center px-3 py-1 rounded-full bg-[#0066cc] hover:bg-[#0071e3] text-white font-bold text-xs shadow-xs transition"
