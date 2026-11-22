@@ -21,6 +21,7 @@ import {
   User,
   ChevronDown,
   Plus,
+  CreditCard,
 } from "lucide-react";
 
 interface AdminUser {
@@ -137,6 +138,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isManagementRoute = [
     "/admin",
+    "/admin/payments",
     "/admin/facilities",
     "/admin/discounts",
     "/admin/activity",
@@ -214,7 +216,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span>બુકિંગ્સ</span>
             </Link>
 
-            {/* 3. New Booking Button (નવું બુકિંગ) - Only for Super Admin */}
+            {/* 3. Payment Status (પેમેન્ટ સ્થિતિ) - Only for Super Admin */}
+            {isSuper && (
+              <Link
+                href="/admin/payments"
+                className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
+                  pathname.startsWith("/admin/payments")
+                    ? "bg-amber-500 text-slate-950 font-black shadow-md"
+                    : "text-slate-200 hover:text-white hover:bg-slate-800"
+                }`}
+              >
+                <CreditCard className="w-4 h-4 mr-2 text-amber-400" />
+                <span>પેમેન્ટ સ્થિતિ</span>
+              </Link>
+            )}
+
+            {/* 4. New Booking Button (નવું બુકિંગ) - Only for Super Admin */}
             {isSuper && (
               <Link
                 href="/admin/bookings?new=true"
@@ -264,6 +281,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           <div>
                             <div className="font-bold">ડેશબોર્ડ (Dashboard)</div>
                             <div className="text-[10px] text-slate-400">મુખ્ય ઓવરવ્યૂ અને આંકડા</div>
+                          </div>
+                        </Link>
+                        <Link
+                          href="/admin/payments"
+                          onClick={() => setTrustMenuOpen(false)}
+                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                        >
+                          <CreditCard className="w-4 h-4 mr-2.5 text-amber-400" />
+                          <div>
+                            <div className="font-bold">પેમેન્ટ સ્થિતિ (Payment Status)</div>
+                            <div className="text-[10px] text-slate-400">સંપૂર્ણ અને બાકી ચુકવણી ટ્રેકિંગ</div>
                           </div>
                         </Link>
                         <Link
@@ -431,6 +459,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <BookOpen className="w-5 h-5 mr-3 text-amber-400" />
                 <span>બુકિંગ લિસ્ટ (Bookings & Slips)</span>
               </Link>
+
+              {isSuper && (
+                <Link
+                  href="/admin/payments"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center px-3.5 py-3 rounded-xl text-xs sm:text-sm font-bold transition min-h-[48px] ${
+                    pathname === "/admin/payments"
+                      ? "bg-amber-500 text-slate-950 shadow-md font-black"
+                      : "text-slate-200 hover:bg-slate-800"
+                  }`}
+                >
+                  <CreditCard className="w-5 h-5 mr-3 text-amber-400" />
+                  <span>પેમેન્ટ સ્થિતિ (Payment Status)</span>
+                </Link>
+              )}
 
               {isSuper && (
                 <Link
