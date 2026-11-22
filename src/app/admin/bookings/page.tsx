@@ -4,6 +4,13 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
 import {
+  doSlotsOverlap,
+  parseSlotTimeRange,
+  STANDARD_HOURS,
+  TIMING_PRESETS,
+  formatSlotLabel,
+} from "@/lib/slotUtils";
+import {
   Plus,
   Search,
   Filter,
@@ -57,7 +64,7 @@ export default function BookingsManagementPage() {
     eventType: "Wedding",
     startDate: new Date().toISOString().split("T")[0],
     endDate: new Date().toISOString().split("T")[0],
-    slot: "WHOLE_DAY",
+    slot: "Whole Day (06:00 AM - 11:00 PM)",
     status: "CONFIRMED",
     facilityAmount: 0,
     discountCode: "NONE",
@@ -74,6 +81,9 @@ export default function BookingsManagementPage() {
     paymentRefNo: "",
     notes: "",
   });
+  const [slotMode, setSlotMode] = useState<string>("WHOLE_DAY");
+  const [customStartTime, setCustomStartTime] = useState<string>("12:00 PM");
+  const [customEndTime, setCustomEndTime] = useState<string>("02:00 PM");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -225,12 +235,13 @@ export default function BookingsManagementPage() {
     }
     const dep = fac ? fac.cautionDeposit : 0;
 
-    let defaultSlot = "FULL_DAY";
-    if (fac?.code === "HALL-MULTIPURPOSE") {
-      defaultSlot = "WHOLE_DAY";
-    } else if (fac?.type === "ROOM" || fac?.type === "DORMITORY") {
-      defaultSlot = "NIGHT_STAY";
+    let defaultSlot = "Whole Day (06:00 AM - 11:00 PM)";
+    let defaultMode = "WHOLE_DAY";
+    if (fac?.type === "ROOM" || fac?.type === "DORMITORY") {
+      defaultSlot = "Night Stay (24 Hours)";
+      defaultMode = "NIGHT_STAY";
     }
+    setSlotMode(defaultMode);
 
     recalcFinancials(
       base,
@@ -242,6 +253,29 @@ export default function BookingsManagementPage() {
       facId,
       defaultSlot
     );
+  };
+
+  const handleSlotModeChange = (mode: string) => {
+    setSlotMode(mode);
+    let newSlot = "Whole Day (06:00 AM - 11:00 PM)";
+    if (mode === "HALF_DAY_MORNING") {
+      newSlot = "Half Day - Morning (06:00 AM - 02:00 PM)";
+    } else if (mode === "HALF_DAY_EVENING") {
+      newSlot = "Half Day - Evening (03:00 PM - 11:00 PM)";
+    } else if (mode === "NIGHT_STAY") {
+      newSlot = "Night Stay (24 Hours)";
+    } else if (mode === "DAY_REST") {
+      newSlot = "Day Rest (08:00 AM - 06:00 PM)";
+    } else if (mode === "CUSTOM_TIMING") {
+      newSlot = `${customStartTime} - ${customEndTime}`;
+    }
+    setFormData((prev) => ({ ...prev, slot: newSlot }));
+  };
+
+  const handleCustomTimeChange = (from: string, to: string) => {
+    setCustomStartTime(from);
+    setCustomEndTime(to);
+    setFormData((prev) => ({ ...prev, slot: `${from} - ${to}` }));
   };
 
   const handlePlotPurposeChange = (purpose: "WEDDING" | "FAMILY") => {
@@ -374,6 +408,14 @@ export default function BookingsManagementPage() {
 
     setCreating(true);
     setCreateError("");
+
+    if (conflictingBooking) {
+      setCreateError(
+        `Time conflict: ${conflictingBooking.facility?.name || "This facility"} is already booked for ${conflictingBooking.slot} (${conflictingBooking.customerName}). Please pick a different timing.`
+      );
+      setCreating(false);
+      return;
+    }
 
     const selectedServiceObjs = formData.selectedServices.map((code) => {
       const s = services.find((srv) => srv.code === code);
@@ -554,6 +596,26 @@ export default function BookingsManagementPage() {
   });
 
   const selectedFacilityObj = facilities.find((f) => f.id === formData.facilityId);
+  const isRoomOrDorm =
+    selectedFacilityObj?.type === "ROOM" || selectedFacilityObj?.type === "DORMITORY";
+
+  const existingBookingsOnDate = bookings.filter((b) => {
+    if (b.status === "CANCELLED") return false;
+    const targetDate = formData.startDate;
+    const bStart = b.startDate ? b.startDate.split("T")[0] : "";
+    const bEnd = b.endDate ? b.endDate.split("T")[0] : bStart;
+    const dateMatches = targetDate >= bStart && targetDate <= bEnd;
+    const facMatches = b.facilityId === formData.facilityId;
+    const groupMatches =
+      selectedFacilityObj?.resourceGroup &&
+      (b.facility?.resourceGroup === selectedFacilityObj.resourceGroup ||
+        b.resourceGroup === selectedFacilityObj.resourceGroup);
+    return dateMatches && (facMatches || groupMatches);
+  });
+
+  const conflictingBooking = existingBookingsOnDate.find((eb) =>
+    doSlotsOverlap(eb.slot, formData.slot)
+  );
 
   return (
     <div className="space-y-6">
@@ -1454,34 +1516,142 @@ export default function BookingsManagementPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Time Slot *
+                    Time Slot & Timings (સમય વિકલ્પ) *
                   </label>
                   <select
-                    value={formData.slot}
-                    onChange={(e) => setFormData({ ...formData, slot: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-semibold"
+                    value={slotMode}
+                    onChange={(e) => handleSlotModeChange(e.target.value)}
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-bold focus:bg-white focus:border-[#0066cc] outline-none"
                   >
-                    {selectedFacilityObj?.code === "HALL-MULTIPURPOSE" ? (
+                    <option value="WHOLE_DAY">Whole Day / Full Event (આખો દિવસ: 06:00 AM - 11:00 PM)</option>
+                    <option value="HALF_DAY_MORNING">Half Day - Morning (અડધો દિવસ સવાર: 06:00 AM - 02:00 PM)</option>
+                    <option value="HALF_DAY_EVENING">Half Day - Evening/Afternoon (અડધો દિવસ સાંજ: 03:00 PM - 11:00 PM)</option>
+                    {isRoomOrDorm && (
                       <>
-                        <option value="WHOLE_DAY">Whole Day (6:00 AM - 12:00 Midnight)</option>
-                        <option value="MORNING_SLOT">Morning Slot (6:00 AM - 2:00 PM)</option>
-                        <option value="AFTERNOON_SLOT">Afternoon Slot (3:00 PM - 12:00 Midnight)</option>
-                      </>
-                    ) : selectedFacilityObj?.type === "ROOM" || selectedFacilityObj?.type === "DORMITORY" ? (
-                      <>
-                        <option value="NIGHT_STAY">Night Stay (24 Hours)</option>
-                        <option value="DAY_REST">Day Rest (8 Hours)</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="WHOLE_DAY">Whole Day / Full Event</option>
-                        <option value="MORNING">Morning Only</option>
-                        <option value="EVENING">Evening Only</option>
+                        <option value="NIGHT_STAY">Night Stay (24 Hours / રાત્રિ રોકાણ)</option>
+                        <option value="DAY_REST">Day Rest (8 Hours / દિવસ રોકાણ: 08:00 AM - 06:00 PM)</option>
                       </>
                     )}
+                    <option value="CUSTOM_TIMING">Custom Timings (ચોક્કસ સમય - કલાક મુજબ દા.ત. 12 to 2 PM, 3 to 4 PM)</option>
                   </select>
                 </div>
               </div>
+
+              {/* Custom Timings Detailed Selector */}
+              {slotMode === "CUSTOM_TIMING" && (
+                <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-950 flex items-center">
+                      <Clock className="w-4 h-4 mr-1.5 text-[#0066cc]" />
+                      ચોક્કસ સમય પસંદ કરો (Select Timings)
+                    </span>
+                    <span className="text-xs font-extrabold text-[#0066cc] bg-blue-100 px-2.5 py-0.5 rounded-full font-mono border border-blue-300">
+                      {customStartTime} થી {customEndTime}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        From Time (શરૂ થવાનો સમય) *
+                      </label>
+                      <select
+                        value={customStartTime}
+                        onChange={(e) => handleCustomTimeChange(e.target.value, customEndTime)}
+                        className="w-full text-xs bg-white border border-blue-300 rounded-lg p-2 text-slate-900 font-bold focus:ring-1 focus:ring-[#0066cc]"
+                      >
+                        {STANDARD_HOURS.map((hr) => (
+                          <option key={`start-${hr}`} value={hr}>{hr}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        To Time (પૂરો થવાનો સમય) *
+                      </label>
+                      <select
+                        value={customEndTime}
+                        onChange={(e) => handleCustomTimeChange(customStartTime, e.target.value)}
+                        className="w-full text-xs bg-white border border-blue-300 rounded-lg p-2 text-slate-900 font-bold focus:ring-1 focus:ring-[#0066cc]"
+                      >
+                        {STANDARD_HOURS.map((hr) => (
+                          <option key={`end-${hr}`} value={hr}>{hr}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 pt-1 border-t border-blue-200/60">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                      ઝડપી પસંદગી (Quick Timing Presets):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {TIMING_PRESETS.map((preset) => {
+                        const isSelected = customStartTime === preset.from && customEndTime === preset.to;
+                        return (
+                          <button
+                            type="button"
+                            key={preset.label}
+                            onClick={() => handleCustomTimeChange(preset.from, preset.to)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                              isSelected
+                                ? "bg-[#0066cc] text-white shadow-xs"
+                                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            {preset.from} - {preset.to}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Real-time conflict feedback */}
+              {existingBookingsOnDate.length > 0 && (
+                <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-950">
+                    <span className="flex items-center">
+                      <Clock className="w-3.5 h-3.5 mr-1 text-amber-700" />
+                      આ તારીખે નોંધાયેલ અન્ય બુકિંગ (Already Booked On This Date):
+                    </span>
+                    <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold">
+                      {existingBookingsOnDate.length} બુકિંગ
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {existingBookingsOnDate.map((eb) => (
+                      <span
+                        key={eb.id}
+                        className="inline-flex items-center gap-1.5 bg-white border border-amber-300 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-900 shadow-2xs"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span>{eb.slot}</span>
+                        <span className="text-slate-500 font-normal">({eb.customerName})</span>
+                      </span>
+                    ))}
+                  </div>
+
+                  {conflictingBooking ? (
+                    <div className="p-2 bg-rose-100 border border-rose-300 rounded-xl text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>
+                        સમય ટકરાવ: આ સુવિધા [{conflictingBooking.slot} - {conflictingBooking.customerName}] માટે પહેલેથી બુક થયેલ છે. કૃપા કરીને અન્ય ખાલી સમય પસંદ કરો.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="p-2 bg-emerald-100 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        ✓ પસંદ કરેલ સમય [{formData.slot}] ઉપલબ્ધ છે! હાલના બુકિંગ સાથે કોઈ ટકરાવ નથી.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Add-on Services: Cleaning & Waste Collection */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
@@ -1669,8 +1839,8 @@ export default function BookingsManagementPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={creating}
-                  className="bg-red-800 hover:bg-red-700 text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow transition"
+                  disabled={creating || Boolean(conflictingBooking)}
+                  className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow transition"
                 >
                   {creating ? "Confirming Booking..." : "Confirm & Save Booking"}
                 </button>

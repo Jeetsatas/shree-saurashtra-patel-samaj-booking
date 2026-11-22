@@ -1,38 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-
-// Helper function to determine if two slots on the same date conflict
-function doSlotsOverlap(slotA: string, slotB: string): boolean {
-  const normA = (slotA || "FULL_DAY").toUpperCase();
-  const normB = (slotB || "FULL_DAY").toUpperCase();
-
-  // Full day or Whole day always blocks everything
-  if (
-    normA === "FULL_DAY" ||
-    normA === "WHOLE_DAY" ||
-    normB === "FULL_DAY" ||
-    normB === "WHOLE_DAY"
-  ) {
-    return true;
-  }
-
-  // Same slot always conflicts
-  if (normA === normB) {
-    return true;
-  }
-
-  // Morning (6 AM - 2 PM) and Afternoon (3 PM - 12 Midnight) do NOT overlap (1-hour gap)
-  if (
-    (normA === "MORNING" && normB === "AFTERNOON") ||
-    (normA === "AFTERNOON" && normB === "MORNING")
-  ) {
-    return false;
-  }
-
-  // Default: treat as conflict if slots are not explicitly non-overlapping
-  return true;
-}
+import { doSlotsOverlap, parseSlotTimeRange } from "@/lib/slotUtils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -152,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const requestedSlot = (slot || "FULL_DAY").toUpperCase();
+    const requestedSlot = (slot || "Whole Day").trim();
 
     // 1. Fetch Target Facility, optional Discount Rule, and latest booking in parallel
     const [targetFacility, discountRule, latestBooking] = await Promise.all([
@@ -326,6 +295,7 @@ export async function PUT(req: NextRequest) {
     const {
       id,
       status,
+      slot,
       facilityAmount,
       discountCode,
       discountPercent,
@@ -350,6 +320,7 @@ export async function PUT(req: NextRequest) {
       where: { id },
       data: {
         ...(status && { status }),
+        ...(slot && { slot: slot.trim() }),
         ...(facilityAmount !== undefined && { facilityAmount: Number(facilityAmount) }),
         ...(discountCode !== undefined && { discountCode }),
         ...(discountPercent !== undefined && { discountPercent: Number(discountPercent) }),

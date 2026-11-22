@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
+import { isFullDaySlot, formatSlotLabel } from "@/lib/slotUtils";
 
 export default function AdminCalendarPage() {
   const [facilities, setFacilities] = useState<any[]>([]);
@@ -212,7 +213,7 @@ export default function AdminCalendarPage() {
       const targetGroup = fac.resourceGroup || fac.code;
       const facBookings = bookings.filter((b) => {
         const matchesFac = b.facilityId === fac.id;
-        const matchesGroup = targetGroup && b.resourceGroup === targetGroup;
+        const matchesGroup = targetGroup && (b.resourceGroup === targetGroup || b.facility?.resourceGroup === targetGroup);
         if (!matchesFac && !matchesGroup) return false;
 
         const start = new Date(b.startDate);
@@ -224,9 +225,16 @@ export default function AdminCalendarPage() {
         return matches && b.status !== "CANCELLED";
       });
 
+      const hasFullDay = facBookings.some((b) => isFullDaySlot(b.slot));
+      const isCompletelyAvailable = facBookings.length === 0;
+      const isPartiallyBooked = facBookings.length > 0 && !hasFullDay;
+      const isFullyBooked = hasFullDay;
+
       return {
         facility: fac,
-        isAvailable: facBookings.length === 0,
+        isAvailable: isCompletelyAvailable,
+        isPartiallyBooked,
+        isFullyBooked,
         isBooked: facBookings.length > 0,
         bookings: facBookings,
       };
@@ -235,19 +243,21 @@ export default function AdminCalendarPage() {
 
   const selectedDayFacilities = selectedDate ? getFacilityAvailabilityForDate(selectedDate) : [];
   const availableCount = selectedDayFacilities.filter((f) => f.isAvailable).length;
+  const partialCount = selectedDayFacilities.filter((f) => f.isPartiallyBooked).length;
+  const fullyBookedCount = selectedDayFacilities.filter((f) => f.isFullyBooked).length;
   const bookedCount = selectedDayFacilities.filter((f) => f.isBooked).length;
 
   const filteredDayFacilities = (() => {
     if (availabilityFilter === "ONLY_AVAILABLE") {
-      return selectedDayFacilities.filter((f) => f.isAvailable);
+      return selectedDayFacilities.filter((f) => f.isAvailable || f.isPartiallyBooked);
     }
     if (availabilityFilter === "ONLY_BOOKED") {
       return selectedDayFacilities.filter((f) => f.isBooked);
     }
     if (availabilityFilter === "AVAILABLE_FIRST") {
       return [...selectedDayFacilities].sort((a, b) => {
-        if (a.isAvailable === b.isAvailable) return 0;
-        return a.isAvailable ? -1 : 1;
+        const score = (x: any) => (x.isAvailable ? 0 : x.isPartiallyBooked ? 1 : 2);
+        return score(a) - score(b);
       });
     }
     return selectedDayFacilities;
@@ -571,12 +581,17 @@ export default function AdminCalendarPage() {
                 <span className="text-xs font-black text-slate-500 uppercase tracking-wider">
                   તારીખ વિગત (DAY DETAILS)
                 </span>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
                     🟢 {availableCount} ખાલી
                   </span>
+                  {partialCount > 0 && (
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                      🟠 {partialCount} આંશિક
+                    </span>
+                  )}
                   <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                    🔴 {bookedCount} બુક
+                    🔴 {fullyBookedCount} પૂર્ણ બુક
                   </span>
                 </div>
               </div>
@@ -614,16 +629,24 @@ export default function AdminCalendarPage() {
                     className={`p-2 rounded-xl text-left border transition text-[11px] font-bold flex flex-col justify-between active:scale-95 cursor-pointer ${
                       item.isAvailable
                         ? "bg-emerald-100 border-emerald-300 text-emerald-950 hover:bg-emerald-200"
+                        : item.isPartiallyBooked
+                        ? "bg-amber-100 border-amber-300 text-amber-950 hover:bg-amber-200"
                         : "bg-rose-100 border-rose-300 text-rose-950 hover:bg-rose-200"
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <span
                         className="w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: item.isAvailable ? "#10b981" : "#ef4444" }}
+                        style={{
+                          backgroundColor: item.isAvailable
+                            ? "#10b981"
+                            : item.isPartiallyBooked
+                            ? "#f59e0b"
+                            : "#ef4444",
+                        }}
                       />
                       <span className="text-[9px] font-black uppercase">
-                        {item.isAvailable ? "ખાલી" : "બુક"}
+                        {item.isAvailable ? "ખાલી" : item.isPartiallyBooked ? "સમય બુક" : "બુક"}
                       </span>
                     </div>
                     <span className="truncate mt-1 text-[10px] leading-tight block font-extrabold">
@@ -637,9 +660,9 @@ export default function AdminCalendarPage() {
             {/* Filter Tabs: Available First by Default */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
               {[
-                { id: "AVAILABLE_FIRST", label: `🟢 ઉપલબ્ધ પ્રથમ (${availableCount} ખાલી)` },
-                { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત ખાલી (${availableCount})` },
-                { id: "ONLY_BOOKED", label: `🔴 ફક્ત બુક (${bookedCount})` },
+                { id: "AVAILABLE_FIRST", label: `🟢 ઉપલબ્ધ પ્રથમ (${availableCount + partialCount} ખાલી/આંશિક)` },
+                { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત સંપૂર્ણ ખાલી (${availableCount})` },
+                { id: "ONLY_BOOKED", label: `🔴 બુક થયેલ (${bookedCount})` },
                 { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
               ].map((tab) => (
                 <button
@@ -716,23 +739,62 @@ export default function AdminCalendarPage() {
                     );
                   }
 
-                  // Booked Facility Card
+                  // Booked Facility Card (Partially Booked OR Fully Booked)
+                  const isPartial = item.isPartiallyBooked;
+
                   return (
                     <div
                       id={`fac-seat-${fac.id}`}
                       key={fac.id}
-                      className="p-4 rounded-2xl border-2 border-rose-300 bg-rose-50/70 space-y-3 transition hover:shadow-sm scroll-mt-24 shadow-2xs"
+                      className={`p-4 rounded-2xl border-2 space-y-3 transition hover:shadow-sm scroll-mt-24 shadow-2xs ${
+                        isPartial
+                          ? "border-amber-300 bg-amber-50/70"
+                          : "border-rose-300 bg-rose-50/70"
+                      }`}
                     >
-                      <div className="flex items-center justify-between pb-2 border-b border-rose-200/70">
+                      <div
+                        className={`flex items-center justify-between pb-2 border-b flex-wrap gap-2 ${
+                          isPartial ? "border-amber-200/80" : "border-rose-200/70"
+                        }`}
+                      >
                         <div className="flex items-center space-x-2">
-                          <span className="w-3 h-3 rounded-full bg-rose-500 ring-4 ring-rose-200 shrink-0"></span>
-                          <h4 className="text-sm sm:text-base font-black text-rose-950">
+                          <span
+                            className={`w-3 h-3 rounded-full shrink-0 ${
+                              isPartial
+                                ? "bg-amber-500 ring-4 ring-amber-200"
+                                : "bg-rose-500 ring-4 ring-rose-200"
+                            }`}
+                          ></span>
+                          <h4
+                            className={`text-sm sm:text-base font-black ${
+                              isPartial ? "text-amber-950" : "text-rose-950"
+                            }`}
+                          >
                             {fac.name}
                           </h4>
                         </div>
-                        <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-200 text-rose-900 border border-rose-400">
-                          🔴 બુક થયેલ (Booked)
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs font-black px-2.5 py-1 rounded-full border ${
+                              isPartial
+                                ? "bg-amber-200 text-amber-900 border-amber-400"
+                                : "bg-rose-200 text-rose-900 border-rose-400"
+                            }`}
+                          >
+                            {isPartial
+                              ? "🟠 સમય મુજબ બુક (બાકી સમય ખાલી)"
+                              : "🔴 આખો દિવસ બુક (Full Day)"}
+                          </span>
+                          {isPartial && isSuper && (
+                            <Link
+                              href={`/admin/bookings?new=true&date=${selectedDate ? selectedDate.toISOString().split("T")[0] : ""}&facilityId=${fac.id}`}
+                              className="inline-flex items-center px-3 py-1 rounded-full bg-[#0066cc] hover:bg-[#0071e3] text-white font-bold text-xs shadow-xs transition"
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              <span>+ અન્ય સમય બુક કરો</span>
+                            </Link>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-2.5">
