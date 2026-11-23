@@ -245,33 +245,9 @@ export default function BookingsManagementPage() {
       id: "WHOLE_DAY",
       slotLabel: WHOLE_DAY_SLOT_LABEL,
       title: "Whole Day / 24 Hours",
-      guTitle: "આખો દિવસ / 24 Hours",
-      guDesc: "09:00 AM થી બીજા દિવસે 08:00 AM ચેકઆઉટ (24 કલાક)",
-      badge: "24 કલાક (Full Cycle)",
-    },
-    {
-      id: "MORNING",
-      slotLabel: "Morning Slot (06:00 AM - 02:00 PM)",
-      title: "Morning Slot",
-      guTitle: "સવારનો સ્લોટ (Morning)",
-      guDesc: "06:00 AM થી 02:00 PM સુધી (8 કલાક)",
-      badge: "સવાર (Morning)",
-    },
-    {
-      id: "AFTERNOON",
-      slotLabel: "Afternoon / Evening (03:00 PM - 11:00 PM)",
-      title: "Afternoon / Evening",
-      guTitle: "બપોર / સાંજ સ્લોટ (Afternoon / Evening)",
-      guDesc: "03:00 PM થી 11:00 PM સુધી (8 કલાક)",
-      badge: "બપોર / સાંજ",
-    },
-    {
-      id: "NIGHT",
-      slotLabel: "Night Slot (07:00 PM - 11:00 PM)",
-      title: "Night Slot",
-      guTitle: "રાત્રિ સ્લોટ (Night)",
-      guDesc: "07:00 PM થી 11:00 PM સુધી (4 કલાક)",
-      badge: "રાત્રિ (Night)",
+      guTitle: "આખો દિવસ / 24 Hours (Whole Day)",
+      guDesc: "09:00 AM થી બીજા દિવસે 08:00 AM ચેકઆઉટ (24 કલાક પૂરા)",
+      badge: "24 કલાક (Check-in 09:00 AM → 08:00 AM Next Day)",
     },
   ];
 
@@ -376,11 +352,30 @@ export default function BookingsManagementPage() {
 
   const toggleFacilityCustomTiming = (facId: string, slotStr: string) => {
     setFacilityTimingMap((prev) => {
-      const current = prev[facId] || (selectedTimings.length > 0 ? [...selectedTimings] : [WHOLE_DAY_SLOT_LABEL]);
+      const current =
+        prev[facId] !== undefined
+          ? prev[facId]
+          : selectedTimings.length > 0
+          ? [...selectedTimings]
+          : [WHOLE_DAY_SLOT_LABEL];
       const updated = current.includes(slotStr)
         ? current.filter((s) => s !== slotStr)
         : [...current, slotStr];
       return { ...prev, [facId]: updated };
+    });
+  };
+
+  const addFacilityCustomTimingSlot = (facId: string, from: string, to: string) => {
+    const slotStr = `${from} - ${to}`;
+    setFacilityTimingMap((prev) => {
+      const current =
+        prev[facId] !== undefined
+          ? prev[facId]
+          : selectedTimings.length > 0
+          ? [...selectedTimings]
+          : [WHOLE_DAY_SLOT_LABEL];
+      if (current.includes(slotStr)) return prev;
+      return { ...prev, [facId]: [...current, slotStr] };
     });
   };
 
@@ -473,7 +468,7 @@ export default function BookingsManagementPage() {
       } else {
         const specific = facilityTimingMap[facId];
         timingsForFac =
-          specific && specific.length > 0
+          specific !== undefined
             ? specific
             : selectedTimings.length > 0
             ? selectedTimings
@@ -2254,47 +2249,39 @@ export default function BookingsManagementPage() {
 
                 {timingScope === "SAME_ALL" ? (
                   <div className="space-y-3">
-                    {/* Standard Slot Checkboxes */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {STANDARD_SLOT_OPTIONS.map((slotOpt) => {
-                        const isChecked = selectedTimings.includes(slotOpt.slotLabel);
-                        return (
-                          <label
-                            key={slotOpt.id}
-                            className={`p-3 rounded-xl border-2 flex items-start gap-3 transition cursor-pointer ${
-                              isChecked
-                                ? "border-red-600 bg-red-50/50 shadow-xs"
-                                : "border-slate-200 bg-white hover:border-slate-300"
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => toggleTimingSlot(slotOpt.slotLabel)}
-                              className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                            />
-                            <div className="min-w-0">
-                              <div className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
-                                <span>{slotOpt.guTitle}</span>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
-                                  {slotOpt.badge}
-                                </span>
-                              </div>
-                              <div className="text-[11px] text-slate-500 mt-0.5">
-                                {slotOpt.guDesc}
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    {/* Option 1: Whole Day / 24 Hours */}
+                    <label
+                      className={`p-3.5 rounded-xl border-2 flex items-start gap-3 transition cursor-pointer ${
+                        selectedTimings.includes(WHOLE_DAY_SLOT_LABEL)
+                          ? "border-red-600 bg-red-50/50 shadow-xs"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTimings.includes(WHOLE_DAY_SLOT_LABEL)}
+                        onChange={() => toggleTimingSlot(WHOLE_DAY_SLOT_LABEL)}
+                        className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                      />
+                      <div className="min-w-0">
+                        <div className="font-extrabold text-xs text-slate-900 flex items-center gap-2">
+                          <span>૧. આખો દિવસ / 24 Hours (Whole Day)</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
+                            09:00 AM થી બીજા દિવસે 08:00 AM
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 mt-0.5 font-medium">
+                          ચેક-ઇન પ્રસંગના દિવસે સવારે 09:00 AM થી ચેક-આઉટ બીજા દિવસે સવારે 08:00 AM સુધી (24 કલાક પૂરા)
+                        </div>
+                      </div>
+                    </label>
 
-                    {/* Custom Hourly Timing Box */}
+                    {/* Option 2: Custom Hourly Timing Box */}
                     <div className="bg-white p-3.5 rounded-xl border border-blue-200 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5 text-blue-700" />
-                          ચોક્કસ કસ્ટમ સમય ઉમેરો (Add Custom Timing Slot):
+                          ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો (Add Custom Timing Slot):
                         </span>
                         <span className="text-xs font-mono font-bold bg-blue-50 text-blue-900 px-2.5 py-0.5 rounded-full border border-blue-200">
                           {customStartTime} થી {customEndTime}
@@ -2400,50 +2387,165 @@ export default function BookingsManagementPage() {
                     </div>
                   </div>
                 ) : (
-                  /* Custom Timing Per Facility */
-                  <div className="space-y-2.5">
-                    <div className="text-[11px] text-slate-600 font-semibold bg-amber-50 p-2.5 rounded-lg border border-amber-200">
-                      ℹ️ દરેક પસંદ કરેલ સુવિધા માટે અલગ સમય સ્લોટ પસંદ કરો:
+                  /* Custom Timing Per Facility (ONLY 2 TIMINGS: WHOLE DAY & CUSTOM) */
+                  <div className="space-y-3">
+                    <div className="text-[11px] text-slate-700 font-semibold bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                      ℹ️ દરેક સુવિધા માટે માત્ર બે વિકલ્પો ઉપલબ્ધ છે: ૧. આખો દિવસ (09:00 AM થી બીજા દિવસે 08:00 AM) અથવા ૨. ચોક્કસ કસ્ટમ સમય
                     </div>
                     {selectedFacilityIds.map((facId) => {
                       const fac = facilities.find((f) => f.id === facId);
                       if (!fac) return null;
                       const currentSlots =
-                        facilityTimingMap[facId] ||
-                        (selectedTimings.length > 0 ? selectedTimings : [WHOLE_DAY_SLOT_LABEL]);
+                        facilityTimingMap[facId] !== undefined
+                          ? facilityTimingMap[facId]
+                          : selectedTimings.length > 0
+                          ? selectedTimings
+                          : [WHOLE_DAY_SLOT_LABEL];
+                      const isWholeDay = currentSlots.includes(WHOLE_DAY_SLOT_LABEL);
+                      const facilityCustomSlots = currentSlots.filter((s) => s !== WHOLE_DAY_SLOT_LABEL);
+
                       return (
-                        <div key={fac.id} className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                          <div className="flex items-center justify-between font-bold text-xs text-slate-900 pb-1 border-b border-slate-100">
+                        <div key={fac.id} className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-3 shadow-2xs">
+                          <div className="flex items-center justify-between font-bold text-xs text-slate-900 pb-1.5 border-b border-slate-100">
                             <span className="flex items-center gap-1.5">
                               <Building className="w-3.5 h-3.5 text-red-800" />
                               {fac.name} ({fac.code})
                             </span>
-                            <span className="text-[11px] font-bold text-red-800">
+                            <span className="text-[11px] font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
                               {currentSlots.length} સ્લોટ પસંદ
                             </span>
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-1.5">
-                            {STANDARD_SLOT_OPTIONS.map((opt) => {
-                              const isChecked = currentSlots.includes(opt.slotLabel);
-                              return (
-                                <label
-                                  key={opt.id}
-                                  className={`p-2 rounded-lg border flex items-center gap-2 text-xs font-bold cursor-pointer transition ${
-                                    isChecked
-                                      ? "bg-red-50 border-red-500 text-red-950"
-                                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
-                                  }`}
+
+                          <div className="space-y-2.5">
+                            {/* Option 1: Whole Day */}
+                            <label
+                              className={`p-3 rounded-xl border-2 flex items-start gap-2.5 transition cursor-pointer ${
+                                isWholeDay
+                                  ? "border-red-600 bg-red-50/50 shadow-2xs"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isWholeDay}
+                                onChange={() => toggleFacilityCustomTiming(fac.id, WHOLE_DAY_SLOT_LABEL)}
+                                className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
+                                  <span>૧. આખો દિવસ / 24 Hours (Whole Day)</span>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800 border border-red-200">
+                                    09:00 AM થી બીજા દિવસે 08:00 AM
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-600 mt-0.5 font-medium">
+                                  ચેક-ઇન સવારે 09:00 AM → ચેક-આઉટ બીજા દિવસે સવારે 08:00 AM (24 કલાક સંપૂર્ણ સાઇકલ)
+                                </div>
+                              </div>
+                            </label>
+
+                            {/* Option 2: Custom Timing */}
+                            <div className="p-3 rounded-xl border-2 border-blue-200 bg-blue-50/30 space-y-2.5">
+                              <div className="flex flex-wrap items-center justify-between gap-1">
+                                <span className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                                  <Clock className="w-3.5 h-3.5 text-blue-700" />
+                                  ૨. ચોક્કસ સમય (Custom Timing - કલાક મુજબ):
+                                </span>
+                                <span className="text-[11px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
+                                  {facilityCustomSlots.length > 0
+                                    ? `${facilityCustomSlots.length} કસ્ટમ સ્લોટ પસંદ`
+                                    : "કસ્ટમ સમય પસંદ કરો"}
+                                </span>
+                              </div>
+
+                              {/* Quick Presets for this facility */}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">ઝડપી સ્લોટ:</span>
+                                {TIMING_PRESETS.map((preset) => {
+                                  const presetSlot = `${preset.from} - ${preset.to}`;
+                                  const isSelected = currentSlots.includes(presetSlot);
+                                  return (
+                                    <button
+                                      key={`${fac.id}-${preset.label}`}
+                                      type="button"
+                                      onClick={() => toggleFacilityCustomTiming(fac.id, presetSlot)}
+                                      className={`text-[11px] font-bold px-2 py-0.5 rounded border transition cursor-pointer ${
+                                        isSelected
+                                          ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                                          : "bg-white hover:bg-blue-100 text-slate-700 border-slate-300"
+                                      }`}
+                                    >
+                                      {isSelected ? "✓ " : "+ "}{preset.from} - {preset.to}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* From / To time dropdowns for this facility */}
+                              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-blue-100">
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] font-bold text-slate-600">શરૂ:</span>
+                                  <select
+                                    id={`fac-start-${fac.id}`}
+                                    defaultValue="12:00 PM"
+                                    className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold text-slate-900 outline-none"
+                                  >
+                                    {STANDARD_HOURS.map((hr) => (
+                                      <option key={`fac-st-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span className="text-[11px] font-bold text-slate-600">અંત:</span>
+                                  <select
+                                    id={`fac-end-${fac.id}`}
+                                    defaultValue="02:00 PM"
+                                    className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold text-slate-900 outline-none"
+                                  >
+                                    {STANDARD_HOURS.map((hr) => (
+                                      <option key={`fac-en-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const stEl = document.getElementById(`fac-start-${fac.id}`) as HTMLSelectElement;
+                                    const enEl = document.getElementById(`fac-end-${fac.id}`) as HTMLSelectElement;
+                                    if (stEl && enEl) {
+                                      addFacilityCustomTimingSlot(fac.id, stEl.value, enEl.value);
+                                    }
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
                                 >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={() => toggleFacilityCustomTiming(fac.id, opt.slotLabel)}
-                                    className="w-3.5 h-3.5 rounded text-red-800 cursor-pointer"
-                                  />
-                                  <span className="truncate">{opt.guTitle}</span>
-                                </label>
-                              );
-                            })}
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>આ સમય ઉમેરો (+ Add)</span>
+                                </button>
+                              </div>
+
+                              {/* Render selected custom timing chips */}
+                              {facilityCustomSlots.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                                  <span className="text-[11px] font-bold text-blue-900">પસંદ કરેલ સ્લોટ્સ:</span>
+                                  {facilityCustomSlots.map((slotStr) => (
+                                    <span
+                                      key={`${fac.id}-${slotStr}`}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-blue-100 border border-blue-300 text-blue-950 text-xs font-bold shadow-2xs"
+                                    >
+                                      <span>{slotStr}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleFacilityCustomTiming(fac.id, slotStr)}
+                                        className="text-blue-500 hover:text-red-700 ml-1 font-bold cursor-pointer"
+                                        title="કાઢી નાખો (Remove)"
+                                      >
+                                        ✕
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
