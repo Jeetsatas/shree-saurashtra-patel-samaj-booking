@@ -230,3 +230,242 @@ export function formatSlotLabel(slot: string | null | undefined): string {
   }
   return slot.trim();
 }
+
+export type TimePeriodKey = "MORNING" | "AFTERNOON" | "NIGHT";
+
+export interface SlotPeriodDetails {
+  periodKey: TimePeriodKey;
+  order: number; // 1: Morning, 2: Afternoon, 3: Night
+  periodNameGu: string; // "સવાર" | "બપોર" | "સાંજ / રાત્રિ"
+  periodTitleGu: string; // "🌅 સવારના સ્લોટ (Morning Timing Slots)"
+  periodTitleEn: string; // "Morning Timing Slots"
+  periodTimeRange: string; // "06:00 AM – 12:00 PM"
+  badgeClass: string;
+  dotColor: string;
+  startMinutes: number;
+  isWholeDay: boolean;
+  cleanLabel: string;
+}
+
+/**
+ * Categorizes a booking slot into one of the 3 canonical day periods:
+ *  1. Morning (સવાર): 06:00 AM – 12:00 PM (and Whole Day starting at 09:00 AM)
+ *  2. Noon & Afternoon (બપોર): 12:00 PM – 05:00 PM
+ *  3. Night & Late Night (સાંજ અને રાત્રિ): 05:00 PM – Late Night (until 05:00 AM)
+ */
+export function getBookingSlotPeriod(slot: string | null | undefined): SlotPeriodDetails {
+  if (isFullDaySlot(slot)) {
+    return {
+      periodKey: "MORNING",
+      order: 1,
+      periodNameGu: "સવાર / આખો દિવસ",
+      periodTitleGu: "🌅 સવારના સ્લોટ (Morning / Whole Day)",
+      periodTitleEn: "Morning & Whole Day Timing Slots",
+      periodTimeRange: "09:00 AM થી બીજા દિવસે 08:00 AM",
+      badgeClass: "bg-amber-100 text-amber-900 border-amber-300",
+      dotColor: "#d97706",
+      startMinutes: 540, // 09:00 AM
+      isWholeDay: true,
+      cleanLabel: WHOLE_DAY_SLOT_LABEL,
+    };
+  }
+
+  const s = String(slot || "").trim();
+  const rangeMatch = s.match(
+    /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|to|–|—)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
+  );
+
+  let startMin = 540; // default 09:00 AM
+  let cleanLabel = s || WHOLE_DAY_SLOT_LABEL;
+
+  if (rangeMatch) {
+    const startPart = rangeMatch[1].trim();
+    const endPart = rangeMatch[2].trim();
+    const endHasPm = /pm/i.test(endPart);
+    const startHasMeridiem = /am|pm/i.test(startPart);
+
+    let defaultStartMeridiem: "AM" | "PM" = "AM";
+    if (!startHasMeridiem && endHasPm) {
+      const h = parseInt(startPart, 10);
+      defaultStartMeridiem = h === 12 || h < 7 ? "PM" : "AM";
+    }
+
+    const parsedStart = parseTimeToMinutes(startPart, defaultStartMeridiem);
+    if (parsedStart !== null) {
+      startMin = parsedStart;
+    }
+    cleanLabel = `${startPart} - ${endPart}`;
+  } else {
+    // Check legacy slot names
+    const upper = s.toUpperCase();
+    if (upper.includes("DAY_TIME") || upper.includes("MORNING")) {
+      startMin = 360; // 06:00 AM
+    } else if (upper.includes("AFTERNOON") || upper.includes("NOON")) {
+      startMin = 780; // 01:00 PM
+    } else if (upper.includes("NIGHT_TIME") || upper.includes("EVENING")) {
+      startMin = 1080; // 06:00 PM
+    } else if (upper.includes("NIGHT_HOLD") || upper.includes("DAY_REST")) {
+      startMin = 1260; // 09:00 PM
+    }
+  }
+
+  // Determine period based on startMin:
+  // 300 to 719 min (05:00 AM to 11:59 AM) -> Morning
+  // 720 to 1019 min (12:00 PM to 04:59 PM) -> Noon & Afternoon
+  // >= 1020 min (05:00 PM onwards) or < 300 min (midnight to 04:59 AM) -> Night & Late Night
+  if (startMin >= 300 && startMin < 720) {
+    return {
+      periodKey: "MORNING",
+      order: 1,
+      periodNameGu: "સવાર",
+      periodTitleGu: "🌅 સવારના સ્લોટ (Morning Timing Slots)",
+      periodTitleEn: "Morning Timing Slots",
+      periodTimeRange: "06:00 AM – 12:00 PM",
+      badgeClass: "bg-amber-100 text-amber-900 border-amber-300",
+      dotColor: "#d97706",
+      startMinutes: startMin,
+      isWholeDay: false,
+      cleanLabel,
+    };
+  }
+
+  if (startMin >= 720 && startMin < 1020) {
+    return {
+      periodKey: "AFTERNOON",
+      order: 2,
+      periodNameGu: "બપોર",
+      periodTitleGu: "☀️ બપોરના સ્લોટ (Noon & Afternoon Timing Slots)",
+      periodTitleEn: "Noon & Afternoon Timing Slots",
+      periodTimeRange: "12:00 PM – 05:00 PM",
+      badgeClass: "bg-sky-100 text-sky-900 border-sky-300",
+      dotColor: "#0284c7",
+      startMinutes: startMin,
+      isWholeDay: false,
+      cleanLabel,
+    };
+  }
+
+  return {
+    periodKey: "NIGHT",
+    order: 3,
+    periodNameGu: "સાંજ / રાત્રિ",
+    periodTitleGu: "🌙 સાંજ અને રાત્રિના સ્લોટ (Night & Late Night Timing Slots)",
+    periodTitleEn: "Night & Late Night Timing Slots",
+    periodTimeRange: "05:00 PM – મોડી રાત્રિ",
+    badgeClass: "bg-indigo-100 text-indigo-900 border-indigo-300",
+    dotColor: "#6366f1",
+    startMinutes: startMin,
+    isWholeDay: false,
+    cleanLabel,
+  };
+}
+
+/**
+ * Sorts any list of bookings chronologically:
+ * 1. Morning slots first (starts before 12:00 PM / Whole Day starting 09:00 AM)
+ * 2. Noon and Afternoon slots second (starts 12:00 PM - 05:00 PM)
+ * 3. Night and Late Night slots third (starts 05:00 PM onwards)
+ */
+export function sortBookingsByTimePeriod(bookings: any[]): any[] {
+  if (!bookings || bookings.length <= 1) return bookings || [];
+
+  return [...bookings].sort((a, b) => {
+    const periodA = getBookingSlotPeriod(a.slot);
+    const periodB = getBookingSlotPeriod(b.slot);
+
+    if (periodA.order !== periodB.order) {
+      return periodA.order - periodB.order;
+    }
+    return periodA.startMinutes - periodB.startMinutes;
+  });
+}
+
+export interface DayPeriodGroup {
+  periodKey: TimePeriodKey;
+  order: number;
+  titleGu: string;
+  titleEn: string;
+  timeRangeGu: string;
+  icon: string;
+  headerBg: string;
+  headerBorder: string;
+  titleColor: string;
+  badgeBg: string;
+  dotColor: string;
+  directBookings: any[];
+  allActiveBookings: any[]; // includes whole day bookings that cover this period
+}
+
+/**
+ * Groups day bookings into Morning, Noon & Afternoon, and Night & Late Night slots.
+ */
+export function groupDayBookingsByPeriods(bookings: any[]): DayPeriodGroup[] {
+  const sorted = sortBookingsByTimePeriod(bookings);
+
+  const morningDirect: any[] = [];
+  const afternoonDirect: any[] = [];
+  const nightDirect: any[] = [];
+  const wholeDayBookings: any[] = [];
+
+  sorted.forEach((b) => {
+    const p = getBookingSlotPeriod(b.slot);
+    if (p.isWholeDay) {
+      wholeDayBookings.push(b);
+      morningDirect.push(b);
+    } else if (p.periodKey === "MORNING") {
+      morningDirect.push(b);
+    } else if (p.periodKey === "AFTERNOON") {
+      afternoonDirect.push(b);
+    } else {
+      nightDirect.push(b);
+    }
+  });
+
+  return [
+    {
+      periodKey: "MORNING",
+      order: 1,
+      titleGu: "સવારના સ્લોટ (Morning Timing Slots)",
+      titleEn: "Morning Timing Slots",
+      timeRangeGu: "06:00 AM – 12:00 PM",
+      icon: "🌅",
+      headerBg: "bg-amber-50/80",
+      headerBorder: "border-amber-200",
+      titleColor: "text-amber-950",
+      badgeBg: "bg-amber-100 text-amber-900 border-amber-300",
+      dotColor: "#d97706",
+      directBookings: morningDirect,
+      allActiveBookings: morningDirect,
+    },
+    {
+      periodKey: "AFTERNOON",
+      order: 2,
+      titleGu: "બપોરના સ્લોટ (Noon & Afternoon Timing Slots)",
+      titleEn: "Noon & Afternoon Timing Slots",
+      timeRangeGu: "12:00 PM – 05:00 PM",
+      icon: "☀️",
+      headerBg: "bg-sky-50/80",
+      headerBorder: "border-sky-200",
+      titleColor: "text-sky-950",
+      badgeBg: "bg-sky-100 text-sky-900 border-sky-300",
+      dotColor: "#0284c7",
+      directBookings: afternoonDirect,
+      allActiveBookings: [...afternoonDirect, ...wholeDayBookings.filter((wb) => !afternoonDirect.some((ab) => ab.id === wb.id))],
+    },
+    {
+      periodKey: "NIGHT",
+      order: 3,
+      titleGu: "સાંજ અને રાત્રિના સ્લોટ (Night & Late Night Timing Slots)",
+      titleEn: "Night & Late Night Timing Slots",
+      timeRangeGu: "05:00 PM – મોડી રાત્રિ",
+      icon: "🌙",
+      headerBg: "bg-indigo-50/80",
+      headerBorder: "border-indigo-200",
+      titleColor: "text-indigo-950",
+      badgeBg: "bg-indigo-100 text-indigo-900 border-indigo-300",
+      dotColor: "#6366f1",
+      directBookings: nightDirect,
+      allActiveBookings: [...nightDirect, ...wholeDayBookings.filter((wb) => !nightDirect.some((nb) => nb.id === wb.id))],
+    },
+  ];
+}
