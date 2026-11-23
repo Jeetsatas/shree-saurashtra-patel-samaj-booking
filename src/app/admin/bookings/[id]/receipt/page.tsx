@@ -76,6 +76,14 @@ export default function BookingReceiptPage() {
         
         {/* Trust Header */}
         <div className="border-b-2 border-red-900 pb-4 text-center space-y-1">
+          <div className="flex justify-center mb-1">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/logo.png"
+              alt="Shree Saurashtra Patel Samaj Trust Logo"
+              className="w-16 h-16 object-contain"
+            />
+          </div>
           <p className="text-[12px] font-bold text-red-900 tracking-wider">
             ॥ શ્રી ગણેશાય નમઃ ॥ ॥ શ્રી ખોડિયાર કૃપા ॥
           </p>

@@ -96,13 +96,14 @@ export default function AdminDashboardPage() {
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-red-950 rounded-2xl p-6 text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full overflow-hidden border-2 border-white/70 shadow-sm bg-white">
+          <div className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full overflow-hidden border-2 border-white/70 shadow-sm bg-white p-0.5">
             <Image
-              src="/images/sardar-vallabhbhai-patel.jpg"
-              alt="Sardar Vallabhbhai Patel"
+              src="/images/logo.png"
+              alt="Shree Saurashtra Patel Samaj Trust Logo"
               width={64}
               height={64}
-              className="w-full h-full object-cover"
+              priority
+              className="w-full h-full object-contain"
             />
           </div>
           <div>

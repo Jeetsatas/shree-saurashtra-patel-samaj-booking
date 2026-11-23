@@ -5,6 +5,14 @@ export const metadata: Metadata = {
   title: "Shree Saurashtra Patel Samaj, Nikol - Naroda | Hall & Dormitory Booking",
   description:
     "Official facility booking portal for Shree Saurashtra Patel Samaj, Nikol - Naroda, Ahmedabad. Check live availability of AC Banquet Halls, Community Dining Hall, and AC Dormitories.",
+  icons: {
+    icon: [
+      { url: "/icon.png", type: "image/png" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

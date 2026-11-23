@@ -69,14 +69,14 @@ function LoginForm() {
     <div className="admin-login min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-red-950 flex flex-col justify-center py-6 sm:py-12 px-3 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <div className="flex justify-center">
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-amber-300/80 shadow-lg bg-amber-50">
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 border-amber-300/80 shadow-lg bg-white p-1">
             <Image
-              src="/images/sardar-vallabhbhai-patel.jpg"
-              alt="Portrait of Sardar Vallabhbhai Patel"
+              src="/images/logo.png"
+              alt="Shree Saurashtra Patel Samaj Trust Logo"
               width={112}
               height={112}
               priority
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
             />
           </div>
         </div>

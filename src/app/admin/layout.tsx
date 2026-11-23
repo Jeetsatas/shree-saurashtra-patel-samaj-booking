@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { clearAdminClientCache } from "@/lib/admin-client-cache";
 import {
@@ -174,8 +175,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               href={isSuper ? "/admin" : "/admin/calendar"}
               className="flex items-center space-x-2 sm:space-x-2.5 active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-tr from-red-800 to-amber-700 text-amber-300 flex items-center justify-center font-black text-xs sm:text-sm shadow border border-amber-500/30">
-                SSPS
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden bg-white/95 border border-amber-400/40 shadow-sm flex items-center justify-center shrink-0 p-0.5">
+                <Image
+                  src="/images/logo.png"
+                  alt="Shree Saurashtra Patel Samaj Trust Logo"
+                  width={36}
+                  height={36}
+                  priority
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div className="leading-tight">
                 <span className="font-extrabold text-xs sm:text-sm text-white tracking-wide block truncate max-w-[170px] xs:max-w-[210px] sm:max-w-none">
