@@ -115,6 +115,9 @@ export default function BookingsManagementPage() {
 
   // Senior-Friendly Delete Modal State
   const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
+  const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   useEffect(() => {
     const cachedBookings = getAdminCachedData<any>("/api/bookings");
@@ -768,6 +771,67 @@ export default function BookingsManagementPage() {
     }
   };
 
+  const toggleSelectBooking = (id: string) => {
+    setSelectedBookingIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = (allIds: string[]) => {
+    if (allIds.every((id) => selectedBookingIds.includes(id))) {
+      // All visible are selected, unselect all visible
+      setSelectedBookingIds((prev) => prev.filter((id) => !allIds.includes(id)));
+    } else {
+      // Add all visible IDs to selected
+      setSelectedBookingIds((prev) => Array.from(new Set([...prev, ...allIds])));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedBookingIds([]);
+  };
+
+  const confirmBulkDeleteBookings = async () => {
+    if (!isSuperAdmin) {
+      alert("Only the Super Admin is authorized to delete bookings.");
+      return;
+    }
+    if (selectedBookingIds.length === 0) return;
+
+    setIsBulkDeleting(true);
+    const idsToDelete = [...selectedBookingIds];
+    const previousBookings = [...bookings];
+
+    // Optimistic removal: records disappear immediately from UI in 0ms
+    setBookings((prev) => prev.filter((b) => !idsToDelete.includes(b.id)));
+    if (detailBooking && idsToDelete.includes(detailBooking.id)) {
+      setDetailBooking(null);
+    }
+    setShowBulkDeleteModal(false);
+    setSelectedBookingIds([]);
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setBookings(previousBookings);
+        alert(err.error || "Failed to delete selected bookings");
+      } else {
+        refreshBookings();
+      }
+    } catch (err) {
+      setBookings(previousBookings);
+      console.error(err);
+      alert("Network error: Could not delete selected bookings.");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
   const handleExportCSV = async () => {
     try {
       setExporting(true);
@@ -1100,6 +1164,43 @@ export default function BookingsManagementPage() {
         </div>
       </div>
 
+      {/* Bulk Action Bar (Super Admin Only) */}
+      {selectedBookingIds.length > 0 && isSuperAdmin && (
+        <div className="bg-slate-900 text-white p-3.5 sm:p-4 rounded-2xl shadow-xl flex flex-wrap items-center justify-between gap-3 border-2 border-red-500/50 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-xl bg-red-600/30 border border-red-400 text-red-300 flex items-center justify-center font-black text-sm">
+              {selectedBookingIds.length}
+            </span>
+            <div>
+              <div className="text-xs sm:text-sm font-extrabold text-white">
+                {selectedBookingIds.length} બુકિંગ પસંદ કરેલ છે ({selectedBookingIds.length} Bookings Selected)
+              </div>
+              <div className="text-[11px] text-slate-400">
+                તમે આ તમામ પસંદ કરેલ બુકિંગ્સને એકસાથે ડિલીટ / રદ કરી શકો છો.
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clearSelection}
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+            >
+              ✕ સાફ કરો (Deselect)
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowBulkDeleteModal(true)}
+              className="px-4 py-2 text-xs font-black rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white shadow-md flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>પસંદ કરેલ {selectedBookingIds.length} બુકિંગ કાઢી નાખો (Delete Selected)</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Bookings Container: Responsive Dual-View (Cards for Mobile/Tablet, Full Table for Desktop) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* 1. Desktop & iPad Landscape Table View (md+) */}
@@ -1107,6 +1208,20 @@ export default function BookingsManagementPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                {isSuperAdmin && (
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={
+                        sortedBookings.length > 0 &&
+                        sortedBookings.every((b) => selectedBookingIds.includes(b.id))
+                      }
+                      onChange={() => toggleSelectAll(sortedBookings.map((b) => b.id))}
+                      className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer"
+                      title="બધા પસંદ કરો / રદ કરો (Select All)"
+                    />
+                  </th>
+                )}
                 <th className="py-3 px-4">Booking #</th>
                 <th className="py-3 px-4">Facility / Resource</th>
                 <th className="py-3 px-4">Applicant & Phone</th>
@@ -1120,22 +1235,41 @@ export default function BookingsManagementPage() {
             <tbody className="divide-y divide-slate-100 text-xs">
               {sortedBookings.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-slate-400">
+                  <td colSpan={isSuperAdmin ? 9 : 8} className="py-12 text-center text-slate-400">
                     No booking records found matching your filters.
                   </td>
                 </tr>
               ) : (
-                sortedBookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-slate-50/80 transition">
-                    <td className="py-3 px-4 font-extrabold text-red-900 whitespace-nowrap">
-                      <button
-                        onClick={() => setDetailBooking(b)}
-                        className="hover:underline flex items-center"
-                        title="Click to view full reservation details"
-                      >
-                        {b.bookingNumber}
-                      </button>
-                    </td>
+                sortedBookings.map((b) => {
+                  const isSelected = selectedBookingIds.includes(b.id);
+                  return (
+                    <tr
+                      key={b.id}
+                      className={`transition ${
+                        isSelected
+                          ? "bg-red-50/80 hover:bg-red-100/60 font-semibold"
+                          : "hover:bg-slate-50/80"
+                      }`}
+                    >
+                      {isSuperAdmin && (
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectBooking(b.id)}
+                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer"
+                          />
+                        </td>
+                      )}
+                      <td className="py-3 px-4 font-extrabold text-red-900 whitespace-nowrap">
+                        <button
+                          onClick={() => setDetailBooking(b)}
+                          className="hover:underline flex items-center"
+                          title="Click to view full reservation details"
+                        >
+                          {b.bookingNumber}
+                        </button>
+                      </td>
                     <td className="py-3 px-4 font-semibold text-slate-800">
                       <div>{b.facility?.name}</div>
                       <span className="text-[10px] text-amber-800 font-normal">
@@ -1240,8 +1374,9 @@ export default function BookingsManagementPage() {
                       )}
                     </td>
                   </tr>
-                ))
-              )}
+                );
+              })
+            )}
             </tbody>
           </table>
         </div>
@@ -1253,28 +1388,45 @@ export default function BookingsManagementPage() {
               No booking records found matching your filters.
             </div>
           ) : (
-            sortedBookings.map((b) => (
-              <div key={b.id} className="p-3.5 sm:p-4 space-y-3 bg-white hover:bg-slate-50/70 transition">
-                {/* Card Header: Booking # & Status */}
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setDetailBooking(b)}
-                    className="text-xs font-black text-red-900 bg-red-100/90 hover:bg-red-200 px-2.5 py-1 rounded-lg flex items-center tracking-wide"
-                  >
-                    {b.bookingNumber}
-                  </button>
-                  <span
-                    className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
-                      b.status === "CONFIRMED"
-                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                        : b.status === "CANCELLED"
-                        ? "bg-rose-50 text-rose-800 border-rose-200"
-                        : "bg-amber-50 text-amber-800 border-amber-200"
-                    }`}
-                  >
-                    {b.status}
-                  </span>
-                </div>
+            sortedBookings.map((b) => {
+              const isSelected = selectedBookingIds.includes(b.id);
+              return (
+                <div
+                  key={b.id}
+                  className={`p-3.5 sm:p-4 space-y-3 transition ${
+                    isSelected ? "bg-red-50/80 border-l-4 border-l-red-600" : "bg-white hover:bg-slate-50/70"
+                  }`}
+                >
+                  {/* Card Header: Booking # & Status */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {isSuperAdmin && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelectBooking(b.id)}
+                          className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                        />
+                      )}
+                      <button
+                        onClick={() => setDetailBooking(b)}
+                        className="text-xs font-black text-red-900 bg-red-100/90 hover:bg-red-200 px-2.5 py-1 rounded-lg flex items-center tracking-wide"
+                      >
+                        {b.bookingNumber}
+                      </button>
+                    </div>
+                    <span
+                      className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
+                        b.status === "CONFIRMED"
+                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                          : b.status === "CANCELLED"
+                          ? "bg-rose-50 text-rose-800 border-rose-200"
+                          : "bg-amber-50 text-amber-800 border-amber-200"
+                      }`}
+                    >
+                      {b.status}
+                    </span>
+                  </div>
 
                 {/* Applicant Name, Event & Quick Call Link */}
                 <div className="flex items-start justify-between gap-2">
@@ -1352,8 +1504,9 @@ export default function BookingsManagementPage() {
                   )}
                 </div>
               </div>
-            ))
-          )}
+            );
+          })
+        )}
         </div>
       </div>
 
@@ -2673,6 +2826,92 @@ export default function BookingsManagementPage() {
               >
                 <Trash2 className="w-5 h-5 text-red-200" />
                 <span>રદ કરો (Yes, Delete)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Senior-Friendly Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && isSuperAdmin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border-2 border-red-200 space-y-5 text-center">
+            {/* Warning Icon */}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-100 text-red-700 rounded-3xl flex items-center justify-center mx-auto shadow-inner border border-red-200">
+              <Trash2 className="w-8 h-8 sm:w-10 sm:h-10 text-red-700 stroke-[2.2]" />
+            </div>
+
+            <div className="space-y-1.5">
+              <span className="text-xs sm:text-sm font-extrabold text-red-800 uppercase tracking-wider bg-red-50 px-3 py-1 rounded-full border border-red-200 inline-block">
+                મલ્ટીપલ બુકિંગ રદ કરવાની ખાતરી (Bulk Delete Confirmation)
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight pt-1">
+                શું તમે પસંદ કરેલ તમામ {selectedBookingIds.length} બુકિંગ્સ રદ કરવા માંગો છો?
+              </h2>
+              <p className="text-sm sm:text-base font-semibold text-slate-600">
+                Are you sure you want to permanently delete all{" "}
+                <span className="font-extrabold text-red-900 underline decoration-red-400">
+                  {selectedBookingIds.length}
+                </span>{" "}
+                selected bookings?
+              </p>
+            </div>
+
+            {/* Selected Bookings List */}
+            <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-3 text-left max-h-56 overflow-y-auto divide-y divide-slate-200">
+              {bookings
+                .filter((b) => selectedBookingIds.includes(b.id))
+                .map((b) => (
+                  <div key={b.id} className="py-2 flex items-center justify-between text-xs gap-2">
+                    <div className="min-w-0">
+                      <span className="font-mono font-bold text-red-900 mr-2">
+                        {b.bookingNumber}
+                      </span>
+                      <span className="font-bold text-slate-900">{b.customerName}</span>
+                      <span className="text-slate-500 block text-[11px] truncate">
+                        {b.facilityName || b.facility?.name} •{" "}
+                        {new Date(b.startDate).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}{" "}
+                        • {b.slot}
+                      </span>
+                    </div>
+                    <span className="font-black text-slate-900 text-xs shrink-0">
+                      ₹{(b.totalAmount || 0).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                ))}
+            </div>
+
+            <p className="text-xs text-slate-500 font-medium">
+              નોંધ: આ {selectedBookingIds.length} બુકિંગ્સ રદ કર્યા પછી સંબંધિત તમામ તારીખો ફરીથી અન્ય લોકો માટે ખાલી (Open) થઈ જશે.
+            </p>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteModal(false)}
+                className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer min-h-[52px]"
+              >
+                <CheckCircle className="w-5 h-5 text-emerald-200" />
+                <span>ના, રહેવા દો (Keep All)</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isBulkDeleting}
+                onClick={confirmBulkDeleteBookings}
+                className="w-full py-3.5 px-4 rounded-2xl bg-red-700 hover:bg-red-800 active:bg-red-900 disabled:opacity-50 text-white font-extrabold text-sm sm:text-base shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer min-h-[52px]"
+              >
+                <Trash2 className="w-5 h-5 text-red-200" />
+                <span>
+                  {isBulkDeleting
+                    ? "રદ થઈ રહ્યું છે..."
+                    : `હા, તમામ ${selectedBookingIds.length} બુકિંગ કાઢી નાખો`}
+                </span>
               </button>
             </div>
           </div>

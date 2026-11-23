@@ -645,27 +645,57 @@ export async function DELETE(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    let idsToDelete: string[] = [];
 
-    if (!id) {
-      return NextResponse.json({ error: "Booking ID is required" }, { status: 400 });
-    }
-
-    // Single-query delete (returns deleted record without needing a prior findUnique query)
-    let deletedBooking;
+    // 1. Try reading JSON body if available ({ ids: string[] } or { id: string })
     try {
-      deletedBooking = await prisma.booking.delete({
-        where: { id },
-        select: { id: true, bookingNumber: true, customerName: true },
-      });
-    } catch (dbErr: any) {
-      if (dbErr.code === "P2025") {
-        return NextResponse.json({ error: "Booking not found or already deleted" }, { status: 404 });
+      const body = await req.json();
+      if (body?.ids && Array.isArray(body.ids)) {
+        idsToDelete = body.ids.map((x: any) => String(x).trim()).filter(Boolean);
+      } else if (body?.id) {
+        idsToDelete = [String(body.id).trim()];
       }
-      throw dbErr;
+    } catch {
+      // Body not present or not JSON, fallback to query parameters
     }
 
-    // Record activity non-blocking so the delete response is returned to client instantly
+    // 2. Fallback to URL search parameters (?ids=id1,id2 or ?id=id1)
+    if (idsToDelete.length === 0) {
+      const idsParam = searchParams.get("ids");
+      const idParam = searchParams.get("id");
+      if (idsParam) {
+        idsToDelete = idsParam.split(",").map((s) => s.trim()).filter(Boolean);
+      } else if (idParam) {
+        idsToDelete = [idParam.trim()];
+      }
+    }
+
+    if (idsToDelete.length === 0) {
+      return NextResponse.json({ error: "Booking ID(s) required" }, { status: 400 });
+    }
+
+    // Fetch details for activity logging
+    const targetBookings = await prisma.booking.findMany({
+      where: { id: { in: idsToDelete } },
+      select: { id: true, bookingNumber: true, customerName: true },
+    });
+
+    if (targetBookings.length === 0) {
+      return NextResponse.json(
+        { error: "Booking(s) not found or already deleted" },
+        { status: 404 }
+      );
+    }
+
+    // Batch delete records
+    await prisma.booking.deleteMany({
+      where: { id: { in: idsToDelete } },
+    });
+
+    // Record activity non-blocking
+    const summaryList = targetBookings
+      .map((b) => `${b.bookingNumber} (${b.customerName})`)
+      .join(", ");
     prisma.activityLog
       .create({
         data: {
@@ -674,16 +704,23 @@ export async function DELETE(req: NextRequest) {
           userEmail: user.email,
           userRole: user.role,
           action: "CANCEL_BOOKING",
-          details: `Cancelled and removed booking record ${deletedBooking.bookingNumber} (${deletedBooking.customerName})`,
-          recordId: id,
+          details: `Cancelled and removed ${targetBookings.length} booking record(s): ${summaryList.slice(
+            0,
+            450
+          )}`,
+          recordId: idsToDelete[0],
           recordType: "BOOKING",
         },
       })
-      .catch((logErr) => console.error("Activity log non-blocking error:", logErr));
+      .catch((logErr) => console.error("Activity log error:", logErr));
 
-    return NextResponse.json({ success: true, message: "Booking removed" });
+    return NextResponse.json({
+      success: true,
+      message: `Successfully removed ${targetBookings.length} booking(s)`,
+      count: targetBookings.length,
+    });
   } catch (error: any) {
     console.error("Booking DELETE error:", error);
-    return NextResponse.json({ error: "Failed to delete booking" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to delete booking(s)" }, { status: 500 });
   }
 }
