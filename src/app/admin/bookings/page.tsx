@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
 import {
@@ -37,6 +37,8 @@ import {
   Tag,
   User,
   Info,
+  Check,
+  X,
 } from "lucide-react";
 
 export default function BookingsManagementPage() {
@@ -85,9 +87,21 @@ export default function BookingsManagementPage() {
     paymentRefNo: "",
     notes: "",
   });
-  const [slotMode, setSlotMode] = useState<string>("WHOLE_DAY");
+
+  // Multi-Facility, Multi-Date, Multi-Timing Checkbox States
+  const [selectedFacilityIds, setSelectedFacilityIds] = useState<string[]>([]);
+  const [selectedDates, setSelectedDates] = useState<string[]>([
+    new Date().toISOString().split("T")[0],
+  ]);
+  const [newDateInput, setNewDateInput] = useState<string>("");
+  const [timingScope, setTimingScope] = useState<"SAME_ALL" | "CUSTOM_PER_FACILITY">("SAME_ALL");
+  const [selectedTimings, setSelectedTimings] = useState<string[]>([WHOLE_DAY_SLOT_LABEL]);
   const [customStartTime, setCustomStartTime] = useState<string>("12:00 PM");
   const [customEndTime, setCustomEndTime] = useState<string>("02:00 PM");
+  const [customSlotsList, setCustomSlotsList] = useState<string[]>([]);
+  const [facilityTimingMap, setFacilityTimingMap] = useState<Record<string, string[]>>({});
+  const [plotPurpose, setPlotPurpose] = useState<"WEDDING" | "FAMILY">("WEDDING");
+
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -119,11 +133,16 @@ export default function BookingsManagementPage() {
         setShowCreateModal(true);
         const dateParam = params.get("date");
         if (dateParam) {
+          setSelectedDates([dateParam]);
           setFormData((prev) => ({
             ...prev,
             startDate: dateParam,
             endDate: dateParam,
           }));
+        }
+        const facParam = params.get("facilityId");
+        if (facParam) {
+          setSelectedFacilityIds([facParam]);
         }
       }
     }
@@ -167,15 +186,8 @@ export default function BookingsManagementPage() {
       if (bookData?.bookings) setBookings(bookData.bookings);
       if (facData?.facilities) {
         setFacilities(facData.facilities);
-        if (facData.facilities.length > 0 && !formData.facilityId) {
-          const firstFac = facData.facilities[0];
-          setFormData((prev) => ({
-            ...prev,
-            facilityId: firstFac.id,
-            facilityAmount: firstFac.baseRent || 0,
-            depositAmount: firstFac.cautionDeposit || 0,
-            totalAmount: firstFac.baseRent || 0,
-          }));
+        if (facData.facilities.length > 0) {
+          setSelectedFacilityIds((prev) => (prev.length > 0 ? prev : [facData.facilities[0].id]));
         }
       }
       if (discData?.discounts) setDiscounts(discData.discounts);
@@ -225,34 +237,148 @@ export default function BookingsManagementPage() {
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const canExportData = isSuperAdmin || Boolean(currentUser?.canExport);
 
-  const handleFacilityChange = (facId: string) => {
-    const fac = facilities.find((f) => f.id === facId);
-    let base = fac ? fac.baseRent : 0;
-    if (fac?.code === "PLOT-OUTSIDE" || fac?.type === "PLOT") {
-      const isWedding =
-        (formData.eventType || "").toLowerCase().includes("wedding") ||
-        (formData.eventType || "").toLowerCase().includes("lagna") ||
-        (formData.eventType || "").toLowerCase().includes("wedd");
-      base = isWedding
-        ? fac.weddingRent || fac.baseRent || 0
-        : fac.familyRent || fac.baseRent || 0;
-    }
-    const dep = fac ? fac.cautionDeposit : 0;
+  const STANDARD_SLOT_OPTIONS = [
+    {
+      id: "WHOLE_DAY",
+      slotLabel: WHOLE_DAY_SLOT_LABEL,
+      title: "Whole Day / 24 Hours",
+      guTitle: "આખો દિવસ / 24 Hours",
+      guDesc: "09:00 AM થી બીજા દિવસે 08:00 AM ચેકઆઉટ (24 કલાક)",
+      badge: "24 કલાક (Full Cycle)",
+    },
+    {
+      id: "MORNING",
+      slotLabel: "Morning Slot (06:00 AM - 02:00 PM)",
+      title: "Morning Slot",
+      guTitle: "સવારનો સ્લોટ (Morning)",
+      guDesc: "06:00 AM થી 02:00 PM સુધી (8 કલાક)",
+      badge: "સવાર (Morning)",
+    },
+    {
+      id: "AFTERNOON",
+      slotLabel: "Afternoon / Evening (03:00 PM - 11:00 PM)",
+      title: "Afternoon / Evening",
+      guTitle: "બપોર / સાંજ સ્લોટ (Afternoon / Evening)",
+      guDesc: "03:00 PM થી 11:00 PM સુધી (8 કલાક)",
+      badge: "બપોર / સાંજ",
+    },
+    {
+      id: "NIGHT",
+      slotLabel: "Night Slot (07:00 PM - 11:00 PM)",
+      title: "Night Slot",
+      guTitle: "રાત્રિ સ્લોટ (Night)",
+      guDesc: "07:00 PM થી 11:00 PM સુધી (4 કલાક)",
+      badge: "રાત્રિ (Night)",
+    },
+  ];
 
-    const defaultSlot = WHOLE_DAY_SLOT_LABEL;
-    const defaultMode = "WHOLE_DAY";
-    setSlotMode(defaultMode);
-
-    recalcFinancials(
-      base,
-      formData.discountCode,
-      formData.discountPercent,
-      formData.discountOverridden,
-      formData.selectedServices,
-      dep,
-      facId,
-      defaultSlot
+  const toggleFacility = (facId: string) => {
+    setSelectedFacilityIds((prev) =>
+      prev.includes(facId) ? prev.filter((id) => id !== facId) : [...prev, facId]
     );
+  };
+
+  const selectAllRooms = () => {
+    const roomIds = facilities.filter((f) => f.type === "ROOM").map((f) => f.id);
+    setSelectedFacilityIds((prev) => Array.from(new Set([...prev, ...roomIds])));
+  };
+
+  const selectAllHalls = () => {
+    const hallIds = facilities.filter((f) => f.type === "HALL").map((f) => f.id);
+    setSelectedFacilityIds((prev) => Array.from(new Set([...prev, ...hallIds])));
+  };
+
+  const selectAllDorms = () => {
+    const dormIds = facilities.filter((f) => f.type === "DORMITORY").map((f) => f.id);
+    setSelectedFacilityIds((prev) => Array.from(new Set([...prev, ...dormIds])));
+  };
+
+  const selectAllFacilities = () => {
+    setSelectedFacilityIds(facilities.map((f) => f.id));
+  };
+
+  const clearAllFacilities = () => {
+    setSelectedFacilityIds([]);
+  };
+
+  const formatDateGu = (dateStr: string) => {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    const weekdaysGu = ["રવિવાર", "સોમવાર", "મંગળવાર", "બુધવાર", "ગુરુવાર", "શુક્રવાર", "શનિવાર"];
+    const weekdaysEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const monthsEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const dayGu = weekdaysGu[dt.getDay()];
+    const dayEn = weekdaysEn[dt.getDay()];
+    const mName = monthsEn[dt.getMonth()];
+    return `${d} ${mName} ${y} (${dayGu} / ${dayEn})`;
+  };
+
+  const toggleDate = (dateStr: string) => {
+    setSelectedDates((prev) =>
+      prev.includes(dateStr) ? prev.filter((d) => d !== dateStr) : [...prev, dateStr].sort()
+    );
+  };
+
+  const removeDate = (dateStr: string) => {
+    setSelectedDates((prev) => prev.filter((d) => d !== dateStr));
+  };
+
+  const addDate = (dateStr: string) => {
+    if (!dateStr) return;
+    setSelectedDates((prev) => {
+      if (prev.includes(dateStr)) return prev;
+      return [...prev, dateStr].sort();
+    });
+    setNewDateInput("");
+  };
+
+  const addRelativeDays = (count: number) => {
+    const base =
+      selectedDates.length > 0
+        ? selectedDates[selectedDates.length - 1]
+        : new Date().toISOString().split("T")[0];
+    const [y, m, d] = base.split("-").map(Number);
+    const newDates: string[] = [];
+    for (let i = 1; i <= count; i++) {
+      const next = new Date(y, m - 1, d + i);
+      const str = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+      newDates.push(str);
+    }
+    setSelectedDates((prev) => Array.from(new Set([...prev, ...newDates])).sort());
+  };
+
+  const toggleTimingSlot = (slotLabel: string) => {
+    setSelectedTimings((prev) =>
+      prev.includes(slotLabel)
+        ? prev.filter((s) => s !== slotLabel)
+        : [...prev, slotLabel]
+    );
+  };
+
+  const addCustomSlot = (from: string, to: string) => {
+    const customSlot = `${from} - ${to}`;
+    if (!customSlotsList.includes(customSlot)) {
+      setCustomSlotsList((prev) => [...prev, customSlot]);
+    }
+    if (!selectedTimings.includes(customSlot)) {
+      setSelectedTimings((prev) => [...prev, customSlot]);
+    }
+  };
+
+  const removeCustomSlot = (slotStr: string) => {
+    setCustomSlotsList((prev) => prev.filter((s) => s !== slotStr));
+    setSelectedTimings((prev) => prev.filter((s) => s !== slotStr));
+  };
+
+  const toggleFacilityCustomTiming = (facId: string, slotStr: string) => {
+    setFacilityTimingMap((prev) => {
+      const current = prev[facId] || (selectedTimings.length > 0 ? [...selectedTimings] : [WHOLE_DAY_SLOT_LABEL]);
+      const updated = current.includes(slotStr)
+        ? current.filter((s) => s !== slotStr)
+        : [...current, slotStr];
+      return { ...prev, [facId]: updated };
+    });
   };
 
   const getNextDateStr = (dateStr: string) => {
@@ -262,154 +388,216 @@ export default function BookingsManagementPage() {
     return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
   };
 
-  const handleSlotModeChange = (mode: string) => {
-    setSlotMode(mode);
-    if (mode === "WHOLE_DAY") {
-      const nextDay = getNextDateStr(formData.startDate);
-      setFormData((prev) => ({
-        ...prev,
-        slot: WHOLE_DAY_SLOT_LABEL,
-        endDate: nextDay || prev.startDate,
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        slot: `${customStartTime} - ${customEndTime}`,
-        endDate: prev.startDate,
-      }));
-    }
-  };
-
-  const handleCustomTimeChange = (from: string, to: string) => {
-    setCustomStartTime(from);
-    setCustomEndTime(to);
-    setFormData((prev) => ({
-      ...prev,
-      slot: `${from} - ${to}`,
-      endDate: prev.startDate,
-    }));
-  };
-
   const handlePlotPurposeChange = (purpose: "WEDDING" | "FAMILY") => {
-    const fac = facilities.find((f) => f.id === formData.facilityId);
-    if (!fac) return;
-    const base =
-      purpose === "WEDDING"
-        ? fac.weddingRent || fac.baseRent || 0
-        : fac.familyRent || fac.baseRent || 0;
-    const newEventType =
-      purpose === "WEDDING"
-        ? "Wedding"
-        : "Family Function / Sagai";
+    setPlotPurpose(purpose);
     setFormData((prev) => ({
       ...prev,
-      eventType: newEventType,
+      eventType: purpose === "WEDDING" ? "Wedding" : "Family Function / Sagai",
     }));
-    recalcFinancials(
-      base,
-      formData.discountCode,
-      formData.discountPercent,
-      formData.discountOverridden,
-      formData.selectedServices,
-      formData.depositAmount,
-      formData.facilityId,
-      formData.slot
-    );
   };
 
   const handleDiscountChange = (code: string) => {
     if (code === "NONE") {
-      recalcFinancials(
-        formData.facilityAmount,
-        "NONE",
-        0,
-        false,
-        formData.selectedServices,
-        formData.depositAmount,
-        formData.facilityId,
-        formData.slot
-      );
+      setFormData((prev) => ({
+        ...prev,
+        discountCode: "NONE",
+        discountPercent: 0,
+        discountOverridden: false,
+      }));
     } else if (code === "MANUAL_OVERRIDE") {
-      recalcFinancials(
-        formData.facilityAmount,
-        "MANUAL_OVERRIDE",
-        formData.discountPercent,
-        true,
-        formData.selectedServices,
-        formData.depositAmount,
-        formData.facilityId,
-        formData.slot
-      );
+      setFormData((prev) => ({
+        ...prev,
+        discountCode: "MANUAL_OVERRIDE",
+        discountOverridden: true,
+      }));
     } else {
       const rule = discounts.find((d) => d.code === code);
-      const percent = rule ? rule.percentage : 0;
-      recalcFinancials(
-        formData.facilityAmount,
-        code,
-        percent,
-        false,
-        formData.selectedServices,
-        formData.depositAmount,
-        formData.facilityId,
-        formData.slot
-      );
+      setFormData((prev) => ({
+        ...prev,
+        discountCode: code,
+        discountPercent: rule ? rule.percentage : 0,
+        discountOverridden: false,
+      }));
     }
   };
 
   const handleServiceToggle = (serviceCode: string) => {
-    let updated = [...formData.selectedServices];
-    if (updated.includes(serviceCode)) {
-      updated = updated.filter((c) => c !== serviceCode);
-    } else {
-      updated.push(serviceCode);
-    }
-    recalcFinancials(
-      formData.facilityAmount,
-      formData.discountCode,
-      formData.discountPercent,
-      formData.discountOverridden,
-      updated,
-      formData.depositAmount,
-      formData.facilityId,
-      formData.slot
-    );
-  };
-
-  const recalcFinancials = (
-    baseFac: number,
-    discCode: string,
-    discPct: number,
-    isOverridden: boolean,
-    chosenServices: string[],
-    deposit: number,
-    facId?: string,
-    slotName?: string
-  ) => {
-    const discAmount = (baseFac * discPct) / 100;
-
-    let servTotal = 0;
-    chosenServices.forEach((code) => {
-      const s = services.find((serv) => serv.code === code);
-      if (s) servTotal += s.price;
+    setFormData((prev) => {
+      const exists = prev.selectedServices.includes(serviceCode);
+      return {
+        ...prev,
+        selectedServices: exists
+          ? prev.selectedServices.filter((c) => c !== serviceCode)
+          : [...prev.selectedServices, serviceCode],
+      };
     });
-
-    const netTotal = Math.max(0, baseFac - discAmount) + servTotal;
-
-    setFormData((prev) => ({
-      ...prev,
-      ...(facId && { facilityId: facId }),
-      ...(slotName && { slot: slotName }),
-      facilityAmount: baseFac,
-      discountCode: discCode,
-      discountPercent: discPct,
-      discountAmount: discAmount,
-      discountOverridden: isOverridden,
-      selectedServices: chosenServices,
-      servicesAmount: servTotal,
-      totalAmount: netTotal,
-      depositAmount: deposit,
-    }));
   };
+
+  // Real-time Cross-Product Generator & Multi-Conflict Checker
+  const bookingItems = useMemo(() => {
+    if (selectedFacilityIds.length === 0 || selectedDates.length === 0) return [];
+
+    const items: Array<{
+      facilityId: string;
+      facilityName: string;
+      facilityCode: string;
+      facilityType: string;
+      resourceGroup?: string;
+      startDate: string;
+      endDate: string;
+      slot: string;
+      baseRent: number;
+      cautionDeposit: number;
+      conflict: { isConflict: boolean; reason?: string; bookedBy?: string };
+    }> = [];
+
+    for (const facId of selectedFacilityIds) {
+      const fac = facilities.find((f) => f.id === facId);
+      if (!fac) continue;
+
+      let baseRent = fac.baseRent || 0;
+      if (fac.code === "PLOT-OUTSIDE" || fac.type === "PLOT") {
+        baseRent =
+          plotPurpose === "WEDDING"
+            ? fac.weddingRent || fac.baseRent || 0
+            : fac.familyRent || fac.baseRent || 0;
+      }
+      const cautionDeposit = fac.cautionDeposit || 0;
+
+      let timingsForFac: string[] = [];
+      if (timingScope === "SAME_ALL") {
+        timingsForFac = selectedTimings.length > 0 ? selectedTimings : [WHOLE_DAY_SLOT_LABEL];
+      } else {
+        const specific = facilityTimingMap[facId];
+        timingsForFac =
+          specific && specific.length > 0
+            ? specific
+            : selectedTimings.length > 0
+            ? selectedTimings
+            : [WHOLE_DAY_SLOT_LABEL];
+      }
+
+      for (const dateStr of selectedDates) {
+        for (const slotLabel of timingsForFac) {
+          const isFull = isFullDaySlot(slotLabel);
+          const endDateStr = isFull ? getNextDateStr(dateStr) || dateStr : dateStr;
+
+          // Conflict check against active bookings in database
+          const dbConflict = bookings.find((b) => {
+            if (b.status === "CANCELLED") return false;
+            const facMatches = b.facilityId === fac.id;
+            const groupMatches =
+              fac.resourceGroup &&
+              (b.facility?.resourceGroup === fac.resourceGroup ||
+                b.resourceGroup === fac.resourceGroup);
+            if (!facMatches && !groupMatches) return false;
+
+            return doBookingsConflict(
+              { startDate: b.startDate, slot: b.slot },
+              { startDate: dateStr, slot: slotLabel }
+            );
+          });
+
+          // Conflict check against previous items in this same generated batch
+          const batchConflict = items.find((prev) => {
+            const facMatches = prev.facilityId === fac.id;
+            const groupMatches =
+              fac.resourceGroup &&
+              prev.resourceGroup &&
+              fac.resourceGroup === prev.resourceGroup;
+            if (!facMatches && !groupMatches) return false;
+
+            return doBookingsConflict(
+              { startDate: prev.startDate, slot: prev.slot },
+              { startDate: dateStr, slot: slotLabel }
+            );
+          });
+
+          let conflictInfo = { isConflict: false, reason: "", bookedBy: "" };
+          if (dbConflict) {
+            conflictInfo = {
+              isConflict: true,
+              reason: `પહેલેથી બુક થયેલ છે (${dbConflict.slot})`,
+              bookedBy: dbConflict.customerName || "Existing Booking",
+            };
+          } else if (batchConflict) {
+            conflictInfo = {
+              isConflict: true,
+              reason: `આ જ ફોર્મમાં ડુપ્લિકેટ પસંદગી`,
+              bookedBy: "આ જ બુકિંગ",
+            };
+          }
+
+          items.push({
+            facilityId: fac.id,
+            facilityName: fac.name,
+            facilityCode: fac.code,
+            facilityType: fac.type,
+            resourceGroup: fac.resourceGroup,
+            startDate: dateStr,
+            endDate: endDateStr,
+            slot: slotLabel,
+            baseRent,
+            cautionDeposit,
+            conflict: conflictInfo,
+          });
+        }
+      }
+    }
+
+    return items;
+  }, [
+    selectedFacilityIds,
+    selectedDates,
+    timingScope,
+    selectedTimings,
+    facilityTimingMap,
+    facilities,
+    bookings,
+    plotPurpose,
+  ]);
+
+  const totalFacilityRent = useMemo(() => {
+    return bookingItems.reduce((acc, it) => acc + (it.baseRent || 0), 0);
+  }, [bookingItems]);
+
+  const currentDiscountPercent = useMemo(() => {
+    if (formData.discountCode === "NONE") return 0;
+    if (formData.discountCode === "MANUAL_OVERRIDE") return Number(formData.discountPercent) || 0;
+    const rule = discounts.find((d) => d.code === formData.discountCode);
+    return rule ? rule.percentage : 0;
+  }, [formData.discountCode, formData.discountPercent, discounts]);
+
+  const totalDiscountAmount = useMemo(() => {
+    return Math.round((totalFacilityRent * currentDiscountPercent) / 100);
+  }, [totalFacilityRent, currentDiscountPercent]);
+
+  const totalServicesAmount = useMemo(() => {
+    return formData.selectedServices.reduce((acc, code) => {
+      const s = services.find((srv) => srv.code === code);
+      return acc + (s?.price || 0);
+    }, 0);
+  }, [formData.selectedServices, services]);
+
+  const totalDepositAmount = useMemo(() => {
+    const uniqueFacilityIds = Array.from(new Set(bookingItems.map((it) => it.facilityId)));
+    return uniqueFacilityIds.reduce((acc, id) => {
+      const fac = facilities.find((f) => f.id === id);
+      return acc + (fac?.cautionDeposit || 0);
+    }, 0);
+  }, [bookingItems, facilities]);
+
+  const finalTotalAmount = useMemo(() => {
+    return Math.max(0, totalFacilityRent - totalDiscountAmount) + totalServicesAmount;
+  }, [totalFacilityRent, totalDiscountAmount, totalServicesAmount]);
+
+  const hasAnyConflict = useMemo(() => {
+    return bookingItems.some((it) => it.conflict.isConflict);
+  }, [bookingItems]);
+
+  const conflictingItemsCount = useMemo(() => {
+    return bookingItems.filter((it) => it.conflict.isConflict).length;
+  }, [bookingItems]);
 
   const handleCreateBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -418,29 +606,71 @@ export default function BookingsManagementPage() {
       return;
     }
 
-    setCreating(true);
-    setCreateError("");
-
-    if (conflictingBooking) {
-      setCreateError(
-        `Time conflict: ${conflictingBooking.facility?.name || "This facility"} is already booked for ${conflictingBooking.slot} (${conflictingBooking.customerName}). Please pick a different timing.`
-      );
-      setCreating(false);
+    if (selectedFacilityIds.length === 0) {
+      setCreateError("કૃપા કરીને ઓછામાં ઓછી એક સુવિધા પસંદ કરો (Please select at least one facility).");
       return;
     }
+
+    if (selectedDates.length === 0) {
+      setCreateError("કૃપા કરીને ઓછામાં ઓછી એક તારીખ પસંદ કરો (Please select at least one date).");
+      return;
+    }
+
+    if (bookingItems.length === 0) {
+      setCreateError("કોઈ માન્ય બુકિંગ આઇટમ તૈયાર થઈ નથી (No valid booking items generated).");
+      return;
+    }
+
+    if (hasAnyConflict) {
+      setCreateError(
+        `સમય ટકરાવ: ${conflictingItemsCount} બુકિંગમાં સમય ટકરાવ છે. કૃપા કરીને લાલ હાઇલાઇટ થયેલા સ્લોટ્સ બદલો.`
+      );
+      return;
+    }
+
+    setCreating(true);
+    setCreateError("");
 
     const selectedServiceObjs = formData.selectedServices.map((code) => {
       const s = services.find((srv) => srv.code === code);
       return { name: s?.name || code, code, price: s?.price || 0 };
     });
 
+    const preparedItems = bookingItems.map((item) => ({
+      facilityId: item.facilityId,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      slot: item.slot,
+      facilityAmount: item.baseRent,
+      depositAmount: item.cautionDeposit,
+    }));
+
     try {
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          items: preparedItems,
+          customerName: formData.customerName,
+          customerPhone: formData.customerPhone,
+          customerEmail: formData.customerEmail,
+          customerAddress: formData.customerAddress,
+          customerAadhar: formData.customerAadhar,
+          eventType: formData.eventType || "General Function",
+          facilityAmount: totalFacilityRent,
+          discountCode: formData.discountCode,
+          discountPercent: currentDiscountPercent,
+          discountAmount: totalDiscountAmount,
+          discountOverridden: formData.discountCode === "MANUAL_OVERRIDE",
+          discountOverrideReason: formData.discountOverrideReason,
           selectedServices: selectedServiceObjs,
+          servicesAmount: totalServicesAmount,
+          depositAmount: totalDepositAmount,
+          totalAmount: finalTotalAmount,
+          paymentStatus: formData.paymentStatus || "PENDING",
+          paymentMethod: formData.paymentMethod || "CASH_AT_OFFICE",
+          paymentRefNo: formData.paymentRefNo,
+          notes: formData.notes,
         }),
       });
 
@@ -449,8 +679,18 @@ export default function BookingsManagementPage() {
         throw new Error(data.error || "Failed to create booking");
       }
 
-      // Optimistic update: inject new booking immediately into UI without waiting
-      if (data.booking) {
+      if (data.bookings && Array.isArray(data.bookings)) {
+        const enriched = data.bookings.map((b: any) => {
+          const fac = facilities.find((f) => f.id === b.facilityId);
+          return {
+            ...b,
+            facilityName: fac?.name || b.facility?.name || "",
+            facilityCode: fac?.code || b.facility?.code || "",
+            resourceGroup: fac?.resourceGroup || b.facility?.resourceGroup || "",
+          };
+        });
+        setBookings((prev) => [...enriched, ...prev]);
+      } else if (data.booking) {
         const fac = facilities.find((f) => f.id === data.booking.facilityId);
         const enriched = {
           ...data.booking,
@@ -607,26 +847,9 @@ export default function BookingsManagementPage() {
     return 0;
   });
 
-  const selectedFacilityObj = facilities.find((f) => f.id === formData.facilityId);
-  const isRoomOrDorm =
-    selectedFacilityObj?.type === "ROOM" || selectedFacilityObj?.type === "DORMITORY";
-
-  const existingBookingsOnDate = bookings.filter((b) => {
-    if (b.status === "CANCELLED") return false;
-    const facMatches = b.facilityId === formData.facilityId;
-    const groupMatches =
-      selectedFacilityObj?.resourceGroup &&
-      (b.facility?.resourceGroup === selectedFacilityObj.resourceGroup ||
-        b.resourceGroup === selectedFacilityObj.resourceGroup);
-    if (!facMatches && !groupMatches) return false;
-
-    return doBookingsConflict(
-      { startDate: b.startDate, slot: b.slot },
-      { startDate: formData.startDate, slot: formData.slot }
-    );
-  });
-
-  const conflictingBooking = existingBookingsOnDate[0] || null;
+  const selectedFacilityObj = facilities.find(
+    (f) => f.id === (selectedFacilityIds[0] || formData.facilityId)
+  );
 
   return (
     <div className="space-y-6">
@@ -1303,394 +1526,879 @@ export default function BookingsManagementPage() {
         </div>
       )}
 
-      {/* New Booking Modal with Discount & Addon Services (Super Admin Only) */}
+      {/* New Booking Modal with Multi-Facility, Multi-Date, and Multi-Timing Checkboxes */}
       {showCreateModal && isSuperAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200">
-            <div className="bg-slate-50 text-slate-900 p-5 flex items-center justify-between sticky top-0 z-10 border-b border-slate-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-red-800 to-amber-900 text-white p-4 sm:p-5 flex items-center justify-between sticky top-0 z-20 shadow-md">
               <div>
-                <h3 className="text-base font-bold">New Booking Entry (With Discounts & Add-ons)</h3>
-                <p className="text-xs text-slate-500">
-                  Shree Saurashtra Patel Samaj, Nikol - Naroda
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-400 text-red-950 font-black text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Super Admin Only
+                  </span>
+                  <span className="text-xs text-amber-200 font-bold">
+                    મલ્ટી-સુવિધા • મલ્ટી-તારીખ • મલ્ટી-સમય ચેકબોક્સ
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-white mt-1">
+                  નવું બુકિંગ નોંધણી (New Multi-Booking Entry)
+                </h3>
+                <p className="text-xs text-amber-100/90">
+                  શ્રી સૌરાષ્ટ્ર પટેલ સમાજ, નિકોલ - નરોડા | અમદાવાદ
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-500 hover:text-slate-900 text-lg font-bold min-w-11 min-h-11"
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center font-bold text-lg transition cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
             {createError && (
-              <div className="m-5 p-3.5 bg-red-50 border border-red-300 rounded-lg text-xs text-red-700 flex items-center">
-                <AlertCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-                {createError}
+              <div className="m-4 sm:m-5 p-3.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{createError}</span>
               </div>
             )}
 
-            <form onSubmit={handleCreateBooking} className="p-5 sm:p-6 space-y-4">
-              {/* Facility Selection */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Select Facility *
-                </label>
-                <select
-                  required
-                  value={formData.facilityId}
-                  onChange={(e) => handleFacilityChange(e.target.value)}
-                  className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-semibold focus:ring-2 focus:ring-red-700"
-                >
-                  <optgroup label="Outside Party Plot (Dual Pricing)">
+            <form onSubmit={handleCreateBooking} className="p-4 sm:p-6 space-y-5">
+              {/* SECTION 1: Applicant Details */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                    <User className="w-4 h-4 text-red-800" />
+                    ૧. અરજદારની વિગતો (Applicant & Function Details)
+                  </span>
+                  <span className="text-[11px] font-bold text-red-800">* ફરજિયાત માહિતી</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      અરજદારનું પૂરું નામ (Applicant Full Name) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="દા.ત. રમેશભાઈ પટેલ"
+                      value={formData.customerName}
+                      onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      મોબાઇલ નંબર (10-Digit Mobile Number) *
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="10-digit mobile number"
+                      value={formData.customerPhone}
+                      onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      પ્રસંગનો પ્રકાર (Function Type) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Wedding, Sagai, Birthday..."
+                      value={formData.eventType}
+                      onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      આધાર નંબર (Aadhar / ID Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="12-digit Aadhar"
+                      value={formData.customerAadhar}
+                      onChange={(e) => setFormData({ ...formData, customerAadhar: e.target.value })}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      સરનામું / મૂળ ગામ (Native Village)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Nikol / Amreli"
+                      value={formData.customerAddress}
+                      onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
+                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: Facility Selection with Checkboxes */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Building className="w-4 h-4 text-red-800" />
+                      ૨. સુવિધાઓ પસંદ કરો (Select Facilities via Checkboxes) *
+                    </span>
+                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
+                      {selectedFacilityIds.length} પસંદ
+                    </span>
+                  </div>
+
+                  {/* Quick Shortcuts */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={selectAllRooms}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                    >
+                      ✓ બધા એસી રૂમ (All Rooms)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={selectAllHalls}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                    >
+                      ✓ બંને હોલ (Both Halls)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={selectAllDorms}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                    >
+                      ✓ બધી ડોર્મિટરી
+                    </button>
+                    <button
+                      type="button"
+                      onClick={selectAllFacilities}
+                      className="px-2 py-1 rounded-lg bg-red-800 text-white hover:bg-red-700 transition cursor-pointer"
+                    >
+                      બધું (All)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearAllFacilities}
+                      className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition cursor-pointer"
+                    >
+                      સાફ (Clear)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Outside Party Plot */}
+                {facilities.filter((f) => f.type === "PLOT").length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                      <span>🌿 આઉટસાઇડ પાર્ટી પ્લોટ (Outside Party Plot - Dual Pricing)</span>
+                    </div>
                     {facilities
                       .filter((f) => f.type === "PLOT")
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name} ({f.code}) — {f.capacity} Persons (Wedding: ₹{f.weddingRent || 0} / Family: ₹{f.familyRent || 0})
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="Halls">
-                    {facilities
-                      .filter((f) => f.type === "HALL")
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name} ({f.code}) — {f.capacity} Persons {f.baseRent > 0 ? `(₹${f.baseRent.toLocaleString("en-IN")})` : "(Rate Pending)"}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="Dormitories">
-                    {facilities
-                      .filter((f) => f.type === "DORMITORY")
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name} ({f.code}) — {f.capacity} Beds {f.baseRent > 0 ? `(₹${f.baseRent.toLocaleString("en-IN")}/bed)` : "(Rate Pending)"}
-                        </option>
-                      ))}
-                  </optgroup>
-                  <optgroup label="AC Guest Rooms">
-                    {facilities
-                      .filter((f) => f.type === "ROOM")
-                      .map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name} ({f.code}) — {f.capacity} Beds {f.baseRent > 0 ? `(₹${f.baseRent.toLocaleString("en-IN")})` : "(Rate Pending)"}
-                        </option>
-                      ))}
-                  </optgroup>
-                </select>
+                      .map((fac) => {
+                        const isChecked = selectedFacilityIds.includes(fac.id);
+                        const currentRent =
+                          plotPurpose === "WEDDING"
+                            ? fac.weddingRent || fac.baseRent || 0
+                            : fac.familyRent || fac.baseRent || 0;
+                        return (
+                          <div
+                            key={fac.id}
+                            className={`p-3 rounded-xl border-2 transition ${
+                              isChecked
+                                ? "border-red-600 bg-red-50/50 shadow-xs"
+                                : "border-slate-200 bg-white hover:border-slate-300"
+                            }`}
+                          >
+                            <label className="flex items-start justify-between gap-3 cursor-pointer">
+                              <div className="flex items-start gap-3">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleFacility(fac.id)}
+                                  className="w-5 h-5 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                />
+                                <div>
+                                  <div className="font-extrabold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
+                                    <span>{fac.name}</span>
+                                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">
+                                      {fac.code}
+                                    </span>
+                                  </div>
+                                  <div className="text-[11px] text-slate-500 mt-0.5">
+                                    ક્ષમતા: {fac.capacity} Persons • ડિપોઝિટ: ₹{(fac.cautionDeposit || 0).toLocaleString("en-IN")}
+                                  </div>
+                                </div>
+                              </div>
 
-                {/* Outside Party Plot Dual Rate Purpose Selector */}
-                {selectedFacilityObj?.type === "PLOT" && (
-                  <div className="mt-2.5 bg-amber-50 p-3 rounded-xl border border-amber-200 space-y-2">
-                    <span className="text-xs font-bold text-amber-950 block">
-                      Outside Party Plot Booking Purpose & Tariff:
-                    </span>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="text-right shrink-0">
+                                <span className="text-xs sm:text-sm font-black text-red-800 block">
+                                  {currentRent > 0 ? `₹${currentRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-500">
+                                  {plotPurpose === "WEDDING" ? "Wedding Tariff" : "Family Tariff"}
+                                </span>
+                              </div>
+                            </label>
+
+                            {/* Outside Party Plot Purpose Selector */}
+                            {isChecked && (
+                              <div className="mt-3 pt-3 border-t border-red-200/60 bg-white/80 p-2.5 rounded-lg space-y-2">
+                                <span className="text-[11px] font-bold text-amber-950 block">
+                                  પાર્ટી પ્લોટ ઉપયોગનો પ્રકાર (Select Purpose & Tariff):
+                                </span>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePlotPurposeChange("WEDDING")}
+                                    className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                                      plotPurpose === "WEDDING"
+                                        ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                        : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    <div className="font-bold">💍 Wedding Function (લગ્ન પ્રસંગ)</div>
+                                    <div className="text-[11px] opacity-90 mt-0.5">
+                                      {fac.weddingRent && fac.weddingRent > 0
+                                        ? `₹${fac.weddingRent.toLocaleString("en-IN")}`
+                                        : "Rate Pending"}
+                                    </div>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePlotPurposeChange("FAMILY")}
+                                    className={`p-2 rounded-lg border text-left transition cursor-pointer ${
+                                      plotPurpose === "FAMILY"
+                                        ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                        : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
+                                    }`}
+                                  >
+                                    <div className="font-bold">👨‍👩‍👧‍👦 Family Function (પારિવારિક)</div>
+                                    <div className="text-[11px] opacity-90 mt-0.5">
+                                      {fac.familyRent && fac.familyRent > 0
+                                        ? `₹${fac.familyRent.toLocaleString("en-IN")}`
+                                        : "Rate Pending"}
+                                    </div>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+
+                {/* Community Halls */}
+                {facilities.filter((f) => f.type === "HALL").length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                      🏛️ કોમ્યુનિટી હોલ (Community Halls)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {facilities
+                        .filter((f) => f.type === "HALL")
+                        .map((fac) => {
+                          const isChecked = selectedFacilityIds.includes(fac.id);
+                          return (
+                            <label
+                              key={fac.id}
+                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
+                                isChecked
+                                  ? "border-red-600 bg-red-50/50 shadow-xs"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleFacility(fac.id)}
+                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-xs text-slate-900 truncate">
+                                    {fac.name}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500">
+                                    {fac.capacity} Persons
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-black text-slate-800 block">
+                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                </span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dormitories */}
+                {facilities.filter((f) => f.type === "DORMITORY").length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                      🛏️ ડોર્મિટરી (Dormitories)
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {facilities
+                        .filter((f) => f.type === "DORMITORY")
+                        .map((fac) => {
+                          const isChecked = selectedFacilityIds.includes(fac.id);
+                          return (
+                            <label
+                              key={fac.id}
+                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
+                                isChecked
+                                  ? "border-red-600 bg-red-50/50 shadow-xs"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleFacility(fac.id)}
+                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-xs text-slate-900 truncate">
+                                    {fac.name}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500">
+                                    {fac.capacity} Beds
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-black text-slate-800 block">
+                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                </span>
+                              </div>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* AC Guest Rooms */}
+                {facilities.filter((f) => f.type === "ROOM").length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                      <span>🚪 એસી ગેસ્ટ રૂમ (AC Guest Rooms)</span>
                       <button
                         type="button"
-                        onClick={() => handlePlotPurposeChange("WEDDING")}
-                        className={`p-2.5 rounded-lg border text-left transition ${
-                          (formData.eventType || "").toLowerCase().includes("wedding") ||
-                          (formData.eventType || "").toLowerCase().includes("lagna") ||
-                          (formData.eventType || "").toLowerCase().includes("wedd")
-                            ? "bg-red-800 text-white border-red-900 shadow-xs"
-                            : "bg-white text-slate-800 border-amber-200 hover:bg-amber-100/50"
-                        }`}
+                        onClick={selectAllRooms}
+                        className="text-[10px] text-red-800 hover:underline font-bold cursor-pointer"
                       >
-                        <div className="font-bold">💍 Wedding Function</div>
-                        <div className="text-[11px] opacity-90 mt-0.5">
-                          {selectedFacilityObj.weddingRent && selectedFacilityObj.weddingRent > 0
-                            ? `₹${selectedFacilityObj.weddingRent.toLocaleString("en-IN")}`
-                            : "Rate Pending"}
-                        </div>
+                        ✓ બધા ૩ રૂમ પસંદ કરો
                       </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handlePlotPurposeChange("FAMILY")}
-                        className={`p-2.5 rounded-lg border text-left transition ${
-                          !(
-                            (formData.eventType || "").toLowerCase().includes("wedding") ||
-                            (formData.eventType || "").toLowerCase().includes("lagna") ||
-                            (formData.eventType || "").toLowerCase().includes("wedd")
-                          )
-                            ? "bg-red-800 text-white border-red-900 shadow-xs"
-                            : "bg-white text-slate-800 border-amber-200 hover:bg-amber-100/50"
-                        }`}
-                      >
-                        <div className="font-bold">👨‍👩‍👧‍👦 Family Function</div>
-                        <div className="text-[11px] opacity-90 mt-0.5">
-                          {selectedFacilityObj.familyRent && selectedFacilityObj.familyRent > 0
-                            ? `₹${selectedFacilityObj.familyRent.toLocaleString("en-IN")}`
-                            : "Rate Pending"}
-                        </div>
-                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {facilities
+                        .filter((f) => f.type === "ROOM")
+                        .map((fac) => {
+                          const isChecked = selectedFacilityIds.includes(fac.id);
+                          return (
+                            <label
+                              key={fac.id}
+                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
+                                isChecked
+                                  ? "border-red-600 bg-red-50/50 shadow-xs"
+                                  : "border-slate-200 bg-white hover:border-slate-300"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleFacility(fac.id)}
+                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-xs text-slate-900 truncate">
+                                    {fac.name}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500">
+                                    {fac.capacity} Beds
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <span className="text-[11px] font-black text-slate-800 block">
+                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                </span>
+                              </div>
+                            </label>
+                          );
+                        })}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Applicant Name & Phone */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Applicant / Community Member Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Full name"
-                    value={formData.customerName}
-                    onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-semibold"
-                  />
+              {/* SECTION 3: Event Dates Selection with Checkboxes */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Calendar className="w-4 h-4 text-red-800" />
+                      ૩. પ્રસંગની તારીખો પસંદ કરો (Select Event Dates via Checkboxes) *
+                    </span>
+                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
+                      {selectedDates.length} તારીખ પસંદ
+                    </span>
+                  </div>
+
+                  {/* Quick Day Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => addDate(new Date().toISOString().split("T")[0])}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                    >
+                      + આજે (Today)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addRelativeDays(1)}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                    >
+                      + આવતીકાલ (Next Day)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addRelativeDays(2)}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                    >
+                      + ૨ દિવસ (2 Days)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addRelativeDays(3)}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                    >
+                      + ૩ દિવસ (3 Days)
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="10-digit mobile number"
-                    value={formData.customerPhone}
-                    onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-semibold"
-                  />
-                </div>
-              </div>
-
-              {/* Aadhar & Address */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Aadhar / ID Card Reference
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Aadhar Number (Optional)"
-                    value={formData.customerAadhar}
-                    onChange={(e) => setFormData({ ...formData, customerAadhar: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Applicant Address / Native Village
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Nikol, Ahmedabad / Amreli"
-                    value={formData.customerAddress}
-                    onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800"
-                  />
-                </div>
-              </div>
-
-              {/* Function Type & Date */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Function Type *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="e.g. Wedding, Sagai, Birthday"
-                    value={formData.eventType}
-                    onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Event Date *
-                  </label>
+                {/* Inline Date Adder */}
+                <div className="flex items-center gap-2">
                   <input
                     type="date"
-                    required
-                    value={formData.startDate}
-                    onChange={(e) => {
-                      const newStart = e.target.value;
-                      const nextDay = getNextDateStr(newStart);
-                      setFormData({
-                        ...formData,
-                        startDate: newStart,
-                        endDate: slotMode === "WHOLE_DAY" ? (nextDay || newStart) : newStart,
-                      });
-                    }}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-semibold"
+                    value={newDateInput}
+                    onChange={(e) => setNewDateInput(e.target.value)}
+                    className="text-xs bg-white border border-slate-300 rounded-xl p-2 text-slate-800 font-semibold focus:ring-2 focus:ring-red-700 outline-none"
                   />
+                  <button
+                    type="button"
+                    onClick={() => addDate(newDateInput)}
+                    disabled={!newDateInput}
+                    className="px-3.5 py-2 rounded-xl bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>તારીખ ઉમેરો (+ Add Date)</span>
+                  </button>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Time Slot & Timings (સમય વિકલ્પ) *
-                  </label>
-                  <select
-                    value={slotMode}
-                    onChange={(e) => handleSlotModeChange(e.target.value)}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-bold focus:bg-white focus:border-[#0066cc] outline-none"
-                  >
-                    <option value="WHOLE_DAY">
-                      Whole Day / 24 Hours (આખો દિવસ: 09:00 AM થી બીજા દિવસે 08:00 AM ચેકઆઉટ)
-                    </option>
-                    <option value="CUSTOM_TIMING">
-                      Custom Timings (ચોક્કસ સમય - કલાક મુજબ દા.ત. 12 to 2 PM, 3 to 4 PM)
-                    </option>
-                  </select>
+                {/* Dates Checkbox List */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+                  {selectedDates.map((dStr) => {
+                    const isChecked = selectedDates.includes(dStr);
+                    return (
+                      <div
+                        key={dStr}
+                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition ${
+                          isChecked
+                            ? "border-red-600 bg-red-50/50 shadow-xs"
+                            : "border-slate-200 bg-white text-slate-400"
+                        }`}
+                      >
+                        <label className="flex items-center gap-2 cursor-pointer min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleDate(dStr)}
+                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                          />
+                          <span className="font-extrabold text-xs text-slate-900 truncate">
+                            {formatDateGu(dStr)}
+                          </span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => removeDate(dStr)}
+                          className="text-slate-400 hover:text-red-700 text-xs font-bold p-1 rounded transition cursor-pointer"
+                          title="કાઢી નાખો (Remove)"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Whole Day Schedule Banner */}
-              {slotMode === "WHOLE_DAY" && (
-                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1.5">
-                  <div className="font-extrabold flex items-center gap-1.5 text-[#0066cc]">
-                    <Clock className="w-4 h-4 shrink-0" />
-                    <span>આખો દિવસ સમયગાળો (Whole Day 24-Hour Cycle):</span>
+              {/* SECTION 4: Time Slot & Timings Selection with Checkboxes */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                      <Clock className="w-4 h-4 text-red-800" />
+                      ૪. સમય સ્લોટ્સ (Select Time Slots via Checkboxes) *
+                    </span>
+                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
+                      {selectedTimings.length} સ્લોટ પસંદ
+                    </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 pt-0.5 font-bold text-[11px]">
-                    <div className="bg-white p-2 rounded-xl border border-blue-200">
-                      <span className="text-slate-500 block text-[10px]">ચેક-ઇન (Check-in):</span>
-                      <span className="text-slate-900 font-black">
-                        {formData.startDate ? new Date(formData.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""} 09:00 AM
-                      </span>
-                    </div>
-                    <div className="bg-white p-2 rounded-xl border border-blue-200">
-                      <span className="text-slate-500 block text-[10px]">ચેક-આઉટ (Checkout):</span>
-                      <span className="text-slate-900 font-black">
-                        {formData.endDate ? new Date(formData.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""} 08:00 AM
-                      </span>
-                    </div>
+
+                  {/* Timing Scope Toggle */}
+                  <div className="flex items-center bg-white p-0.5 rounded-xl border border-slate-300 text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setTimingScope("SAME_ALL")}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                        timingScope === "SAME_ALL"
+                          ? "bg-red-800 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      બધી સુવિધાઓ માટે સરખો સમય (Same for all)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTimingScope("CUSTOM_PER_FACILITY")}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
+                        timingScope === "CUSTOM_PER_FACILITY"
+                          ? "bg-red-800 text-white shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      સુવિધા મુજબ અલગ સમય (Per Facility)
+                    </button>
                   </div>
                 </div>
-              )}
 
-              {/* Custom Timings Detailed Selector */}
-              {slotMode === "CUSTOM_TIMING" && (
-                <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-blue-950 flex items-center">
-                      <Clock className="w-4 h-4 mr-1.5 text-[#0066cc]" />
-                      ચોક્કસ સમય પસંદ કરો (Select Timings)
-                    </span>
-                    <span className="text-xs font-extrabold text-[#0066cc] bg-blue-100 px-2.5 py-0.5 rounded-full font-mono border border-blue-300">
-                      {customStartTime} થી {customEndTime}
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        From Time (શરૂ થવાનો સમય) *
-                      </label>
-                      <select
-                        value={customStartTime}
-                        onChange={(e) => handleCustomTimeChange(e.target.value, customEndTime)}
-                        className="w-full text-xs bg-white border border-blue-300 rounded-lg p-2 text-slate-900 font-bold focus:ring-1 focus:ring-[#0066cc]"
-                      >
-                        {STANDARD_HOURS.map((hr) => (
-                          <option key={`start-${hr}`} value={hr}>{hr}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        To Time (પૂરો થવાનો સમય) *
-                      </label>
-                      <select
-                        value={customEndTime}
-                        onChange={(e) => handleCustomTimeChange(customStartTime, e.target.value)}
-                        className="w-full text-xs bg-white border border-blue-300 rounded-lg p-2 text-slate-900 font-bold focus:ring-1 focus:ring-[#0066cc]"
-                      >
-                        {STANDARD_HOURS.map((hr) => (
-                          <option key={`end-${hr}`} value={hr}>{hr}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 pt-1 border-t border-blue-200/60">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      ઝડપી પસંદગી (Quick Timing Presets):
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {TIMING_PRESETS.map((preset) => {
-                        const isSelected = customStartTime === preset.from && customEndTime === preset.to;
+                {timingScope === "SAME_ALL" ? (
+                  <div className="space-y-3">
+                    {/* Standard Slot Checkboxes */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {STANDARD_SLOT_OPTIONS.map((slotOpt) => {
+                        const isChecked = selectedTimings.includes(slotOpt.slotLabel);
                         return (
-                          <button
-                            type="button"
-                            key={preset.label}
-                            onClick={() => handleCustomTimeChange(preset.from, preset.to)}
-                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                              isSelected
-                                ? "bg-[#0066cc] text-white shadow-xs"
-                                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                          <label
+                            key={slotOpt.id}
+                            className={`p-3 rounded-xl border-2 flex items-start gap-3 transition cursor-pointer ${
+                              isChecked
+                                ? "border-red-600 bg-red-50/50 shadow-xs"
+                                : "border-slate-200 bg-white hover:border-slate-300"
                             }`}
                           >
-                            {preset.from} - {preset.to}
-                          </button>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleTimingSlot(slotOpt.slotLabel)}
+                              className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <div className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
+                                <span>{slotOpt.guTitle}</span>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-700">
+                                  {slotOpt.badge}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-500 mt-0.5">
+                                {slotOpt.guDesc}
+                              </div>
+                            </div>
+                          </label>
                         );
                       })}
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Real-time conflict feedback */}
-              {existingBookingsOnDate.length > 0 && (
-                <div className="bg-amber-50/90 border border-amber-300 rounded-2xl p-3.5 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-amber-950">
-                    <span className="flex items-center">
-                      <Clock className="w-3.5 h-3.5 mr-1 text-amber-700" />
-                      આ તારીખે નોંધાયેલ અન્ય બુકિંગ (Already Booked On This Date):
-                    </span>
-                    <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold">
-                      {existingBookingsOnDate.length} બુકિંગ
-                    </span>
-                  </div>
+                    {/* Custom Hourly Timing Box */}
+                    <div className="bg-white p-3.5 rounded-xl border border-blue-200 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-blue-700" />
+                          ચોક્કસ કસ્ટમ સમય ઉમેરો (Add Custom Timing Slot):
+                        </span>
+                        <span className="text-xs font-mono font-bold bg-blue-50 text-blue-900 px-2.5 py-0.5 rounded-full border border-blue-200">
+                          {customStartTime} થી {customEndTime}
+                        </span>
+                      </div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {existingBookingsOnDate.map((eb) => (
-                      <span
-                        key={eb.id}
-                        className="inline-flex items-center gap-1.5 bg-white border border-amber-300 px-2.5 py-1 rounded-lg text-xs font-bold text-slate-900 shadow-2xs"
-                      >
-                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                        <span>{eb.slot}</span>
-                        <span className="text-slate-500 font-normal">({eb.customerName})</span>
-                      </span>
-                    ))}
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            શરૂ થવાનો સમય (From Time):
+                          </label>
+                          <select
+                            value={customStartTime}
+                            onChange={(e) => setCustomStartTime(e.target.value)}
+                            className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-900 outline-none"
+                          >
+                            {STANDARD_HOURS.map((hr) => (
+                              <option key={`c-from-${hr}`} value={hr}>{hr}</option>
+                            ))}
+                          </select>
+                        </div>
 
-                  {conflictingBooking ? (
-                    <div className="p-2 bg-rose-100 border border-rose-300 rounded-xl text-xs font-bold text-rose-900 flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>
-                        સમય ટકરાવ: આ સુવિધા [{conflictingBooking.slot} - {conflictingBooking.customerName}] માટે પહેલેથી બુક થયેલ છે. કૃપા કરીને અન્ય ખાલી સમય પસંદ કરો.
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            પૂરો થવાનો સમય (To Time):
+                          </label>
+                          <select
+                            value={customEndTime}
+                            onChange={(e) => setCustomEndTime(e.target.value)}
+                            className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-900 outline-none"
+                          >
+                            {STANDARD_HOURS.map((hr) => (
+                              <option key={`c-to-${hr}`} value={hr}>{hr}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => addCustomSlot(customStartTime, customEndTime)}
+                            className="w-full px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>આ સમય ઉમેરો (+ Add)</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick presets */}
+                      <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-slate-100">
+                        <span className="text-[10px] font-bold text-slate-500 mr-1 uppercase">ઝડપી સ્લોટ:</span>
+                        {TIMING_PRESETS.map((preset) => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              setCustomStartTime(preset.from);
+                              setCustomEndTime(preset.to);
+                              addCustomSlot(preset.from, preset.to);
+                            }}
+                            className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-100 hover:text-blue-900 text-slate-700 border border-slate-200 transition cursor-pointer"
+                          >
+                            + {preset.from} - {preset.to}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Added custom slots pills with checkbox */}
+                      {customSlotsList.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                          <span className="text-[11px] font-bold text-slate-600">ઉમેરેલ કસ્ટમ સ્લોટ્સ:</span>
+                          {customSlotsList.map((slotStr) => {
+                            const isChecked = selectedTimings.includes(slotStr);
+                            return (
+                              <div
+                                key={slotStr}
+                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold transition ${
+                                  isChecked
+                                    ? "bg-blue-100 border-blue-400 text-blue-950 shadow-2xs"
+                                    : "bg-slate-100 border-slate-300 text-slate-500"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => toggleTimingSlot(slotStr)}
+                                  className="w-3.5 h-3.5 rounded text-blue-700 cursor-pointer"
+                                />
+                                <span>{slotStr}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeCustomSlot(slotStr)}
+                                  className="text-slate-400 hover:text-red-700 ml-1 text-xs font-bold cursor-pointer"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  /* Custom Timing Per Facility */
+                  <div className="space-y-2.5">
+                    <div className="text-[11px] text-slate-600 font-semibold bg-amber-50 p-2.5 rounded-lg border border-amber-200">
+                      ℹ️ દરેક પસંદ કરેલ સુવિધા માટે અલગ સમય સ્લોટ પસંદ કરો:
+                    </div>
+                    {selectedFacilityIds.map((facId) => {
+                      const fac = facilities.find((f) => f.id === facId);
+                      if (!fac) return null;
+                      const currentSlots =
+                        facilityTimingMap[facId] ||
+                        (selectedTimings.length > 0 ? selectedTimings : [WHOLE_DAY_SLOT_LABEL]);
+                      return (
+                        <div key={fac.id} className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+                          <div className="flex items-center justify-between font-bold text-xs text-slate-900 pb-1 border-b border-slate-100">
+                            <span className="flex items-center gap-1.5">
+                              <Building className="w-3.5 h-3.5 text-red-800" />
+                              {fac.name} ({fac.code})
+                            </span>
+                            <span className="text-[11px] font-bold text-red-800">
+                              {currentSlots.length} સ્લોટ પસંદ
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-1.5">
+                            {STANDARD_SLOT_OPTIONS.map((opt) => {
+                              const isChecked = currentSlots.includes(opt.slotLabel);
+                              return (
+                                <label
+                                  key={opt.id}
+                                  className={`p-2 rounded-lg border flex items-center gap-2 text-xs font-bold cursor-pointer transition ${
+                                    isChecked
+                                      ? "bg-red-50 border-red-500 text-red-950"
+                                      : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => toggleFacilityCustomTiming(fac.id, opt.slotLabel)}
+                                    className="w-3.5 h-3.5 rounded text-red-800 cursor-pointer"
+                                  />
+                                  <span className="truncate">{opt.guTitle}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 5: Real-time Generated Bookings & Conflict Review */}
+              <div className="space-y-2.5">
+                {/* Status Alert Banner */}
+                {bookingItems.length === 0 ? (
+                  <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 font-bold flex items-center gap-2">
+                    <Info className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>કૃપા કરીને ઓછામાં ઓછી ૧ સુવિધા, ૧ તારીખ અને ૧ સમય સ્લોટ પસંદ કરો જેથી બુકિંગ એન્ટ્રીઝ જનરેટ થાય.</span>
+                  </div>
+                ) : hasAnyConflict ? (
+                  <div className="p-4 bg-rose-50 border-2 border-rose-400 rounded-2xl text-xs text-rose-950 font-bold flex items-start gap-2.5 shadow-xs">
+                    <AlertCircle className="w-5 h-5 text-rose-700 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-extrabold text-sm text-rose-900">
+                        ⚠️ સમય ટકરાવ (Time Conflict Found): {conflictingItemsCount} બુકિંગ સ્લોટ્સમાં ટકરાવ છે!
+                      </div>
+                      <div className="text-[11px] text-rose-800 mt-0.5">
+                        નીચે લાલ રંગમાં દર્શાવેલ સુવિધા અથવા સ્લોટ પહેલેથી બુક થયેલ છે. કૃપા કરીને અન્ય ખાલી સમય અથવા તારીખ પસંદ કરો.
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-emerald-50 border-2 border-emerald-400 rounded-2xl text-xs text-emerald-950 font-bold flex items-center gap-2.5 shadow-2xs">
+                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
+                    <div>
+                      <span className="font-black text-emerald-900">
+                        ✓ ઉત્તમ! તમામ {bookingItems.length} બુકિંગ સ્લોટ્સ ઉપલબ્ધ છે (કોઈ સમય ટકરાવ નથી).
                       </span>
                     </div>
-                  ) : (
-                    <div className="p-2 bg-emerald-100 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 flex items-center gap-1.5">
-                      <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>
-                        ✓ પસંદ કરેલ સમય [{formData.slot}] ઉપલબ્ધ છે! હાલના બુકિંગ સાથે કોઈ ટકરાવ નથી.
+                  </div>
+                )}
+
+                {/* Generated Items Review Box */}
+                {bookingItems.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                    <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                        <FileText className="w-4 h-4 text-slate-600" />
+                        ૫. જનરેટ થયેલ બુકિંગ સમીક્ષા ({bookingItems.length} Bookings to be created)
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-600">
+                        કુલ મૂળ ભાડું: ₹{totalFacilityRent.toLocaleString("en-IN")}
                       </span>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {/* Add-on Services: Cleaning & Waste Collection */}
-              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
+                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
+                      {bookingItems.map((item, idx) => (
+                        <div
+                          key={`${item.facilityId}-${item.startDate}-${item.slot}-${idx}`}
+                          className={`p-3 flex items-center justify-between gap-3 text-xs transition ${
+                            item.conflict.isConflict
+                              ? "bg-rose-50/80 text-rose-950 font-bold"
+                              : "hover:bg-slate-50 text-slate-800"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className={`w-2 h-2 rounded-full shrink-0 ${
+                                item.conflict.isConflict ? "bg-rose-600 ring-2 ring-rose-200" : "bg-emerald-600"
+                              }`}
+                            ></span>
+                            <div className="min-w-0">
+                              <div className="font-extrabold truncate">
+                                {item.facilityName}
+                              </div>
+                              <div className="text-[11px] text-slate-500 font-semibold">
+                                {formatDateGu(item.startDate)} •{" "}
+                                <span className="text-slate-700 font-bold">{item.slot}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            {item.conflict.isConflict ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
+                                <AlertCircle className="w-3 h-3" />
+                                {item.conflict.reason} ({item.conflict.bookedBy})
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-slate-900">
+                                  ₹{item.baseRent.toLocaleString("en-IN")}
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  ✓ ઉપલબ્ધ
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 6: Add-on Services: Cleaning & Waste Collection */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
                 <span className="text-xs font-bold text-slate-800 flex items-center">
                   <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-600" />
-                  Optional Add-on Trust Services:
+                  ૬. વધારાની સેવાઓ (Optional Add-on Trust Services):
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {services.map((srv) => {
@@ -1698,7 +2406,7 @@ export default function BookingsManagementPage() {
                     return (
                       <label
                         key={srv.id}
-                        className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition ${
+                        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition ${
                           isChecked
                             ? "bg-amber-100/60 border-amber-300 font-bold text-amber-950"
                             : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100/50"
@@ -1709,7 +2417,7 @@ export default function BookingsManagementPage() {
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => handleServiceToggle(srv.code)}
-                            className="rounded text-red-800 focus:ring-red-700"
+                            className="rounded text-red-800 focus:ring-red-700 cursor-pointer"
                           />
                           <span>{srv.name}</span>
                         </div>
@@ -1722,12 +2430,12 @@ export default function BookingsManagementPage() {
                 </div>
               </div>
 
-              {/* Non-Stackable Discount Rules */}
-              <div className="bg-amber-50/70 p-3.5 rounded-xl border border-amber-200 space-y-3">
+              {/* SECTION 7: Non-Stackable Discount Rules */}
+              <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-amber-950 flex items-center">
                     <Percent className="w-3.5 h-3.5 mr-1 text-red-800" />
-                    Trustee & Room Donor Discount Policy:
+                    ૭. ટ્રસ્ટી અને દાતા ડિસ્કાઉન્ટ (Trustee & Room Donor Discount Policy):
                   </span>
                   <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded">
                     Non-Stackable
@@ -1737,12 +2445,12 @@ export default function BookingsManagementPage() {
                 <div className="space-y-2">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Select Discount Category
+                      ડિસ્કાઉન્ટ કેટેગરી પસંદ કરો (Select Discount Category):
                     </label>
                     <select
                       value={formData.discountCode}
                       onChange={(e) => handleDiscountChange(e.target.value)}
-                      className="w-full text-xs bg-white border border-amber-300 rounded-lg p-2 text-slate-800 font-semibold"
+                      className="w-full text-xs bg-white border border-amber-300 rounded-xl p-2.5 text-slate-800 font-semibold outline-none"
                     >
                       <option value="NONE">No Discount (Standard Community Member Rate)</option>
                       {discounts.map((d) => (
@@ -1767,16 +2475,12 @@ export default function BookingsManagementPage() {
                           max="100"
                           value={formData.discountPercent}
                           onChange={(e) =>
-                            recalcFinancials(
-                              formData.facilityAmount,
-                              "MANUAL_OVERRIDE",
-                              Number(e.target.value),
-                              true,
-                              formData.selectedServices,
-                              formData.depositAmount
-                            )
+                            setFormData({
+                              ...formData,
+                              discountPercent: Number(e.target.value),
+                            })
                           }
-                          className="w-20 text-xs bg-white border border-amber-300 rounded-lg p-2 font-bold"
+                          className="w-20 text-xs bg-white border border-amber-300 rounded-xl p-2 font-bold outline-none"
                         />
                         <input
                           type="text"
@@ -1786,7 +2490,7 @@ export default function BookingsManagementPage() {
                           onChange={(e) =>
                             setFormData({ ...formData, discountOverrideReason: e.target.value })
                           }
-                          className="flex-1 text-xs bg-white border border-amber-300 rounded-lg p-2 text-slate-800"
+                          className="flex-1 text-xs bg-white border border-amber-300 rounded-xl p-2 text-slate-800 outline-none"
                         />
                       </div>
                     </div>
@@ -1794,55 +2498,55 @@ export default function BookingsManagementPage() {
                 </div>
 
                 {/* Financial Breakdown Preview */}
-                <div className="bg-white p-3 rounded-lg border border-amber-200 text-xs space-y-1 mt-2">
+                <div className="bg-white p-3.5 rounded-xl border border-amber-200 text-xs space-y-1.5 mt-2">
                   <div className="flex justify-between text-slate-600">
-                    <span>Base Facility Charge:</span>
+                    <span>કુલ મૂળ સુવિધા ભાડું (Total Base Rent - {bookingItems.length} Bookings):</span>
                     <span className="font-semibold text-slate-800">
-                      ₹{formData.facilityAmount.toLocaleString("en-IN")}
+                      ₹{totalFacilityRent.toLocaleString("en-IN")}
                     </span>
                   </div>
 
-                  {formData.discountAmount > 0 && (
+                  {totalDiscountAmount > 0 && (
                     <div className="flex justify-between text-emerald-700 font-semibold">
-                      <span>Discount ({formData.discountPercent}%):</span>
-                      <span>- ₹{formData.discountAmount.toLocaleString("en-IN")}</span>
+                      <span>ડિસ્કાઉન્ટ (Discount {currentDiscountPercent}%):</span>
+                      <span>- ₹{totalDiscountAmount.toLocaleString("en-IN")}</span>
                     </div>
                   )}
 
-                  {formData.servicesAmount > 0 && (
+                  {totalServicesAmount > 0 && (
                     <div className="flex justify-between text-blue-700 font-semibold">
-                      <span>Add-on Services Total:</span>
-                      <span>+ ₹{formData.servicesAmount.toLocaleString("en-IN")}</span>
+                      <span>વધારાની સેવાઓ (Add-on Services Total):</span>
+                      <span>+ ₹{totalServicesAmount.toLocaleString("en-IN")}</span>
                     </div>
                   )}
 
-                  <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-1 border-t border-slate-200">
-                    <span>Final Payable Amount:</span>
-                    <span className="text-red-900">
-                      ₹{formData.totalAmount.toLocaleString("en-IN")}
+                  <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-200">
+                    <span>કુલ ચૂકવવાપાત્ર રકમ (Final Payable Amount):</span>
+                    <span className="text-red-900 text-base">
+                      ₹{finalTotalAmount.toLocaleString("en-IN")}
                     </span>
                   </div>
 
                   <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
-                    <span>Refundable Caution Deposit:</span>
-                    <span>₹{formData.depositAmount.toLocaleString("en-IN")}</span>
+                    <span>પરત મળવાપાત્ર ડિપોઝિટ (Refundable Caution Deposit):</span>
+                    <span>₹{totalDepositAmount.toLocaleString("en-IN")}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Payment Method */}
+              {/* SECTION 8: Payment Method */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Payment Method
+                    ચૂકવણી પદ્ધતિ (Payment Method)
                   </label>
                   <select
                     value={formData.paymentMethod}
                     onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800"
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800 font-bold outline-none"
                   >
-                    <option value="CASH_AT_OFFICE">Cash at Office</option>
-                    <option value="CHEQUE">Cheque</option>
+                    <option value="CASH_AT_OFFICE">Cash at Office (રોકડ)</option>
+                    <option value="CHEQUE">Cheque (ચેક)</option>
                     <option value="OFFLINE_UPI">Offline UPI / QR</option>
                     <option value="NEFT_RTGS">NEFT / Bank Transfer</option>
                   </select>
@@ -1850,32 +2554,50 @@ export default function BookingsManagementPage() {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Receipt / Cheque / UTR Reference
+                    રસીદ / ચેક / UTR રેફરન્સ (Receipt Reference)
                   </label>
                   <input
                     type="text"
-                    placeholder="Reference number"
+                    placeholder="દા.ત. REC-2026-001 અથવા Cheque No."
                     value={formData.paymentRefNo}
                     onChange={(e) => setFormData({ ...formData, paymentRefNo: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800"
+                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-200">
+              {/* SECTION 9: Modal Footer & Submission */}
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-200 sticky bottom-0 bg-white p-3 z-10 shadow-lg rounded-b-2xl">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="text-xs font-semibold px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+                  className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
                 >
-                  Cancel
+                  Cancel (રદ કરો)
                 </button>
                 <button
                   type="submit"
-                  disabled={creating || Boolean(conflictingBooking)}
-                  className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-5 py-2.5 rounded-lg shadow transition"
+                  disabled={
+                    creating ||
+                    hasAnyConflict ||
+                    bookingItems.length === 0 ||
+                    selectedFacilityIds.length === 0 ||
+                    selectedDates.length === 0
+                  }
+                  className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
                 >
-                  {creating ? "Confirming Booking..." : "Confirm & Save Booking"}
+                  {creating ? (
+                    "બુકિંગ સેવ થઈ રહ્યું છે..."
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>
+                        {bookingItems.length > 1
+                          ? `તમામ ${bookingItems.length} બુકિંગ કન્ફર્મ કરો (Confirm & Create ${bookingItems.length} Bookings)`
+                          : "બુકિંગ કન્ફર્મ કરો (Confirm & Save Booking)"}
+                      </span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>

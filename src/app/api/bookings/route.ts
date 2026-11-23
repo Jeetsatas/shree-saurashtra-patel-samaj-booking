@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const {
+      items, // Optional array for multi-facility / multi-date / multi-slot batch creation!
       facilityId,
       customerName,
       customerPhone,
@@ -118,7 +119,249 @@ export async function POST(req: NextRequest) {
       notes,
     } = body;
 
-    if (!facilityId || !customerName || !customerPhone || !startDate || !endDate) {
+    if (!customerName || !customerPhone) {
+      return NextResponse.json(
+        { error: "Applicant name and phone number are required." },
+        { status: 400 }
+      );
+    }
+
+    // =========================================================================
+    // BRANCH A: MULTI-FACILITY / MULTI-DATE / MULTI-TIMING BATCH CREATION
+    // =========================================================================
+    if (items && Array.isArray(items) && items.length > 0) {
+      // 1. Fetch facilities, discount rule, and latest booking number
+      const allFacilities = await prisma.facility.findMany();
+      const facMap = new Map(allFacilities.map((f) => [f.id, f]));
+
+      const discountRule =
+        discountCode && discountCode !== "NONE" && !discountOverridden
+          ? await prisma.discountRule.findUnique({ where: { code: discountCode } })
+          : null;
+
+      const latestBooking = await prisma.booking.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { bookingNumber: true },
+      });
+
+      const currentYear = new Date().getFullYear();
+      let nextSeq = 1;
+      if (latestBooking?.bookingNumber) {
+        const match = latestBooking.bookingNumber.match(/SSPS-\d{4}-(\d+)/);
+        if (match) {
+          nextSeq = parseInt(match[1], 10) + 1;
+        }
+      }
+
+      // 2. Fetch all active bookings for conflict checking
+      const targetFacilityIds = Array.from(new Set(items.map((it: any) => it.facilityId)));
+      const targetGroups = Array.from(
+        new Set(
+          targetFacilityIds.map((id) => {
+            const f = facMap.get(id);
+            return f?.resourceGroup || f?.code || id;
+          })
+        )
+      );
+
+      const activeDbBookings = await prisma.booking.findMany({
+        where: {
+          facility: {
+            OR: [
+              { id: { in: targetFacilityIds } },
+              { resourceGroup: { in: targetGroups } },
+            ],
+          },
+          status: { in: ["CONFIRMED", "BLOCKED_BY_TRUST"] },
+        },
+        select: {
+          id: true,
+          facilityId: true,
+          slot: true,
+          startDate: true,
+          endDate: true,
+          customerName: true,
+          facility: { select: { id: true, name: true, code: true, resourceGroup: true } },
+        },
+      });
+
+      // 3. Validate every item for facility existence and conflicts
+      const preparedItems: any[] = [];
+      const discPct = discountRule ? discountRule.percentage : Number(discountPercent) || 0;
+
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const fac = facMap.get(it.facilityId);
+        if (!fac) {
+          return NextResponse.json(
+            { error: `Facility with ID ${it.facilityId} not found.` },
+            { status: 404 }
+          );
+        }
+
+        const itStart = new Date(it.startDate);
+        const itSlot = (it.slot || WHOLE_DAY_SLOT_LABEL).trim();
+        let itEnd = new Date(it.endDate || it.startDate);
+        if (isFullDaySlot(itSlot)) {
+          itEnd = new Date(itStart.getTime() + 86400000);
+        }
+
+        const facGroup = fac.resourceGroup || fac.code;
+
+        // Conflict check against database
+        const dbConflict = activeDbBookings.find((existing) => {
+          const facMatches = existing.facilityId === fac.id;
+          const groupMatches =
+            facGroup &&
+            (existing.facility?.resourceGroup === facGroup || existing.facility?.code === facGroup);
+          if (!facMatches && !groupMatches) return false;
+
+          return doBookingsConflict(
+            { startDate: existing.startDate, slot: existing.slot },
+            { startDate: itStart, slot: itSlot }
+          );
+        });
+
+        if (dbConflict) {
+          return NextResponse.json(
+            {
+              error: `સમય ટકરાવ (Time Conflict): ${fac.name} [${new Date(it.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} - ${itSlot}] માટે પહેલેથી બુક થયેલ છે (${dbConflict.customerName}).`,
+            },
+            { status: 409 }
+          );
+        }
+
+        // Conflict check against previous items in the same batch
+        const batchConflict = preparedItems.find((prev) => {
+          const facMatches = prev.facilityId === fac.id;
+          const prevFac = facMap.get(prev.facilityId);
+          const prevGroup = prevFac?.resourceGroup || prevFac?.code;
+          const groupMatches = facGroup && prevGroup && facGroup === prevGroup;
+          if (!facMatches && !groupMatches) return false;
+
+          return doBookingsConflict(
+            { startDate: prev.startDate, slot: prev.slot },
+            { startDate: itStart, slot: itSlot }
+          );
+        });
+
+        if (batchConflict) {
+          return NextResponse.json(
+            {
+              error: `આ જ બુકિંગમાં ટકરાવ: ${fac.name} [${new Date(it.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} - ${itSlot}] બે વાર પસંદ થયેલ છે.`,
+            },
+            { status: 409 }
+          );
+        }
+
+        // Calculate item pricing
+        let itemBaseRent = fac.baseRent || 0;
+        if (fac.code === "PLOT-OUTSIDE" || fac.type === "PLOT") {
+          const ev = (eventType || "").toLowerCase();
+          if (ev.includes("wedding") || ev.includes("lagna") || ev.includes("wedd")) {
+            itemBaseRent = fac.weddingRent || fac.baseRent || 0;
+          } else {
+            itemBaseRent = fac.familyRent || fac.baseRent || 0;
+          }
+        }
+        if (it.facilityAmount !== undefined && it.facilityAmount !== null && !isNaN(Number(it.facilityAmount))) {
+          itemBaseRent = Number(it.facilityAmount);
+        }
+
+        const itemDiscAmt = (itemBaseRent * discPct) / 100;
+        const isFirstItem = i === 0;
+        const itemServCost = isFirstItem ? Number(servicesAmount) || 0 : 0;
+        const itemDeposit = Number(it.depositAmount ?? fac.cautionDeposit) || 0;
+        const itemTotal = Math.max(0, itemBaseRent - itemDiscAmt) + itemServCost;
+
+        preparedItems.push({
+          facilityId: fac.id,
+          facilityName: fac.name,
+          startDate: itStart,
+          endDate: itEnd,
+          slot: itSlot,
+          facilityAmount: itemBaseRent,
+          discountAmount: itemDiscAmt,
+          servicesAmount: itemServCost,
+          depositAmount: itemDeposit,
+          totalAmount: itemTotal,
+        });
+      }
+
+      // 4. Create all bookings in sequence with continuous booking numbers
+      const createdBookings: any[] = [];
+      for (let i = 0; i < preparedItems.length; i++) {
+        const item = preparedItems[i];
+        const bookingNum = `SSPS-${currentYear}-${String(nextSeq + i).padStart(4, "0")}`;
+
+        const created = await prisma.booking.create({
+          data: {
+            bookingNumber: bookingNum,
+            facilityId: item.facilityId,
+            customerName,
+            customerPhone,
+            customerEmail: customerEmail || null,
+            customerAddress: customerAddress || null,
+            customerAadhar: customerAadhar || null,
+            eventType: eventType || "General Function",
+            startDate: item.startDate,
+            endDate: item.endDate,
+            slot: item.slot,
+            status: status || "CONFIRMED",
+            facilityAmount: item.facilityAmount,
+            discountCode: discountCode || null,
+            discountPercent: discPct,
+            discountAmount: item.discountAmount,
+            discountOverridden: !!discountOverridden,
+            discountOverrideReason: discountOverrideReason || null,
+            selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
+            servicesAmount: item.servicesAmount,
+            totalAmount: item.totalAmount,
+            depositAmount: item.depositAmount,
+            paymentStatus: paymentStatus || "PENDING",
+            paymentMethod: paymentMethod || "OFFLINE_CASH",
+            paymentRefNo: paymentRefNo || null,
+            notes: notes || null,
+            bookedByUserId: user.id,
+            createdByName: user.name,
+            lastUpdatedByName: user.name,
+          },
+          include: {
+            facility: true,
+          },
+        });
+
+        // Non-blocking activity log
+        prisma.activityLog
+          .create({
+            data: {
+              userId: user.id,
+              userName: user.name,
+              userEmail: user.email,
+              userRole: user.role,
+              action: "CREATE_BOOKING",
+              details: `Created batch booking ${created.bookingNumber} (${i + 1}/${preparedItems.length}) for ${created.customerName} (${created.eventType}) at ${created.facility.name}`,
+              recordId: created.id,
+              recordType: "BOOKING",
+            },
+          })
+          .catch((err) => console.error("Batch activity log error:", err));
+
+        createdBookings.push(created);
+      }
+
+      return NextResponse.json({
+        success: true,
+        bookings: createdBookings,
+        booking: createdBookings[0],
+        count: createdBookings.length,
+      });
+    }
+
+    // =========================================================================
+    // BRANCH B: SINGLE BOOKING CREATION (LEGACY FALLBACK)
+    // =========================================================================
+    if (!facilityId || !startDate || !endDate) {
       return NextResponse.json(
         { error: "Required fields missing: facility, customer name, phone, dates" },
         { status: 400 }
