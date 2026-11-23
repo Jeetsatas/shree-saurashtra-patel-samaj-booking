@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { doSlotsOverlap, parseSlotTimeRange } from "@/lib/slotUtils";
+import {
+  doSlotsOverlap,
+  parseSlotTimeRange,
+  doBookingsConflict,
+  isFullDaySlot,
+  WHOLE_DAY_SLOT_LABEL,
+} from "@/lib/slotUtils";
 
 export async function GET(req: NextRequest) {
   try {
@@ -120,8 +126,13 @@ export async function POST(req: NextRequest) {
     }
 
     const start = new Date(startDate);
-    const end = new Date(endDate);
-    const requestedSlot = (slot || "Whole Day").trim();
+    let end = new Date(endDate);
+    const requestedSlot = (slot || WHOLE_DAY_SLOT_LABEL).trim();
+
+    if (isFullDaySlot(requestedSlot)) {
+      // Ensure checkout is next day
+      end = new Date(start.getTime() + 86400000);
+    }
 
     // 1. Fetch Target Facility, optional Discount Rule, and latest booking in parallel
     const [targetFacility, discountRule, latestBooking] = await Promise.all([
@@ -151,18 +162,23 @@ export async function POST(req: NextRequest) {
         },
         status: { in: ["CONFIRMED", "BLOCKED_BY_TRUST"] },
         startDate: { lte: end },
-        endDate: { gte: start },
+        endDate: { gte: new Date(start.getTime() - 86400000) },
       },
       select: {
         id: true,
         slot: true,
+        startDate: true,
+        endDate: true,
         facility: { select: { name: true, code: true, resourceGroup: true } },
       },
     });
 
-    // Check if slots overlap on the same date
+    // Check if slots overlap using exact timestamp ranges
     const conflictingBooking = activeConflicts.find((existing) =>
-      doSlotsOverlap(existing.slot, requestedSlot)
+      doBookingsConflict(
+        { startDate: existing.startDate, slot: existing.slot },
+        { startDate: start, slot: requestedSlot }
+      )
     );
 
     if (conflictingBooking) {

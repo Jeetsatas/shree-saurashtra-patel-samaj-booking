@@ -190,7 +190,10 @@ export default function AdminCalendarPage() {
       const end = new Date(b.endDate || b.startDate);
       const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
 
-      const matches = targetStr >= startStr && targetStr <= endStr;
+      const isFull = isFullDaySlot(b.slot);
+      const matches =
+        targetStr === startStr ||
+        (targetStr > startStr && (isFull ? targetStr < endStr : targetStr <= endStr));
       return matches && b.status !== "CANCELLED";
     });
   };
@@ -221,7 +224,10 @@ export default function AdminCalendarPage() {
         const end = new Date(b.endDate || b.startDate);
         const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
 
-        const matches = targetStr >= startStr && targetStr <= endStr;
+        const isFull = isFullDaySlot(b.slot);
+        const matches =
+          targetStr === startStr ||
+          (targetStr > startStr && (isFull ? targetStr < endStr : targetStr <= endStr));
         return matches && b.status !== "CANCELLED";
       });
 
@@ -873,7 +879,7 @@ export default function AdminCalendarPage() {
                       <div className="space-y-2.5">
                         {item.bookings.map((b: any) => {
                           const cleanPhone = b.customerPhone?.replace(/\D/g, "") || "";
-                          const waMessage = `શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ-નરોડા)\nજય શ્રી ખોડિયાર 🙏\n\nઆપનું બુકિંગ કન્ફર્મ થયેલ છે:\n• બુકિંગ નંબર: ${b.bookingNumber}\n• અરજદાર: ${b.customerName}\n• સુવિધા: ${b.facility?.name || fac.name}\n• પ્રસંગ: ${b.eventType}\n• તારીખ: ${new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}\n• સમય: ${b.slot}\n\nશ્રી સૌરાષ્ટ્ર પટેલ સમાજ ટ્રસ્ટ, નિકોલ-નરોડા, અમદાવાદ.`;
+                          const waMessage = `શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ-નરોડા)\nજય શ્રી ખોડિયાર 🙏\n\nઆપનું બુકિંગ કન્ફર્મ થયેલ છે:\n• બુકિંગ નંબર: ${b.bookingNumber}\n• અરજદાર: ${b.customerName}\n• સુવિધા: ${b.facility?.name || fac.name}\n• પ્રસંગ: ${b.eventType}\n• તારીખ: ${new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}\n• સમય: ${formatSlotLabel(b.slot)}\n\nશ્રી સૌરાષ્ટ્ર પટેલ સમાજ ટ્રસ્ટ, નિકોલ-નરોડા, અમદાવાદ.`;
 
                           return (
                             <div key={b.id} className="bg-white rounded-xl p-3 sm:p-3.5 border border-rose-200 space-y-2.5 shadow-2xs">
@@ -894,7 +900,7 @@ export default function AdminCalendarPage() {
                                   {b.customerName}
                                 </h5>
                                 <p className="text-xs font-bold text-rose-700 mt-0.5">
-                                  🎉 {b.eventType} ({b.slot})
+                                  🎉 {b.eventType} ({formatSlotLabel(b.slot)})
                                 </p>
                               </div>
 

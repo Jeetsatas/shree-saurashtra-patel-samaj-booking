@@ -9,6 +9,10 @@ import {
   STANDARD_HOURS,
   TIMING_PRESETS,
   formatSlotLabel,
+  doBookingsConflict,
+  WHOLE_DAY_SLOT_LABEL,
+  WHOLE_DAY_SLOT_GUJARATI,
+  isFullDaySlot,
 } from "@/lib/slotUtils";
 import {
   Plus,
@@ -63,8 +67,8 @@ export default function BookingsManagementPage() {
     customerAadhar: "",
     eventType: "Wedding",
     startDate: new Date().toISOString().split("T")[0],
-    endDate: new Date().toISOString().split("T")[0],
-    slot: "Whole Day (06:00 AM - 11:00 PM)",
+    endDate: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+    slot: WHOLE_DAY_SLOT_LABEL,
     status: "CONFIRMED",
     facilityAmount: 0,
     discountCode: "NONE",
@@ -235,12 +239,8 @@ export default function BookingsManagementPage() {
     }
     const dep = fac ? fac.cautionDeposit : 0;
 
-    let defaultSlot = "Whole Day (06:00 AM - 11:00 PM)";
-    let defaultMode = "WHOLE_DAY";
-    if (fac?.type === "ROOM" || fac?.type === "DORMITORY") {
-      defaultSlot = "Night Stay (24 Hours)";
-      defaultMode = "NIGHT_STAY";
-    }
+    const defaultSlot = WHOLE_DAY_SLOT_LABEL;
+    const defaultMode = "WHOLE_DAY";
     setSlotMode(defaultMode);
 
     recalcFinancials(
@@ -255,27 +255,39 @@ export default function BookingsManagementPage() {
     );
   };
 
+  const getNextDateStr = (dateStr: string) => {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const next = new Date(y, m - 1, d + 1);
+    return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+  };
+
   const handleSlotModeChange = (mode: string) => {
     setSlotMode(mode);
-    let newSlot = "Whole Day (06:00 AM - 11:00 PM)";
-    if (mode === "HALF_DAY_MORNING") {
-      newSlot = "Half Day - Morning (06:00 AM - 02:00 PM)";
-    } else if (mode === "HALF_DAY_EVENING") {
-      newSlot = "Half Day - Evening (03:00 PM - 11:00 PM)";
-    } else if (mode === "NIGHT_STAY") {
-      newSlot = "Night Stay (24 Hours)";
-    } else if (mode === "DAY_REST") {
-      newSlot = "Day Rest (08:00 AM - 06:00 PM)";
-    } else if (mode === "CUSTOM_TIMING") {
-      newSlot = `${customStartTime} - ${customEndTime}`;
+    if (mode === "WHOLE_DAY") {
+      const nextDay = getNextDateStr(formData.startDate);
+      setFormData((prev) => ({
+        ...prev,
+        slot: WHOLE_DAY_SLOT_LABEL,
+        endDate: nextDay || prev.startDate,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        slot: `${customStartTime} - ${customEndTime}`,
+        endDate: prev.startDate,
+      }));
     }
-    setFormData((prev) => ({ ...prev, slot: newSlot }));
   };
 
   const handleCustomTimeChange = (from: string, to: string) => {
     setCustomStartTime(from);
     setCustomEndTime(to);
-    setFormData((prev) => ({ ...prev, slot: `${from} - ${to}` }));
+    setFormData((prev) => ({
+      ...prev,
+      slot: `${from} - ${to}`,
+      endDate: prev.startDate,
+    }));
   };
 
   const handlePlotPurposeChange = (purpose: "WEDDING" | "FAMILY") => {
@@ -601,21 +613,20 @@ export default function BookingsManagementPage() {
 
   const existingBookingsOnDate = bookings.filter((b) => {
     if (b.status === "CANCELLED") return false;
-    const targetDate = formData.startDate;
-    const bStart = b.startDate ? b.startDate.split("T")[0] : "";
-    const bEnd = b.endDate ? b.endDate.split("T")[0] : bStart;
-    const dateMatches = targetDate >= bStart && targetDate <= bEnd;
     const facMatches = b.facilityId === formData.facilityId;
     const groupMatches =
       selectedFacilityObj?.resourceGroup &&
       (b.facility?.resourceGroup === selectedFacilityObj.resourceGroup ||
         b.resourceGroup === selectedFacilityObj.resourceGroup);
-    return dateMatches && (facMatches || groupMatches);
+    if (!facMatches && !groupMatches) return false;
+
+    return doBookingsConflict(
+      { startDate: b.startDate, slot: b.slot },
+      { startDate: formData.startDate, slot: formData.slot }
+    );
   });
 
-  const conflictingBooking = existingBookingsOnDate.find((eb) =>
-    doSlotsOverlap(eb.slot, formData.slot)
-  );
+  const conflictingBooking = existingBookingsOnDate[0] || null;
 
   return (
     <div className="space-y-6">
@@ -1503,13 +1514,15 @@ export default function BookingsManagementPage() {
                     type="date"
                     required
                     value={formData.startDate}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      const nextDay = getNextDateStr(newStart);
                       setFormData({
                         ...formData,
-                        startDate: e.target.value,
-                        endDate: e.target.value,
-                      })
-                    }
+                        startDate: newStart,
+                        endDate: slotMode === "WHOLE_DAY" ? (nextDay || newStart) : newStart,
+                      });
+                    }}
                     className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 text-slate-800 font-semibold"
                   />
                 </div>
@@ -1523,19 +1536,39 @@ export default function BookingsManagementPage() {
                     onChange={(e) => handleSlotModeChange(e.target.value)}
                     className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-slate-800 font-bold focus:bg-white focus:border-[#0066cc] outline-none"
                   >
-                    <option value="WHOLE_DAY">Whole Day / Full Event (આખો દિવસ: 06:00 AM - 11:00 PM)</option>
-                    <option value="HALF_DAY_MORNING">Half Day - Morning (અડધો દિવસ સવાર: 06:00 AM - 02:00 PM)</option>
-                    <option value="HALF_DAY_EVENING">Half Day - Evening/Afternoon (અડધો દિવસ સાંજ: 03:00 PM - 11:00 PM)</option>
-                    {isRoomOrDorm && (
-                      <>
-                        <option value="NIGHT_STAY">Night Stay (24 Hours / રાત્રિ રોકાણ)</option>
-                        <option value="DAY_REST">Day Rest (8 Hours / દિવસ રોકાણ: 08:00 AM - 06:00 PM)</option>
-                      </>
-                    )}
-                    <option value="CUSTOM_TIMING">Custom Timings (ચોક્કસ સમય - કલાક મુજબ દા.ત. 12 to 2 PM, 3 to 4 PM)</option>
+                    <option value="WHOLE_DAY">
+                      Whole Day / 24 Hours (આખો દિવસ: 09:00 AM થી બીજા દિવસે 08:00 AM ચેકઆઉટ)
+                    </option>
+                    <option value="CUSTOM_TIMING">
+                      Custom Timings (ચોક્કસ સમય - કલાક મુજબ દા.ત. 12 to 2 PM, 3 to 4 PM)
+                    </option>
                   </select>
                 </div>
               </div>
+
+              {/* Whole Day Schedule Banner */}
+              {slotMode === "WHOLE_DAY" && (
+                <div className="p-3 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1.5">
+                  <div className="font-extrabold flex items-center gap-1.5 text-[#0066cc]">
+                    <Clock className="w-4 h-4 shrink-0" />
+                    <span>આખો દિવસ સમયગાળો (Whole Day 24-Hour Cycle):</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 pt-0.5 font-bold text-[11px]">
+                    <div className="bg-white p-2 rounded-xl border border-blue-200">
+                      <span className="text-slate-500 block text-[10px]">ચેક-ઇન (Check-in):</span>
+                      <span className="text-slate-900 font-black">
+                        {formData.startDate ? new Date(formData.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""} 09:00 AM
+                      </span>
+                    </div>
+                    <div className="bg-white p-2 rounded-xl border border-blue-200">
+                      <span className="text-slate-500 block text-[10px]">ચેક-આઉટ (Checkout):</span>
+                      <span className="text-slate-900 font-black">
+                        {formData.endDate ? new Date(formData.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : ""} 08:00 AM
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Custom Timings Detailed Selector */}
               {slotMode === "CUSTOM_TIMING" && (

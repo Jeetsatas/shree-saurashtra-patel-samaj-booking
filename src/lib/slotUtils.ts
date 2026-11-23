@@ -1,18 +1,22 @@
 /**
  * Utility functions for booking slots and flexible timings management.
- * Supports:
- *  - Whole Day / Full Day bookings (06:00 AM - 11:59 PM)
- *  - Half Day Morning (06:00 AM - 02:00 PM)
- *  - Half Day Evening/Afternoon (03:00 PM - 11:59 PM)
- *  - Room Night Stay (24 Hours) & Day Rest (08:00 AM - 06:00 PM)
- *  - Custom Time Ranges (e.g. "12:00 PM - 02:00 PM", "03:00 PM - 04:00 PM", "12 to 2 pm", "3 to 4 pm")
+ * Supported 2 primary timing modes:
+ *  1. Whole Day / 24 Hours:
+ *     - Check-in: 09:00 AM (Booking day)
+ *     - Check-out: 08:00 AM (Next day morning)
+ *     - Example: 24 Nov Whole Day is booked from 09:00 AM 24 Nov to 08:00 AM 25 Nov.
+ *  2. Custom Timings:
+ *     - Specific hourly slot (e.g. 12:00 PM - 02:00 PM, 03:00 PM - 04:00 PM)
  */
 
 export interface TimeRange {
-  start: number; // minutes from midnight (0 to 1440)
-  end: number;   // minutes from midnight
+  start: number; // minutes from midnight of day 1 (09:00 AM = 540)
+  end: number;   // minutes (next day 08:00 AM = 1440 + 480 = 1920)
   label: string;
 }
+
+export const WHOLE_DAY_SLOT_LABEL = "Whole Day (09:00 AM - 08:00 AM Next Day)";
+export const WHOLE_DAY_SLOT_GUJARATI = "Whole Day / 24 Hours (આખો દિવસ: 09:00 AM થી બીજા દિવસે 08:00 AM ચેકઆઉટ)";
 
 export const STANDARD_HOURS = [
   "06:00 AM", "06:30 AM", "07:00 AM", "07:30 AM",
@@ -31,7 +35,7 @@ export const TIMING_PRESETS = [
   { label: "03:00 PM - 04:00 PM (1 કલાક)", from: "03:00 PM", to: "04:00 PM" },
   { label: "04:00 PM - 07:00 PM (3 કલાક)", from: "04:00 PM", to: "07:00 PM" },
   { label: "07:00 PM - 10:00 PM (3 કલાક)", from: "07:00 PM", to: "10:00 PM" },
-  { label: "08:00 AM - 12:00 PM (4 કલાક)", from: "08:00 AM", to: "12:00 PM" },
+  { label: "09:00 AM - 01:00 PM (4 કલાક)", from: "09:00 AM", to: "01:00 PM" },
 ];
 
 export function parseTimeToMinutes(str: string, defaultMeridiem: "AM" | "PM" = "AM"): number | null {
@@ -47,60 +51,140 @@ export function parseTimeToMinutes(str: string, defaultMeridiem: "AM" | "PM" = "
   return h * 60 + m;
 }
 
-export function parseSlotTimeRange(slot: string | null | undefined): TimeRange {
-  if (!slot) return { start: 0, end: 1440, label: "Whole Day" };
+/**
+ * Check whether a slot string represents a full day booking.
+ */
+export function isFullDaySlot(slot: string | null | undefined): boolean {
+  if (!slot) return true;
   const s = slot.toUpperCase().trim();
-
-  // 1. Whole day / 24 hour indicators
-  if (
-    s.includes("WHOLE_DAY") ||
-    s.includes("FULL_DAY") ||
-    s.includes("WHOLE DAY") ||
-    s.includes("FULL EVENT") ||
+  return (
+    s.includes("WHOLE") ||
+    s.includes("FULL") ||
     s.includes("આખો દિવસ") ||
+    s.includes("24 HOUR") ||
     s.includes("NIGHT_STAY") ||
-    s.includes("24 HOURS")
-  ) {
-    return { start: 0, end: 1440, label: "Whole Day (આખો દિવસ)" };
+    s.includes("NEXT DAY")
+  );
+}
+
+/**
+ * Parses date string or Date object into year, month (0-indexed), and day safely.
+ * Avoids any timezone shift bugs across servers and clients.
+ */
+export function parseDateComponents(dateInput: string | Date): { y: number; m: number; d: number } {
+  if (dateInput instanceof Date) {
+    return {
+      y: dateInput.getFullYear(),
+      m: dateInput.getMonth(),
+      d: dateInput.getDate(),
+    };
+  }
+  const str = String(dateInput).split("T")[0];
+  const parts = str.split("-");
+  if (parts.length >= 3) {
+    return {
+      y: parseInt(parts[0], 10),
+      m: parseInt(parts[1], 10) - 1,
+      d: parseInt(parts[2], 10),
+    };
+  }
+  const d = new Date(dateInput);
+  return {
+    y: d.getFullYear(),
+    m: d.getMonth(),
+    d: d.getDate(),
+  };
+}
+
+/**
+ * Returns exact start Date and end Date for any booking.
+ * - Whole Day: Check-in 09:00 AM on booking day, check-out 08:00 AM on next day morning.
+ * - Custom Timing: Exact start and end timestamps on the date.
+ */
+export function getBookingExactTimeRange(
+  dateInput: string | Date,
+  slot: string | null | undefined
+): { start: Date; end: Date } {
+  const { y, m, d } = parseDateComponents(dateInput);
+
+  if (isFullDaySlot(slot)) {
+    // 09:00 AM on booking day -> 08:00 AM next day
+    const start = new Date(y, m, d, 9, 0, 0, 0);
+    const end = new Date(y, m, d + 1, 8, 0, 0, 0);
+    return { start, end };
   }
 
-  // 2. Morning half-day indicators (06:00 AM to 02:00 PM)
-  if (
-    s.includes("HALF_DAY_MORNING") ||
-    (s.includes("MORNING") &&
-      !s.includes("EVENING") &&
-      !s.includes("AFTERNOON") &&
-      !s.includes("-") &&
-      !s.includes("TO"))
-  ) {
-    return { start: 360, end: 840, label: "Morning (06:00 AM - 02:00 PM)" };
+  // Custom timing, e.g. "12:00 PM - 02:00 PM"
+  const rangeMatch = String(slot || "").match(
+    /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|to|–|—)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
+  );
+
+  if (rangeMatch) {
+    const startPart = rangeMatch[1].trim();
+    const endPart = rangeMatch[2].trim();
+    const endHasPm = /pm/i.test(endPart);
+    const startHasMeridiem = /am|pm/i.test(startPart);
+
+    let defaultStartMeridiem: "AM" | "PM" = "AM";
+    if (!startHasMeridiem && endHasPm) {
+      const h = parseInt(startPart, 10);
+      defaultStartMeridiem = h === 12 || h < 7 ? "PM" : "AM";
+    }
+
+    const startMin = parseTimeToMinutes(startPart, defaultStartMeridiem);
+    const endMin = parseTimeToMinutes(endPart, endHasPm ? "PM" : "AM");
+
+    if (startMin !== null && endMin !== null) {
+      const start = new Date(y, m, d, Math.floor(startMin / 60), startMin % 60, 0, 0);
+      let endDay = d;
+      if (endMin <= startMin) endDay += 1;
+      const end = new Date(y, m, endDay, Math.floor(endMin / 60), endMin % 60, 0, 0);
+      return { start, end };
+    }
   }
 
-  // 3. Evening / Afternoon half-day indicators (03:00 PM to 11:59 PM)
-  if (
-    (s.includes("HALF_DAY_EVENING") ||
-      s.includes("HALF_DAY_AFTERNOON") ||
-      s.includes("AFTERNOON") ||
-      s.includes("EVENING")) &&
-    !s.includes("-") &&
-    !s.includes("TO")
-  ) {
-    return { start: 900, end: 1440, label: "Evening (03:00 PM - 11:00 PM)" };
+  // Fallback: Whole Day 09:00 AM to next day 08:00 AM
+  return {
+    start: new Date(y, m, d, 9, 0, 0, 0),
+    end: new Date(y, m, d + 1, 8, 0, 0, 0),
+  };
+}
+
+/**
+ * Universal conflict checker for bookings.
+ * Two bookings conflict if and only if their exact date-time ranges overlap:
+ *   rangeA.start < rangeB.end AND rangeB.start < rangeA.end.
+ *
+ * Example:
+ *  Booking 1: 24 Nov Whole Day (24 Nov 09:00 AM - 25 Nov 08:00 AM)
+ *  Booking 2: 25 Nov Whole Day (25 Nov 09:00 AM - 26 Nov 08:00 AM)
+ *  Result: NO CONFLICT! Consecutive whole-day bookings seamlessly chain with 1-hr turnover buffer.
+ */
+export function doBookingsConflict(
+  a: { startDate: string | Date; slot: string | null | undefined },
+  b: { startDate: string | Date; slot: string | null | undefined }
+): boolean {
+  if (!a || !b) return false;
+  const rangeA = getBookingExactTimeRange(a.startDate, a.slot);
+  const rangeB = getBookingExactTimeRange(b.startDate, b.slot);
+  return rangeA.start.getTime() < rangeB.end.getTime() && rangeB.start.getTime() < rangeA.end.getTime();
+}
+
+/**
+ * Same-day / legacy slot overlap checker.
+ */
+export function parseSlotTimeRange(slot: string | null | undefined): TimeRange {
+  if (isFullDaySlot(slot)) {
+    // 09:00 AM (540m) to next day 08:00 AM (1440 + 480 = 1920m)
+    return { start: 540, end: 1920, label: WHOLE_DAY_SLOT_LABEL };
   }
 
-  // 4. Day Rest for rooms/dorms (08:00 AM to 06:00 PM)
-  if (s.includes("DAY_REST")) {
-    return { start: 480, end: 1080, label: "Day Rest (08:00 AM - 06:00 PM)" };
-  }
-
-  // 5. Explicit time range pattern like "12:00 PM - 02:00 PM" or "12 to 2 pm" or "12 PM - 2 PM"
-  const rangeMatch = slot.match(
+  const rangeMatch = String(slot || "").match(
     /(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|to|–|—)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
   );
   if (rangeMatch) {
     const startPart = rangeMatch[1].trim();
     const endPart = rangeMatch[2].trim();
-
     const endHasPm = /pm/i.test(endPart);
     const startHasMeridiem = /am|pm/i.test(startPart);
 
@@ -116,48 +200,33 @@ export function parseSlotTimeRange(slot: string | null | undefined): TimeRange {
     if (startMin !== null && endMin !== null) {
       let finalEnd = endMin;
       if (finalEnd <= startMin) {
-        finalEnd += 1440; // spans midnight
+        finalEnd += 1440;
       }
       return { start: startMin, end: finalEnd, label: `${startPart} - ${endPart}` };
     }
   }
 
-  // Fallback: treat as whole day if unrecognized
-  return { start: 0, end: 1440, label: slot };
+  return { start: 540, end: 1920, label: slot || WHOLE_DAY_SLOT_LABEL };
 }
 
-/**
- * Determines whether two booking slots on the same day overlap.
- * Uses strict interval intersection: max(start1, start2) < min(end1, end2).
- * Contiguous boundaries (e.g. 12-2 PM and 2-4 PM) do NOT conflict.
- */
 export function doSlotsOverlap(
   slotA: string | null | undefined,
   slotB: string | null | undefined
 ): boolean {
+  if (isFullDaySlot(slotA) || isFullDaySlot(slotB)) {
+    return true;
+  }
   const rA = parseSlotTimeRange(slotA);
   const rB = parseSlotTimeRange(slotB);
   return Math.max(rA.start, rB.start) < Math.min(rA.end, rB.end);
 }
 
 /**
- * Check whether a slot represents a full day booking.
- */
-export function isFullDaySlot(slot: string | null | undefined): boolean {
-  const range = parseSlotTimeRange(slot);
-  return range.start <= 360 && range.end >= 1439;
-}
-
-/**
- * Returns a human-friendly display label for any slot or timing string.
+ * Returns clean human-readable slot display label.
  */
 export function formatSlotLabel(slot: string | null | undefined): string {
-  if (!slot) return "Whole Day (આખો દિવસ)";
-  const s = slot.trim();
-  if (s === "WHOLE_DAY" || s === "FULL_DAY") return "Whole Day / Full Event (06:00 AM - 11:00 PM)";
-  if (s === "HALF_DAY_MORNING" || s === "MORNING" || s === "MORNING_SLOT") return "Half Day - Morning (06:00 AM - 02:00 PM)";
-  if (s === "HALF_DAY_EVENING" || s === "AFTERNOON" || s === "AFTERNOON_SLOT" || s === "EVENING") return "Half Day - Evening (03:00 PM - 11:00 PM)";
-  if (s === "NIGHT_STAY") return "Night Stay (24 Hours)";
-  if (s === "DAY_REST") return "Day Rest (08:00 AM - 06:00 PM)";
-  return s;
+  if (!slot || isFullDaySlot(slot)) {
+    return WHOLE_DAY_SLOT_LABEL;
+  }
+  return slot.trim();
 }

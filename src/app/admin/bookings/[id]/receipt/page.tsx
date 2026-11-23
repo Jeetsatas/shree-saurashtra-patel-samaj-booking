@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Printer, ArrowLeft, Building2 } from "lucide-react";
 import Link from "next/link";
+import { formatSlotLabel } from "@/lib/slotUtils";
 
 export default function BookingReceiptPage() {
   const params = useParams();
@@ -170,7 +171,7 @@ export default function BookingReceiptPage() {
                     year: "numeric",
                   })}
                 </td>
-                <td className="p-2.5 border-r border-slate-300">{booking.slot}</td>
+                <td className="p-2.5 border-r border-slate-300">{formatSlotLabel(booking.slot)}</td>
                 <td className="p-2.5 font-semibold">{booking.eventType}</td>
               </tr>
             </tbody>

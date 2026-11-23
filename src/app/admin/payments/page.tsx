@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
+import { isFullDaySlot, formatSlotLabel } from "@/lib/slotUtils";
 
 // Helper: Check if a booking is considered fully paid
 function isBookingFullyPaid(b: any): boolean {
@@ -208,7 +209,10 @@ export default function AdminPaymentStatusPage() {
       const end = new Date(b.endDate || b.startDate);
       const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
 
-      const matches = targetStr >= startStr && targetStr <= endStr;
+      const isFull = isFullDaySlot(b.slot);
+      const matches =
+        targetStr === startStr ||
+        (targetStr > startStr && (isFull ? targetStr < endStr : targetStr <= endStr));
       return matches && b.status !== "CANCELLED";
     });
   };
@@ -807,7 +811,7 @@ export default function AdminPaymentStatusPage() {
                       <div>
                         <h4 className="text-base font-black text-slate-900">{b.customerName}</h4>
                         <p className="text-xs font-bold text-slate-600 mt-0.5">
-                          🏛️ {b.facility?.name} • ({b.slot})
+                          🏛️ {b.facility?.name} • ({formatSlotLabel(b.slot)})
                         </p>
                         <p className="text-xs font-medium text-slate-500">
                           🎉 પ્રસંગ: {b.eventType}
@@ -973,7 +977,7 @@ export default function AdminPaymentStatusPage() {
                       </td>
                       <td className="py-3 px-3 text-slate-700 font-medium">
                         <div>{b.facility?.name}</div>
-                        <div className="text-[10px] text-slate-400">{b.slot}</div>
+                        <div className="text-[10px] text-slate-400">{formatSlotLabel(b.slot)}</div>
                       </td>
                       <td className="py-3 px-3 font-black text-amber-900 text-sm whitespace-nowrap">
                         ₹{Number(b.totalAmount || 0).toLocaleString("en-IN")}
