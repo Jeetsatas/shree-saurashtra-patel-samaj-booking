@@ -155,17 +155,23 @@ export default function BookingsManagementPage() {
         }
       }
     }
+    let lastRefreshTime = 0;
     const refreshWhileVisible = () => {
       if (document.visibilityState === "visible") {
-        refreshBookings();
-        refreshFacilities();
+        const now = Date.now();
+        // Smart Focus Revalidation: throttle to at most once every 10 seconds on tab focus
+        if (now - lastRefreshTime > 10000) {
+          lastRefreshTime = now;
+          refreshBookings();
+        }
       }
     };
     const refreshFacilitiesWhileVisible = () => {
       if (document.visibilityState === "visible") refreshFacilities();
     };
-    const timer = window.setInterval(refreshWhileVisible, 5000);
-    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 15000);
+    // Relax idle background polling: bookings every 45s, static facilities every 2 mins
+    const timer = window.setInterval(refreshWhileVisible, 45000);
+    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 120000);
     window.addEventListener("focus", refreshWhileVisible);
     document.addEventListener("visibilitychange", refreshWhileVisible);
     return () => {
@@ -778,20 +784,32 @@ export default function BookingsManagementPage() {
       return;
     }
 
+    // Instant Optimistic UI Update: update badge and status in 0ms without waiting for network
+    const previousBookings = [...bookings];
+    setBookings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
+    );
+    if (detailBooking?.id === id) {
+      setDetailBooking((prev: any) => (prev ? { ...prev, status: newStatus } : null));
+    }
+
     try {
       const res = await fetch("/api/bookings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, status: newStatus }),
       });
-      if (res.ok) {
-        refreshBookings();
-      } else {
+      if (!res.ok) {
+        // Revert on error
+        setBookings(previousBookings);
         const err = await res.json();
         alert(err.error || "Failed to update booking status");
       }
     } catch (err) {
+      // Revert on network failure
+      setBookings(previousBookings);
       console.error(err);
+      alert("Network error: Could not update status.");
     }
   };
 

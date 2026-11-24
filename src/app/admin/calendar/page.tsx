@@ -50,17 +50,23 @@ export default function AdminCalendarPage() {
     if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
     if (cachedFacilities || cachedBookings) setLoading(false);
     fetchData();
+    let lastRefreshTime = 0;
     const refreshWhileVisible = () => {
       if (document.visibilityState === "visible") {
-        refreshBookings();
-        refreshFacilities();
+        const now = Date.now();
+        // Smart Focus Revalidation: throttle to at most once every 10 seconds on tab focus
+        if (now - lastRefreshTime > 10000) {
+          lastRefreshTime = now;
+          refreshBookings();
+        }
       }
     };
     const refreshFacilitiesWhileVisible = () => {
       if (document.visibilityState === "visible") refreshFacilities();
     };
-    const timer = window.setInterval(refreshWhileVisible, 5000);
-    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 15000);
+    // Relax idle background polling: bookings every 45s, static facilities every 2 mins
+    const timer = window.setInterval(refreshWhileVisible, 45000);
+    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 120000);
     window.addEventListener("focus", refreshWhileVisible);
     document.addEventListener("visibilitychange", refreshWhileVisible);
     return () => {

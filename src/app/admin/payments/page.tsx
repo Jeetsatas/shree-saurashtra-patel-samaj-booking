@@ -106,14 +106,27 @@ export default function AdminPaymentStatusPage() {
   const bookingsRefresh = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
+    const cachedBookings = getAdminCachedData<any>("/api/bookings");
+    const cachedFacilities = getAdminCachedData<any>("/api/facilities");
+    if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
+    if (cachedFacilities?.facilities) setFacilities(cachedFacilities.facilities);
+    if (cachedBookings || cachedFacilities) setLoading(false);
+
     fetchInitialData();
 
+    let lastRefreshTime = 0;
     const refreshWhileVisible = () => {
       if (document.visibilityState === "visible") {
-        refreshBookings();
+        const now = Date.now();
+        // Smart Focus Revalidation: throttle to at most once every 10 seconds on tab focus
+        if (now - lastRefreshTime > 10000) {
+          lastRefreshTime = now;
+          refreshBookings();
+        }
       }
     };
-    const timer = window.setInterval(refreshWhileVisible, 5000);
+    // Relax idle background polling to 45s
+    const timer = window.setInterval(refreshWhileVisible, 45000);
     window.addEventListener("focus", refreshWhileVisible);
     document.addEventListener("visibilitychange", refreshWhileVisible);
     return () => {
@@ -125,7 +138,9 @@ export default function AdminPaymentStatusPage() {
 
   const fetchInitialData = async () => {
     try {
-      setLoading(true);
+      if (!getAdminCachedData("/api/bookings")) {
+        setLoading(true);
+      }
       const [facData, bookData, userRes] = await Promise.all([
         fetchAdminJson<any>("/api/facilities"),
         fetchAdminJson<any>("/api/bookings"),
@@ -362,12 +377,28 @@ export default function AdminPaymentStatusPage() {
     setSaveErrorMsg("");
   };
 
-  // Handle Save Payment
+  // Handle Save Payment with Instant Optimistic UI Update
   const handleSavePayment = async () => {
     if (!editingBooking) return;
     setSavingPayment(true);
     setSaveErrorMsg("");
     setSaveSuccessMsg("");
+
+    const previousBookings = [...bookings];
+    // Optimistic instant local update in 0ms:
+    setBookings((prev) =>
+      prev.map((item) =>
+        item.id === editingBooking.id
+          ? {
+              ...item,
+              paymentStatus: editStatus,
+              paymentMethod: editMethod,
+              paymentRefNo: editRefNo,
+              notes: editNotes,
+            }
+          : item
+      )
+    );
 
     try {
       const res = await fetch("/api/bookings", {
@@ -384,31 +415,18 @@ export default function AdminPaymentStatusPage() {
 
       const data = await res.json();
       if (!res.ok) {
+        // Revert on error
+        setBookings(previousBookings);
         throw new Error(data.error || "Failed to update payment status");
       }
 
       setSaveSuccessMsg("✓ પેમેન્ટ સ્થિતિ સફળતાપૂર્વક અપડેટ થઈ ગઈ!");
-
-      // Update local state immediately
-      setBookings((prev) =>
-        prev.map((item) =>
-          item.id === editingBooking.id
-            ? {
-                ...item,
-                paymentStatus: editStatus,
-                paymentMethod: editMethod,
-                paymentRefNo: editRefNo,
-                notes: editNotes,
-              }
-            : item
-        )
-      );
-
       setTimeout(() => {
         setEditingBooking(null);
         setSaveSuccessMsg("");
-      }, 1000);
+      }, 500);
     } catch (err: any) {
+      setBookings(previousBookings);
       console.error(err);
       setSaveErrorMsg(err.message || "Failed to update payment status");
     } finally {
