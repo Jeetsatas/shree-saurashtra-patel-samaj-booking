@@ -130,19 +130,18 @@ export async function POST(req: NextRequest) {
     // BRANCH A: MULTI-FACILITY / MULTI-DATE / MULTI-TIMING BATCH CREATION
     // =========================================================================
     if (items && Array.isArray(items) && items.length > 0) {
-      // 1. Fetch facilities, discount rule, and latest booking number
-      const allFacilities = await prisma.facility.findMany();
-      const facMap = new Map(allFacilities.map((f) => [f.id, f]));
-
-      const discountRule =
+      // 1. Fetch facilities, discount rule, and latest booking number in parallel
+      const [allFacilities, discountRule, latestBooking] = await Promise.all([
+        prisma.facility.findMany(),
         discountCode && discountCode !== "NONE" && !discountOverridden
-          ? await prisma.discountRule.findUnique({ where: { code: discountCode } })
-          : null;
-
-      const latestBooking = await prisma.booking.findFirst({
-        orderBy: { createdAt: "desc" },
-        select: { bookingNumber: true },
-      });
+          ? prisma.discountRule.findUnique({ where: { code: discountCode } })
+          : Promise.resolve(null),
+        prisma.booking.findFirst({
+          orderBy: { createdAt: "desc" },
+          select: { bookingNumber: true },
+        }),
+      ]);
+      const facMap = new Map(allFacilities.map((f) => [f.id, f]));
 
       const currentYear = new Date().getFullYear();
       let nextSeq = 1;
@@ -153,7 +152,7 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // 2. Fetch all active bookings for conflict checking
+      // 2. Fetch active bookings for conflict checking (scoped by facility/group and bounded date range)
       const targetFacilityIds = Array.from(new Set(items.map((it: any) => it.facilityId)));
       const targetGroups = Array.from(
         new Set(
@@ -164,6 +163,21 @@ export async function POST(req: NextRequest) {
         )
       );
 
+      // Calculate bounded date range for index-optimized conflict query
+      let minStartMs = Infinity;
+      let maxEndMs = -Infinity;
+      for (const it of items) {
+        const sTime = new Date(it.startDate).getTime();
+        if (!isNaN(sTime)) {
+          if (sTime < minStartMs) minStartMs = sTime;
+          const eTime = it.endDate ? new Date(it.endDate).getTime() : sTime + 86400000;
+          if (eTime > maxEndMs) maxEndMs = eTime;
+        }
+      }
+
+      const boundStartDate = isFinite(minStartMs) ? new Date(minStartMs - 36 * 3600 * 1000) : undefined;
+      const boundEndDate = isFinite(maxEndMs) ? new Date(maxEndMs + 36 * 3600 * 1000) : undefined;
+
       const activeDbBookings = await prisma.booking.findMany({
         where: {
           facility: {
@@ -173,6 +187,12 @@ export async function POST(req: NextRequest) {
             ],
           },
           status: { in: ["CONFIRMED", "BLOCKED_BY_TRUST"] },
+          ...(boundStartDate && boundEndDate
+            ? {
+                startDate: { lte: boundEndDate },
+                endDate: { gte: boundStartDate },
+              }
+            : {}),
         },
         select: {
           id: true,
@@ -288,13 +308,10 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 4. Create all bookings in sequence with continuous booking numbers
-      const createdBookings: any[] = [];
-      for (let i = 0; i < preparedItems.length; i++) {
-        const item = preparedItems[i];
-        const bookingNum = `SSPS-${currentYear}-${String(nextSeq + i).padStart(4, "0")}`;
-
-        const created = await prisma.booking.create({
+      // 4. Create all bookings in a SINGLE atomic database transaction (Pipeline Batch)
+      const createOperations = preparedItems.map((item, idx) => {
+        const bookingNum = `SSPS-${currentYear}-${String(nextSeq + idx).padStart(4, "0")}`;
+        return prisma.booking.create({
           data: {
             bookingNumber: bookingNum,
             facilityId: item.facilityId,
@@ -330,25 +347,28 @@ export async function POST(req: NextRequest) {
             facility: true,
           },
         });
+      });
 
-        // Non-blocking activity log
-        prisma.activityLog
-          .create({
+      const createdBookings = await prisma.$transaction(createOperations);
+
+      // 5. Fire-and-forget non-blocking audit logging using Promise.allSettled
+      // Executes asynchronously in the background so the HTTP response returns immediately
+      Promise.allSettled(
+        createdBookings.map((created, idx) =>
+          prisma.activityLog.create({
             data: {
               userId: user.id,
               userName: user.name,
               userEmail: user.email,
               userRole: user.role,
               action: "CREATE_BOOKING",
-              details: `Created batch booking ${created.bookingNumber} (${i + 1}/${preparedItems.length}) for ${created.customerName} (${created.eventType}) at ${created.facility.name}`,
+              details: `Created batch booking ${created.bookingNumber} (${idx + 1}/${createdBookings.length}) for ${created.customerName} (${created.eventType}) at ${created.facility?.name || "Facility"}`,
               recordId: created.id,
               recordType: "BOOKING",
             },
           })
-          .catch((err) => console.error("Batch activity log error:", err));
-
-        createdBookings.push(created);
-      }
+        )
+      ).catch((err) => console.error("Batch activity log error:", err));
 
       return NextResponse.json({
         success: true,
