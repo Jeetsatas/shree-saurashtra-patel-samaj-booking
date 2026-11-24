@@ -39,6 +39,8 @@ import {
   Info,
   Check,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 export default function BookingsManagementPage() {
@@ -101,6 +103,10 @@ export default function BookingsManagementPage() {
   const [customSlotsList, setCustomSlotsList] = useState<string[]>([]);
   const [facilityTimingMap, setFacilityTimingMap] = useState<Record<string, string[]>>({});
   const [plotPurpose, setPlotPurpose] = useState<"WEDDING" | "FAMILY">("WEDDING");
+
+  // Left-Side Calendar Widget State
+  const [calViewDate, setCalViewDate] = useState<Date>(() => new Date());
+  const [dateSelectionMode, setDateSelectionMode] = useState<"SINGLE" | "MULTIPLE">("SINGLE");
 
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -324,7 +330,65 @@ export default function BookingsManagementPage() {
       const str = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
       newDates.push(str);
     }
-    setSelectedDates((prev) => Array.from(new Set([...prev, ...newDates])).sort());
+    if (dateSelectionMode === "SINGLE" && count === 1) {
+      setSelectedDates([newDates[0]]);
+    } else {
+      setSelectedDates((prev) => Array.from(new Set([...prev, ...newDates])).sort());
+    }
+  };
+
+  const MONTH_NAMES_GU = [
+    "જાન્યુઆરી (Jan)",
+    "ફેબ્રુઆરી (Feb)",
+    "માર્ચ (Mar)",
+    "એપ્રિલ (Apr)",
+    "મે (May)",
+    "જૂન (Jun)",
+    "જુલાઈ (Jul)",
+    "ઓગસ્ટ (Aug)",
+    "સપ્ટેમ્બર (Sep)",
+    "ઓક્ટોબર (Oct)",
+    "નવેમ્બર (Nov)",
+    "ડિસેમ્બર (Dec)",
+  ];
+
+  const CAL_WEEK_DAYS = [
+    { gu: "રવિ", en: "Su" },
+    { gu: "સોમ", en: "Mo" },
+    { gu: "મંગળ", en: "Tu" },
+    { gu: "બુધ", en: "We" },
+    { gu: "ગુરુ", en: "Th" },
+    { gu: "શુક્ર", en: "Fr" },
+    { gu: "શનિ", en: "Sa" },
+  ];
+
+  const calYear = calViewDate.getFullYear();
+  const calMonth = calViewDate.getMonth();
+  const daysInCalMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const firstDayOfCalWeek = new Date(calYear, calMonth, 1).getDay();
+  const todayDateStr = new Date().toISOString().split("T")[0];
+
+  const prevCalMonth = () => {
+    setCalViewDate(new Date(calYear, calMonth - 1, 1));
+  };
+  const nextCalMonth = () => {
+    setCalViewDate(new Date(calYear, calMonth + 1, 1));
+  };
+  const goToCalToday = () => {
+    const now = new Date();
+    setCalViewDate(now);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    if (dateSelectionMode === "SINGLE") {
+      setSelectedDates([todayStr]);
+    }
+  };
+
+  const handleCalendarDayClick = (dateStr: string) => {
+    if (dateSelectionMode === "SINGLE") {
+      setSelectedDates([dateStr]);
+    } else {
+      toggleDate(dateStr);
+    }
   };
 
   const toggleTimingSlot = (slotLabel: string) => {
@@ -1677,20 +1741,20 @@ export default function BookingsManagementPage() {
       {/* New Booking Modal with Multi-Facility, Multi-Date, and Multi-Timing Checkboxes */}
       {showCreateModal && isSuperAdmin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200">
+          <div className="bg-white rounded-3xl max-w-6xl xl:max-w-7xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-red-800 to-amber-900 text-white p-4 sm:p-5 flex items-center justify-between sticky top-0 z-20 shadow-md">
+            <div className="bg-gradient-to-r from-red-800 to-amber-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 shadow-md">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="bg-amber-400 text-red-950 font-black text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">
                     Super Admin Only
                   </span>
                   <span className="text-xs text-amber-200 font-bold">
-                    મલ્ટી-સુવિધા • મલ્ટી-તારીખ • મલ્ટી-સમય ચેકબોક્સ
+                    કેલેન્ડર તારીખ • સુવિધા ચેકબોક્સ • સમય સ્લોટ્સ
                   </span>
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-white mt-1">
-                  નવું બુકિંગ નોંધણી (New Multi-Booking Entry)
+                  નવું બુકિંગ નોંધણી (New Booking Entry)
                 </h3>
                 <p className="text-xs text-amber-100/90">
                   શ્રી સૌરાષ્ટ્ર પટેલ સમાજ, નિકોલ - નરોડા | અમદાવાદ
@@ -1706,22 +1770,342 @@ export default function BookingsManagementPage() {
             </div>
 
             {createError && (
-              <div className="m-4 sm:m-5 p-3.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-bold flex items-center gap-2">
+              <div className="m-3 sm:mx-6 sm:mt-4 p-3.5 bg-red-50 border border-red-300 rounded-xl text-xs text-red-700 font-bold flex items-center gap-2 shrink-0">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                 <span>{createError}</span>
               </div>
             )}
 
-            <form onSubmit={handleCreateBooking} className="p-4 sm:p-6 space-y-5">
-              {/* SECTION 1: Applicant Details */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-                  <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
-                    <User className="w-4 h-4 text-red-800" />
-                    ૧. અરજદારની વિગતો (Applicant & Function Details)
-                  </span>
-                  <span className="text-[11px] font-bold text-red-800">* ફરજિયાત માહિતી</span>
-                </div>
+            <form onSubmit={handleCreateBooking} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              {/* Scrollable 2-Column Body */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+                  {/* ============================================================== */}
+                  {/* LEFT COLUMN: Calendar & Date Selection (lg:col-span-5)        */}
+                  {/* ============================================================== */}
+                  <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-0">
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
+                      {/* Calendar Section Header */}
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-red-800" />
+                          <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                            કેલેન્ડર તારીખ પસંદ કરો (Event Date) *
+                          </span>
+                        </div>
+
+                        {/* Single vs Multi-Date Mode Toggle */}
+                        <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-300 text-[11px] font-bold">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDateSelectionMode("SINGLE");
+                              if (selectedDates.length > 1) {
+                                setSelectedDates([selectedDates[0]]);
+                              }
+                            }}
+                            className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                              dateSelectionMode === "SINGLE"
+                                ? "bg-red-800 text-white shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                            title="એક તારીખ પસંદગી મોડ (Single Date Mode)"
+                          >
+                            ૧ તારીખ
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDateSelectionMode("MULTIPLE")}
+                            className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                              dateSelectionMode === "MULTIPLE"
+                                ? "bg-red-800 text-white shadow-2xs"
+                                : "text-slate-600 hover:text-slate-900"
+                            }`}
+                            title="બહુવિધ તારીખો પસંદગી મોડ (Multi-Date Mode)"
+                          >
+                            મલ્ટી-તારીખ
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Month / Year Navigator */}
+                      <div className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-xl border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={prevCalMonth}
+                          className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-700 font-bold transition cursor-pointer"
+                          title="ગત મહિનો (Previous Month)"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+
+                        <div className="text-center">
+                          <div className="text-xs font-black text-slate-900">
+                            {MONTH_NAMES_GU[calMonth]} {calYear}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={goToCalToday}
+                            className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                            title="આજની તારીખ"
+                          >
+                            આજે
+                          </button>
+                          <button
+                            type="button"
+                            onClick={nextCalMonth}
+                            className="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-700 font-bold transition cursor-pointer"
+                            title="આગામી મહિનો (Next Month)"
+                          >
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 7-Day Month Grid */}
+                      <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                        {/* Day of week headers */}
+                        <div className="grid grid-cols-7 gap-1 text-center mb-1 pb-1 border-b border-slate-100">
+                          {CAL_WEEK_DAYS.map((wd) => (
+                            <div key={wd.en} className="text-[10px] font-black text-slate-500 uppercase">
+                              <span>{wd.gu}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Day cells */}
+                        <div className="grid grid-cols-7 gap-1 text-center">
+                          {Array.from({ length: firstDayOfCalWeek }).map((_, idx) => (
+                            <div key={`cal-pad-${idx}`} className="h-8 sm:h-9" />
+                          ))}
+
+                          {Array.from({ length: daysInCalMonth }).map((_, idx) => {
+                            const dayNum = idx + 1;
+                            const dayStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
+                            const isSelected = selectedDates.includes(dayStr);
+                            const isToday = todayDateStr === dayStr;
+
+                            const dayBookings = bookings.filter((b) => {
+                              if (b.status === "CANCELLED") return false;
+                              const start = b.startDate ? String(b.startDate).split("T")[0] : "";
+                              const end = b.endDate ? String(b.endDate).split("T")[0] : start;
+                              return dayStr >= start && dayStr <= end;
+                            });
+                            const bookedCount = dayBookings.length;
+
+                            return (
+                              <button
+                                key={dayStr}
+                                type="button"
+                                onClick={() => handleCalendarDayClick(dayStr)}
+                                className={`h-8 sm:h-9 rounded-lg flex flex-col items-center justify-center relative transition cursor-pointer select-none ${
+                                  isSelected
+                                    ? "bg-red-800 text-white font-black shadow-xs ring-2 ring-red-400 scale-[1.04]"
+                                    : isToday
+                                    ? "border border-blue-500 bg-blue-50/70 font-black text-blue-900 hover:bg-red-50"
+                                    : "hover:bg-slate-100 font-bold text-slate-800 text-xs"
+                                }`}
+                              >
+                                <span className="text-[11px] sm:text-xs leading-none">{dayNum}</span>
+                                <div className="flex items-center gap-0.5 mt-0.5">
+                                  {isSelected ? (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                  ) : bookedCount > 0 ? (
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full ${
+                                        bookedCount >= (facilities.length || 8)
+                                          ? "bg-rose-500"
+                                          : "bg-amber-500"
+                                      }`}
+                                      title={`${bookedCount} સુવિધા બુક થયેલ`}
+                                    />
+                                  ) : (
+                                    <span className="w-1 h-1 rounded-full bg-emerald-400/80" title="ઉપલબ્ધ" />
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Quick Date Presets */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const tStr = new Date().toISOString().split("T")[0];
+                            if (dateSelectionMode === "SINGLE") setSelectedDates([tStr]);
+                            else addDate(tStr);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                        >
+                          + આજે (Today)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addRelativeDays(1)}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                        >
+                          + આવતીકાલ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addRelativeDays(2)}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                        >
+                          + ૨ દિવસ
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => addRelativeDays(3)}
+                          className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
+                        >
+                          + ૩ દિવસ
+                        </button>
+                        {selectedDates.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedDates([])}
+                            className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition cursor-pointer ml-auto"
+                          >
+                            સાફ
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Selected Dates Chips */}
+                      {selectedDates.length > 0 && (
+                        <div className="pt-2 border-t border-slate-200 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                            <span>પસંદ કરેલી તારીખો ({selectedDates.length}):</span>
+                            <span className="text-[10px] text-red-800 font-extrabold bg-red-100 px-2 py-0.5 rounded-full">
+                              {selectedDates.length} દિવસ
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            {selectedDates.map((dStr) => (
+                              <span
+                                key={dStr}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-100 border border-red-300 text-red-950 text-xs font-extrabold shadow-2xs"
+                              >
+                                <span>{formatDateGu(dStr)}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeDate(dStr)}
+                                  className="text-red-700 hover:text-red-900 ml-0.5 font-black text-xs cursor-pointer"
+                                  title="કાઢી નાખો (Remove)"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Real-time Generated Bookings & Conflict Review */}
+                    <div className="space-y-2.5">
+                      {bookingItems.length === 0 ? (
+                        <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 font-bold flex items-center gap-2">
+                          <Info className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>કેલેન્ડરમાંથી તારીખ, જમણી બાજુથી સુવિધા અને સમય પસંદ કરો.</span>
+                        </div>
+                      ) : hasAnyConflict ? (
+                        <div className="p-3.5 bg-rose-50 border-2 border-rose-400 rounded-2xl text-xs text-rose-950 font-bold flex items-start gap-2 shadow-xs">
+                          <AlertCircle className="w-5 h-5 text-rose-700 shrink-0 mt-0.5" />
+                          <div>
+                            <div className="font-extrabold text-xs text-rose-900">
+                              ⚠️ સમય ટકરાવ: {conflictingItemsCount} સ્લોટ્સમાં ટકરાવ છે!
+                            </div>
+                            <div className="text-[11px] text-rose-800 mt-0.5">
+                              લાલ રંગમાં દર્શાવેલ સુવિધા/સ્લોટ પહેલેથી બુક થયેલ છે.
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-emerald-50 border-2 border-emerald-400 rounded-2xl text-xs text-emerald-950 font-bold flex items-center gap-2 shadow-2xs">
+                          <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="font-black text-emerald-900 text-xs">
+                            ✓ તમામ {bookingItems.length} સ્લોટ્સ ઉપલબ્ધ છે (કોઈ ટકરાવ નથી)
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Generated Items Review Mini List */}
+                      {bookingItems.length > 0 && (
+                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                          <div className="bg-slate-100/90 px-3 py-2 border-b border-slate-200 flex items-center justify-between text-xs">
+                            <span className="font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                              <FileText className="w-3.5 h-3.5 text-slate-600" />
+                              બુકિંગ સમીક્ષા ({bookingItems.length})
+                            </span>
+                            <span className="font-bold text-slate-700">
+                              ₹{totalFacilityRent.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+
+                          <div className="max-h-48 overflow-y-auto divide-y divide-slate-100">
+                            {bookingItems.map((item, idx) => (
+                              <div
+                                key={`${item.facilityId}-${item.startDate}-${item.slot}-${idx}`}
+                                className={`p-2.5 flex items-center justify-between gap-2 text-xs transition ${
+                                  item.conflict.isConflict ? "bg-rose-50/90 text-rose-950 font-bold" : "hover:bg-slate-50 text-slate-800"
+                                }`}
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span
+                                    className={`w-2 h-2 rounded-full shrink-0 ${
+                                      item.conflict.isConflict ? "bg-rose-600 ring-2 ring-rose-200" : "bg-emerald-600"
+                                    }`}
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="font-extrabold truncate text-xs">
+                                      {item.facilityName}
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 font-semibold truncate">
+                                      {formatDateGu(item.startDate)} • <span className="text-slate-700 font-bold">{item.slot}</span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="text-right shrink-0">
+                                  {item.conflict.isConflict ? (
+                                    <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-rose-200 text-rose-900 border border-rose-300">
+                                      ટકરાવ ({item.conflict.bookedBy})
+                                    </span>
+                                  ) : (
+                                    <span className="font-black text-slate-900 text-xs">
+                                      ₹{item.baseRent.toLocaleString("en-IN")}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* ============================================================== */}
+                  {/* RIGHT COLUMN: Name & Details -> Facilities -> Timings         */}
+                  {/* ============================================================== */}
+                  <div className="lg:col-span-7 space-y-4">
+                    {/* SECTION 1: Applicant Details */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
+                          <User className="w-4 h-4 text-red-800" />
+                          ૧. અરજદારની વિગતો (Applicant & Function Details)
+                        </span>
+                        <span className="text-[11px] font-bold text-red-800">* ફરજિયાત માહિતી</span>
+                      </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -2104,116 +2488,13 @@ export default function BookingsManagementPage() {
                 )}
               </div>
 
-              {/* SECTION 3: Event Dates Selection with Checkboxes */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
-                      <Calendar className="w-4 h-4 text-red-800" />
-                      ૩. પ્રસંગની તારીખો પસંદ કરો (Select Event Dates via Checkboxes) *
-                    </span>
-                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
-                      {selectedDates.length} તારીખ પસંદ
-                    </span>
-                  </div>
-
-                  {/* Quick Day Presets */}
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-                    <button
-                      type="button"
-                      onClick={() => addDate(new Date().toISOString().split("T")[0])}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
-                    >
-                      + આજે (Today)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addRelativeDays(1)}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
-                    >
-                      + આવતીકાલ (Next Day)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addRelativeDays(2)}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
-                    >
-                      + ૨ દિવસ (2 Days)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => addRelativeDays(3)}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
-                    >
-                      + ૩ દિવસ (3 Days)
-                    </button>
-                  </div>
-                </div>
-
-                {/* Inline Date Adder */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    value={newDateInput}
-                    onChange={(e) => setNewDateInput(e.target.value)}
-                    className="text-xs bg-white border border-slate-300 rounded-xl p-2 text-slate-800 font-semibold focus:ring-2 focus:ring-red-700 outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => addDate(newDateInput)}
-                    disabled={!newDateInput}
-                    className="px-3.5 py-2 rounded-xl bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>તારીખ ઉમેરો (+ Add Date)</span>
-                  </button>
-                </div>
-
-                {/* Dates Checkbox List */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-                  {selectedDates.map((dStr) => {
-                    const isChecked = selectedDates.includes(dStr);
-                    return (
-                      <div
-                        key={dStr}
-                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition ${
-                          isChecked
-                            ? "border-red-600 bg-red-50/50 shadow-xs"
-                            : "border-slate-200 bg-white text-slate-400"
-                        }`}
-                      >
-                        <label className="flex items-center gap-2 cursor-pointer min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => toggleDate(dStr)}
-                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                          />
-                          <span className="font-extrabold text-xs text-slate-900 truncate">
-                            {formatDateGu(dStr)}
-                          </span>
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => removeDate(dStr)}
-                          className="text-slate-400 hover:text-red-700 text-xs font-bold p-1 rounded transition cursor-pointer"
-                          title="કાઢી નાખો (Remove)"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* SECTION 4: Time Slot & Timings Selection with Checkboxes */}
+              {/* SECTION 3: Time Slot & Timings (Only 2 Options: Whole Day & Custom) */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
                       <Clock className="w-4 h-4 text-red-800" />
-                      ૪. સમય સ્લોટ્સ (Select Time Slots via Checkboxes) *
+                      ૩. સમય સ્લોટ્સ (Select Time Slots) *
                     </span>
                     <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
                       {selectedTimings.length} સ્લોટ પસંદ
@@ -2554,106 +2835,11 @@ export default function BookingsManagementPage() {
                 )}
               </div>
 
-              {/* SECTION 5: Real-time Generated Bookings & Conflict Review */}
-              <div className="space-y-2.5">
-                {/* Status Alert Banner */}
-                {bookingItems.length === 0 ? (
-                  <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 font-bold flex items-center gap-2">
-                    <Info className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>કૃપા કરીને ઓછામાં ઓછી ૧ સુવિધા, ૧ તારીખ અને ૧ સમય સ્લોટ પસંદ કરો જેથી બુકિંગ એન્ટ્રીઝ જનરેટ થાય.</span>
-                  </div>
-                ) : hasAnyConflict ? (
-                  <div className="p-4 bg-rose-50 border-2 border-rose-400 rounded-2xl text-xs text-rose-950 font-bold flex items-start gap-2.5 shadow-xs">
-                    <AlertCircle className="w-5 h-5 text-rose-700 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-extrabold text-sm text-rose-900">
-                        ⚠️ સમય ટકરાવ (Time Conflict Found): {conflictingItemsCount} બુકિંગ સ્લોટ્સમાં ટકરાવ છે!
-                      </div>
-                      <div className="text-[11px] text-rose-800 mt-0.5">
-                        નીચે લાલ રંગમાં દર્શાવેલ સુવિધા અથવા સ્લોટ પહેલેથી બુક થયેલ છે. કૃપા કરીને અન્ય ખાલી સમય અથવા તારીખ પસંદ કરો.
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-3.5 bg-emerald-50 border-2 border-emerald-400 rounded-2xl text-xs text-emerald-950 font-bold flex items-center gap-2.5 shadow-2xs">
-                    <CheckCircle className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <div>
-                      <span className="font-black text-emerald-900">
-                        ✓ ઉત્તમ! તમામ {bookingItems.length} બુકિંગ સ્લોટ્સ ઉપલબ્ધ છે (કોઈ સમય ટકરાવ નથી).
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Generated Items Review Box */}
-                {bookingItems.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-                    <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
-                      <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-slate-600" />
-                        ૫. જનરેટ થયેલ બુકિંગ સમીક્ષા ({bookingItems.length} Bookings to be created)
-                      </span>
-                      <span className="text-[11px] font-bold text-slate-600">
-                        કુલ મૂળ ભાડું: ₹{totalFacilityRent.toLocaleString("en-IN")}
-                      </span>
-                    </div>
-
-                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100">
-                      {bookingItems.map((item, idx) => (
-                        <div
-                          key={`${item.facilityId}-${item.startDate}-${item.slot}-${idx}`}
-                          className={`p-3 flex items-center justify-between gap-3 text-xs transition ${
-                            item.conflict.isConflict
-                              ? "bg-rose-50/80 text-rose-950 font-bold"
-                              : "hover:bg-slate-50 text-slate-800"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <span
-                              className={`w-2 h-2 rounded-full shrink-0 ${
-                                item.conflict.isConflict ? "bg-rose-600 ring-2 ring-rose-200" : "bg-emerald-600"
-                              }`}
-                            ></span>
-                            <div className="min-w-0">
-                              <div className="font-extrabold truncate">
-                                {item.facilityName}
-                              </div>
-                              <div className="text-[11px] text-slate-500 font-semibold">
-                                {formatDateGu(item.startDate)} •{" "}
-                                <span className="text-slate-700 font-bold">{item.slot}</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            {item.conflict.isConflict ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
-                                <AlertCircle className="w-3 h-3" />
-                                {item.conflict.reason} ({item.conflict.bookedBy})
-                              </span>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <span className="font-black text-slate-900">
-                                  ₹{item.baseRent.toLocaleString("en-IN")}
-                                </span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                  ✓ ઉપલબ્ધ
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* SECTION 6: Add-on Services: Cleaning & Waste Collection */}
+              {/* SECTION 4: Add-on Services: Cleaning & Waste Collection */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
                 <span className="text-xs font-bold text-slate-800 flex items-center">
                   <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-600" />
-                  ૬. વધારાની સેવાઓ (Optional Add-on Trust Services):
+                  ૪. વધારાની સેવાઓ (Optional Add-on Trust Services):
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                   {services.map((srv) => {
@@ -2685,12 +2871,12 @@ export default function BookingsManagementPage() {
                 </div>
               </div>
 
-              {/* SECTION 7: Non-Stackable Discount Rules */}
+              {/* SECTION 5: Non-Stackable Discount Rules */}
               <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-amber-950 flex items-center">
                     <Percent className="w-3.5 h-3.5 mr-1 text-red-800" />
-                    ૭. ટ્રસ્ટી અને દાતા ડિસ્કાઉન્ટ (Trustee & Room Donor Discount Policy):
+                    ૫. ટ્રસ્ટી અને દાતા ડિસ્કાઉન્ટ (Trustee & Room Donor Discount Policy):
                   </span>
                   <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded">
                     Non-Stackable
@@ -2789,7 +2975,7 @@ export default function BookingsManagementPage() {
                 </div>
               </div>
 
-              {/* SECTION 8: Payment Method */}
+              {/* SECTION 6: Payment Method */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -2820,45 +3006,68 @@ export default function BookingsManagementPage() {
                   />
                 </div>
               </div>
+            </div>
+            {/* End of Right Column (lg:col-span-7) */}
 
-              {/* SECTION 9: Modal Footer & Submission */}
-              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-200 sticky bottom-0 bg-white p-3 z-10 shadow-lg rounded-b-2xl">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
-                >
-                  Cancel (રદ કરો)
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    creating ||
-                    hasAnyConflict ||
-                    bookingItems.length === 0 ||
-                    selectedFacilityIds.length === 0 ||
-                    selectedDates.length === 0
-                  }
-                  className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
-                >
-                  {creating ? (
-                    "બુકિંગ સેવ થઈ રહ્યું છે..."
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      <span>
-                        {bookingItems.length > 1
-                          ? `તમામ ${bookingItems.length} બુકિંગ કન્ફર્મ કરો (Confirm & Create ${bookingItems.length} Bookings)`
-                          : "બુકિંગ કન્ફર્મ કરો (Confirm & Save Booking)"}
-                      </span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
-      )}
+        {/* End of Scrollable 2-Column Body */}
+
+        {/* Modal Sticky Footer */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:px-6 bg-slate-50 border-t border-slate-200 shrink-0 shadow-lg">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-extrabold px-2.5 py-1 rounded-lg bg-red-100 text-red-900 border border-red-200">
+              📅 {selectedDates.length} તારીખ
+            </span>
+            <span className="font-extrabold px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800">
+              🏢 {selectedFacilityIds.length} સુવિધા
+            </span>
+            <span className="font-extrabold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">
+              ⏱️ {bookingItems.length} બુકિંગ
+            </span>
+            <span className="font-black text-slate-900 text-sm ml-1">
+              કુલ રકમ: ₹{finalTotalAmount.toLocaleString("en-IN")}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(false)}
+              className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+            >
+              Cancel (રદ કરો)
+            </button>
+            <button
+              type="submit"
+              disabled={
+                creating ||
+                hasAnyConflict ||
+                bookingItems.length === 0 ||
+                selectedFacilityIds.length === 0 ||
+                selectedDates.length === 0
+              }
+              className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
+            >
+              {creating ? (
+                "બુકિંગ સેવ થઈ રહ્યું છે..."
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>
+                    {bookingItems.length > 1
+                      ? `તમામ ${bookingItems.length} બુકિંગ કન્ફર્મ કરો (Confirm & Book ${bookingItems.length} Entries)`
+                      : "બુકિંગ કન્ફર્મ કરો (Confirm & Save Booking)"}
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+)}
       {/* Senior-Friendly Delete Confirmation Modal */}
       {bookingToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
