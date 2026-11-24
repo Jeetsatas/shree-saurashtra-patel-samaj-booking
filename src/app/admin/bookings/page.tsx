@@ -125,6 +125,10 @@ export default function BookingsManagementPage() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
+  // Pagination State (Fast 25/50/100 records per page to eliminate DOM lag)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(25);
+
   useEffect(() => {
     const cachedBookings = getAdminCachedData<any>("/api/bookings");
     const cachedFacilities = getAdminCachedData<any>("/api/facilities");
@@ -988,6 +992,17 @@ export default function BookingsManagementPage() {
     return 0;
   });
 
+  // Reset pagination to page 1 whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, categoryFilter, facilityFilter, statusFilter, startDateFilter, endDateFilter, sortBy]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedBookings.length / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedBookings = useMemo(() => {
+    return sortedBookings.slice(startIndex, startIndex + pageSize);
+  }, [sortedBookings, startIndex, pageSize]);
+
   const selectedFacilityObj = facilities.find(
     (f) => f.id === (selectedFacilityIds[0] || formData.facilityId)
   );
@@ -1236,7 +1251,7 @@ export default function BookingsManagementPage() {
           )}
 
           <div className="ml-auto text-xs text-slate-500 font-semibold">
-            Showing <span className="text-slate-900 font-bold">{sortedBookings.length}</span> of {bookings.length} reservations
+            Showing <span className="text-slate-900 font-bold">{paginatedBookings.length}</span> of {sortedBookings.length} reservations {sortedBookings.length > pageSize && `(પેજ ${currentPage} / ${totalPages})`}
           </div>
         </div>
       </div>
@@ -1290,10 +1305,10 @@ export default function BookingsManagementPage() {
                     <input
                       type="checkbox"
                       checked={
-                        sortedBookings.length > 0 &&
-                        sortedBookings.every((b) => selectedBookingIds.includes(b.id))
+                        paginatedBookings.length > 0 &&
+                        paginatedBookings.every((b) => selectedBookingIds.includes(b.id))
                       }
-                      onChange={() => toggleSelectAll(sortedBookings.map((b) => b.id))}
+                      onChange={() => toggleSelectAll(paginatedBookings.map((b) => b.id))}
                       className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer"
                       title="બધા પસંદ કરો / રદ કરો (Select All)"
                     />
@@ -1310,14 +1325,14 @@ export default function BookingsManagementPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs">
-              {sortedBookings.length === 0 ? (
+              {paginatedBookings.length === 0 ? (
                 <tr>
                   <td colSpan={isSuperAdmin ? 9 : 8} className="py-12 text-center text-slate-400">
                     No booking records found matching your filters.
                   </td>
                 </tr>
               ) : (
-                sortedBookings.map((b) => {
+                paginatedBookings.map((b) => {
                   const isSelected = selectedBookingIds.includes(b.id);
                   return (
                     <tr
@@ -1460,12 +1475,12 @@ export default function BookingsManagementPage() {
 
         {/* 2. Mobile & Tablet Touch-Friendly Booking Cards (< md) */}
         <div className="block md:hidden divide-y divide-slate-100">
-          {sortedBookings.length === 0 ? (
+          {paginatedBookings.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-xs">
               No booking records found matching your filters.
             </div>
           ) : (
-            sortedBookings.map((b) => {
+            paginatedBookings.map((b) => {
               const isSelected = selectedBookingIds.includes(b.id);
               return (
                 <div
@@ -1585,6 +1600,54 @@ export default function BookingsManagementPage() {
           })
         )}
         </div>
+
+        {/* Pagination Controls (Fast 25/50/100/All Records Slicing) */}
+        {sortedBookings.length > 0 && (
+          <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-600">
+              <span className="font-medium text-slate-500">પ્રતિ પેજ (Per Page):</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-red-700 cursor-pointer shadow-xs"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={10000}>બધા (All)</option>
+              </select>
+              <span className="text-slate-300">|</span>
+              <span className="font-semibold text-slate-700">
+                {startIndex + 1} - {Math.min(startIndex + pageSize, sortedBookings.length)} of {sortedBookings.length} reservations
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs">
+              <button
+                type="button"
+                disabled={currentPage <= 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-slate-700 transition shadow-xs cursor-pointer"
+              >
+                ← અગાઉનું (Prev)
+              </button>
+              <span className="px-3 py-1 font-bold text-slate-800 bg-white border border-slate-200 rounded-lg shadow-xs">
+                પેજ {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage >= totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-slate-700 transition shadow-xs cursor-pointer"
+              >
+                આગળનું (Next) →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Booking Details Modal (For All Administrators) */}

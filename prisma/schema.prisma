@@ -112,7 +112,9 @@ model Booking {
   updatedAt              DateTime      @updatedAt
 
   @@index([facilityId, startDate, endDate])
-  @@index([status])
+  @@index([startDate, endDate])
+  @@index([status, startDate])
+  @@index([createdAt])
 }
 
 model ActivityLog {

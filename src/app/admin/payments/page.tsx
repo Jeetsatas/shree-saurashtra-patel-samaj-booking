@@ -106,7 +106,10 @@ export default function AdminPaymentStatusPage() {
   const bookingsRefresh = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
-    const cachedBookings = getAdminCachedData<any>("/api/bookings");
+    const y = currentDate.getFullYear();
+    const m = currentDate.getMonth() + 1;
+    const url = `/api/bookings?month=${m}&year=${y}`;
+    const cachedBookings = getAdminCachedData<any>(url) || getAdminCachedData<any>("/api/bookings");
     const cachedFacilities = getAdminCachedData<any>("/api/facilities");
     if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
     if (cachedFacilities?.facilities) setFacilities(cachedFacilities.facilities);
@@ -136,14 +139,29 @@ export default function AdminPaymentStatusPage() {
     };
   }, []);
 
+  // When calendar month changes, load scoped bookings for that month
+  useEffect(() => {
+    const y = currentDate.getFullYear();
+    const m = currentDate.getMonth() + 1;
+    const url = `/api/bookings?month=${m}&year=${y}`;
+    const cached = getAdminCachedData<any>(url);
+    if (cached?.bookings) {
+      setBookings(cached.bookings);
+    }
+    refreshBookings(y, m);
+  }, [currentDate.getFullYear(), currentDate.getMonth()]);
+
   const fetchInitialData = async () => {
     try {
-      if (!getAdminCachedData("/api/bookings")) {
+      const y = currentDate.getFullYear();
+      const m = currentDate.getMonth() + 1;
+      const url = `/api/bookings?month=${m}&year=${y}`;
+      if (!getAdminCachedData(url) && !getAdminCachedData("/api/bookings")) {
         setLoading(true);
       }
       const [facData, bookData, userRes] = await Promise.all([
         fetchAdminJson<any>("/api/facilities"),
-        fetchAdminJson<any>("/api/bookings"),
+        fetchAdminJson<any>(url),
         fetch("/api/auth/me", { cache: "no-store" }),
       ]);
       const userData = userRes.ok ? await userRes.json() : { user: null };
@@ -158,11 +176,12 @@ export default function AdminPaymentStatusPage() {
     }
   };
 
-  const refreshBookings = async () => {
+  const refreshBookings = async (targetYear = currentDate.getFullYear(), targetMonth = currentDate.getMonth() + 1) => {
+    const url = `/api/bookings?month=${targetMonth}&year=${targetYear}`;
     if (bookingsRefresh.current) return bookingsRefresh.current;
     bookingsRefresh.current = (async () => {
       try {
-        const data = await fetchAdminJson<any>("/api/bookings");
+        const data = await fetchAdminJson<any>(url);
         if (data?.bookings) setBookings(data.bookings);
       } catch (err) {
         console.error("Booking refresh error:", err);

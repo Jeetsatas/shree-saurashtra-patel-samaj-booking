@@ -17,6 +17,10 @@ export async function GET(req: NextRequest) {
     const month = searchParams.get("month"); // 1-12
     const year = searchParams.get("year");
     const status = searchParams.get("status");
+    const startDateParam = searchParams.get("startDate");
+    const endDateParam = searchParams.get("endDate");
+    const limit = searchParams.get("limit");
+    const offset = searchParams.get("offset");
 
     const user = await getCurrentUser();
     if (!user) {
@@ -30,34 +34,54 @@ export async function GET(req: NextRequest) {
     if (facilityId && facilityId !== "ALL") {
       where.facilityId = facilityId;
     }
-    if (status) {
+    if (status && status !== "ALL") {
       where.status = status;
     }
 
     if (month && year) {
-      const startOfMonth = new Date(Number(year), Number(month) - 1, 1, 0, 0, 0);
-      const endOfMonth = new Date(Number(year), Number(month), 0, 23, 59, 59);
+      // Month-scoped: pad by 2 days on each side to cleanly cover 24-hr checkouts spanning the 1st or last day of the month
+      const startWindow = new Date(Number(year), Number(month) - 1, -1, 0, 0, 0);
+      const endWindow = new Date(Number(year), Number(month), 2, 23, 59, 59);
       where.startDate = {
-        gte: startOfMonth,
-        lte: endOfMonth,
+        gte: startWindow,
+        lte: endWindow,
       };
+    } else if (startDateParam || endDateParam) {
+      const dateFilter: any = {};
+      if (startDateParam) {
+        dateFilter.gte = new Date(startDateParam);
+      }
+      if (endDateParam) {
+        const endDt = new Date(endDateParam);
+        endDt.setHours(23, 59, 59, 999);
+        dateFilter.lte = endDt;
+      }
+      where.startDate = dateFilter;
     }
 
-    const bookings = await prisma.booking.findMany({
-      where,
-      orderBy: { startDate: "asc" },
-      include: {
-        facility: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            type: true,
-            resourceGroup: true,
+    const take = limit ? Math.min(Math.max(1, parseInt(limit, 10)), 500) : undefined;
+    const skip = offset ? Math.max(0, parseInt(offset, 10)) : undefined;
+
+    const [totalCount, bookings] = await Promise.all([
+      prisma.booking.count({ where }),
+      prisma.booking.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { startDate: "asc" },
+        include: {
+          facility: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              type: true,
+              resourceGroup: true,
+            },
           },
         },
-      },
-    });
+      }),
+    ]);
 
     const adminBookings = bookings.map((b) => ({
       ...b,
