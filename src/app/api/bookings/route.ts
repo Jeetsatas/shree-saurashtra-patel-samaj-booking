@@ -179,6 +179,16 @@ export async function POST(req: NextRequest) {
         )
       );
 
+      // Precompute in memory: all facility IDs matching target facilities or their resource groups
+      // This completely avoids slow SQL joins/subqueries across the Facility table
+      const matchingFacilityIds = allFacilities
+        .filter(
+          (f) =>
+            targetFacilityIds.includes(f.id) ||
+            (f.resourceGroup && targetGroups.includes(f.resourceGroup))
+        )
+        .map((f) => f.id);
+
       // Calculate bounded date range for index-optimized conflict query
       let minStartMs = Infinity;
       let maxEndMs = -Infinity;
@@ -196,12 +206,7 @@ export async function POST(req: NextRequest) {
 
       const activeDbBookings = await prisma.booking.findMany({
         where: {
-          facility: {
-            OR: [
-              { id: { in: targetFacilityIds } },
-              { resourceGroup: { in: targetGroups } },
-            ],
-          },
+          facilityId: { in: matchingFacilityIds },
           status: { in: ["CONFIRMED", "BLOCKED_BY_TRUST"] },
           ...(boundStartDate && boundEndDate
             ? {
@@ -217,7 +222,6 @@ export async function POST(req: NextRequest) {
           startDate: true,
           endDate: true,
           customerName: true,
-          facility: { select: { id: true, name: true, code: true, resourceGroup: true } },
         },
       });
 
@@ -244,12 +248,12 @@ export async function POST(req: NextRequest) {
 
         const facGroup = fac.resourceGroup || fac.code;
 
-        // Conflict check against database
+        // Conflict check against database (RAM precomputed groups, zero joins)
         const dbConflict = activeDbBookings.find((existing) => {
           const facMatches = existing.facilityId === fac.id;
-          const groupMatches =
-            facGroup &&
-            (existing.facility?.resourceGroup === facGroup || existing.facility?.code === facGroup);
+          const existingFac = facMap.get(existing.facilityId);
+          const existingGroup = existingFac?.resourceGroup || existingFac?.code;
+          const groupMatches = facGroup && existingGroup && facGroup === existingGroup;
           if (!facMatches && !groupMatches) return false;
 
           return doBookingsConflict(
@@ -324,73 +328,81 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 4. Create all bookings in a SINGLE atomic database transaction with collision-proof sequence allocation
+      // 4. Create all bookings in a single ultra-fast bulk insert with collision-proof sequence allocation
       const createdBookings = await executeWithBookingNumberRetry(
         async (bookingNumbers) => {
-          const createOperations = preparedItems.map((item, idx) => {
-            const bookingNum = bookingNumbers[idx];
-            return prisma.booking.create({
-              data: {
-                bookingNumber: bookingNum,
-                facilityId: item.facilityId,
-                customerName,
-                customerPhone,
-                customerEmail: customerEmail || null,
-                customerAddress: customerAddress || null,
-                customerAadhar: customerAadhar || null,
-                eventType: eventType || "General Function",
-                startDate: item.startDate,
-                endDate: item.endDate,
-                slot: item.slot,
-                status: status || "CONFIRMED",
-                facilityAmount: item.facilityAmount,
-                discountCode: discountCode || null,
-                discountPercent: discPct,
-                discountAmount: item.discountAmount,
-                discountOverridden: !!discountOverridden,
-                discountOverrideReason: discountOverrideReason || null,
-                selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
-                servicesAmount: item.servicesAmount,
-                totalAmount: item.totalAmount,
-                depositAmount: item.depositAmount,
-                paymentStatus: paymentStatus || "PENDING",
-                paymentMethod: paymentMethod || "OFFLINE_CASH",
-                paymentRefNo: paymentRefNo || null,
-                notes: notes || null,
-                bookedByUserId: user.id,
-                createdByName: user.name,
-                lastUpdatedByName: user.name,
-              },
-              include: {
-                facility: true,
-              },
-            });
-          });
+          const insertData = preparedItems.map((item, idx) => ({
+            bookingNumber: bookingNumbers[idx],
+            facilityId: item.facilityId,
+            customerName,
+            customerPhone,
+            customerEmail: customerEmail || null,
+            customerAddress: customerAddress || null,
+            customerAadhar: customerAadhar || null,
+            eventType: eventType || "General Function",
+            startDate: item.startDate,
+            endDate: item.endDate,
+            slot: item.slot,
+            status: status || "CONFIRMED",
+            facilityAmount: item.facilityAmount,
+            discountCode: discountCode || null,
+            discountPercent: discPct,
+            discountAmount: item.discountAmount,
+            discountOverridden: !!discountOverridden,
+            discountOverrideReason: discountOverrideReason || null,
+            selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
+            servicesAmount: item.servicesAmount,
+            totalAmount: item.totalAmount,
+            depositAmount: item.depositAmount,
+            paymentStatus: paymentStatus || "PENDING",
+            paymentMethod: paymentMethod || "OFFLINE_CASH",
+            paymentRefNo: paymentRefNo || null,
+            notes: notes || null,
+            bookedByUserId: user.id,
+            createdByName: user.name,
+            lastUpdatedByName: user.name,
+          }));
 
-          return await prisma.$transaction(createOperations);
+          try {
+            // PostgreSQL native single-query bulk insert returning all created rows (1 network round-trip)
+            const bulkCreated = await prisma.booking.createManyAndReturn({
+              data: insertData,
+            });
+            return bulkCreated.map((b) => ({
+              ...b,
+              facility: facMap.get(b.facilityId) || null,
+            }));
+          } catch (bulkErr) {
+            // Fallback for environments without createManyAndReturn
+            const createOperations = insertData.map((data) =>
+              prisma.booking.create({
+                data,
+                include: { facility: true },
+              })
+            );
+            return await prisma.$transaction(createOperations);
+          }
         },
         preparedItems.length,
         currentYear
       );
 
-      // 5. Fire-and-forget non-blocking audit logging using Promise.allSettled
+      // 5. Fire-and-forget non-blocking audit logging using createMany
       // Executes asynchronously in the background so the HTTP response returns immediately
-      Promise.allSettled(
-        createdBookings.map((created, idx) =>
-          prisma.activityLog.create({
-            data: {
-              userId: user.id,
-              userName: user.name,
-              userEmail: user.email,
-              userRole: user.role,
-              action: "CREATE_BOOKING",
-              details: `Created batch booking ${created.bookingNumber} (${idx + 1}/${createdBookings.length}) for ${created.customerName} (${created.eventType}) at ${created.facility?.name || "Facility"}`,
-              recordId: created.id,
-              recordType: "BOOKING",
-            },
-          })
-        )
-      ).catch((err) => console.error("Batch activity log error:", err));
+      prisma.activityLog
+        .createMany({
+          data: createdBookings.map((created, idx) => ({
+            userId: user.id,
+            userName: user.name,
+            userEmail: user.email,
+            userRole: user.role,
+            action: "CREATE_BOOKING",
+            details: `Created batch booking ${created.bookingNumber} (${idx + 1}/${createdBookings.length}) for ${created.customerName} (${created.eventType}) at ${created.facility?.name || facMap.get(created.facilityId)?.name || "Facility"}`,
+            recordId: created.id,
+            recordType: "BOOKING",
+          })),
+        })
+        .catch((err) => console.error("Batch activity log error:", err));
 
       return NextResponse.json({
         success: true,

@@ -17,50 +17,71 @@ export async function getNextAvailableBookingNumbers(
 ): Promise<string[]> {
   const prefix = `SSPS-${year}-`;
 
-  // Fetch all existing booking numbers for this year to guarantee zero collisions
-  const existingBookings = await prisma.booking.findMany({
+  // 1. Fetch the single highest booking number via indexed desc order (ultra-fast, 1 row)
+  const highest = await prisma.booking.findFirst({
     where: {
       bookingNumber: {
         startsWith: prefix,
       },
+    },
+    orderBy: {
+      bookingNumber: "desc",
     },
     select: {
       bookingNumber: true,
     },
   });
 
-  const usedNumbers = new Set<string>();
   let maxSeq = 0;
-
-  for (const b of existingBookings) {
-    if (!b.bookingNumber) continue;
-    const trimmed = b.bookingNumber.trim();
-    usedNumbers.add(trimmed);
-
-    // Extract numeric sequence after prefix (SSPS-YYYY-XXXX)
-    const match = trimmed.match(/SSPS-\d{4}-(\d+)/);
+  if (highest?.bookingNumber) {
+    const match = highest.bookingNumber.trim().match(/SSPS-\d{4}-(\d+)/);
     if (match && match[1]) {
-      const seq = parseInt(match[1], 10);
-      if (!isNaN(seq) && seq > maxSeq) {
-        maxSeq = seq;
-      }
+      const parsed = parseInt(match[1], 10);
+      if (!isNaN(parsed)) maxSeq = parsed;
     }
   }
 
-  // Generate continuous unused numbers starting strictly after maxSeq
-  const generated: string[] = [];
+  // 2. Generate initial sequential candidates
+  const candidates: string[] = [];
+  for (let i = 1; i <= count; i++) {
+    candidates.push(`${prefix}${String(maxSeq + i).padStart(4, "0")}`);
+  }
+
+  // 3. Fast verification: ensure none of these candidate numbers exist in DB
+  const existingCandidates = await prisma.booking.findMany({
+    where: {
+      bookingNumber: { in: candidates },
+    },
+    select: {
+      bookingNumber: true,
+    },
+  });
+
+  if (existingCandidates.length === 0) {
+    return candidates;
+  }
+
+  // 4. Fallback if rare collisions or gaps exist: query higher numbers and find next unused
+  const usedSet = new Set(existingCandidates.map((c) => c.bookingNumber.trim()));
+  const verified: string[] = [];
   let candidateSeq = maxSeq + 1;
 
-  while (generated.length < count) {
-    const candidateNumber = `${prefix}${String(candidateSeq).padStart(4, "0")}`;
-    if (!usedNumbers.has(candidateNumber)) {
-      generated.push(candidateNumber);
-      usedNumbers.add(candidateNumber); // mark as claimed for remaining iterations in this batch
+  while (verified.length < count) {
+    const num = `${prefix}${String(candidateSeq).padStart(4, "0")}`;
+    if (!usedSet.has(num)) {
+      const exists = await prisma.booking.findUnique({
+        where: { bookingNumber: num },
+        select: { id: true },
+      });
+      if (!exists) {
+        verified.push(num);
+        usedSet.add(num);
+      }
     }
     candidateSeq++;
   }
 
-  return generated;
+  return verified;
 }
 
 /**
