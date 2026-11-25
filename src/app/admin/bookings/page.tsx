@@ -115,14 +115,29 @@ function BookingsManagementContent() {
   const [activeDate, setActiveDate] = useState<string>(defaultTodayDateStr);
   const [dateFacilityMap, setDateFacilityMap] = useState<Record<string, string[]>>({});
   const [dateTimeTimingMap, setDateTimeTimingMap] = useState<Record<string, Record<string, string[]>>>({});
+  const [datePlotPurposeMap, setDatePlotPurposeMap] = useState<Record<string, "WEDDING" | "FAMILY">>({});
+  const [dateTimingScopeMap, setDateTimingScopeMap] = useState<Record<string, "SAME_ALL" | "CUSTOM_PER_FACILITY">>({});
   const [dateCopySuccess, setDateCopySuccess] = useState<boolean>(false);
   const [newDateInput, setNewDateInput] = useState<string>("");
-  const [timingScope, setTimingScope] = useState<"SAME_ALL" | "CUSTOM_PER_FACILITY">("CUSTOM_PER_FACILITY");
+  const [timingScope, setTimingScope] = useState<"SAME_ALL" | "CUSTOM_PER_FACILITY">("SAME_ALL");
   const [selectedTimings, setSelectedTimings] = useState<string[]>([WHOLE_DAY_SLOT_LABEL]);
   const [customStartTime, setCustomStartTime] = useState<string>("12:00 PM");
   const [customEndTime, setCustomEndTime] = useState<string>("02:00 PM");
   const [customSlotsList, setCustomSlotsList] = useState<string[]>([]);
   const [plotPurpose, setPlotPurpose] = useState<"WEDDING" | "FAMILY">("WEDDING");
+
+  const getDatePlotPurpose = (dateStr: string): "WEDDING" | "FAMILY" => {
+    return datePlotPurposeMap[dateStr] || plotPurpose;
+  };
+  const setDatePlotPurpose = (dateStr: string, purpose: "WEDDING" | "FAMILY") => {
+    setDatePlotPurposeMap((prev) => ({ ...prev, [dateStr]: purpose }));
+  };
+  const getDateTimingScope = (dateStr: string): "SAME_ALL" | "CUSTOM_PER_FACILITY" => {
+    return dateTimingScopeMap[dateStr] || "SAME_ALL";
+  };
+  const setDateTimingScope = (dateStr: string, scope: "SAME_ALL" | "CUSTOM_PER_FACILITY") => {
+    setDateTimingScopeMap((prev) => ({ ...prev, [dateStr]: scope }));
+  };
 
   // Active Date Resolution Helpers
   const currentActiveDate = activeDate && selectedDates.includes(activeDate)
@@ -341,80 +356,137 @@ function BookingsManagementContent() {
     },
   ];
 
-  const toggleFacility = (facId: string) => {
-    if (!currentActiveDate) return;
+  const toggleFacilityForDate = (dateStr: string, facId: string) => {
     setDateFacilityMap((prev) => {
-      const list = prev[currentActiveDate] || [];
+      const list = prev[dateStr] || [];
       const updated = list.includes(facId)
         ? list.filter((id) => id !== facId)
         : [...list, facId];
-      return { ...prev, [currentActiveDate]: updated };
+      return { ...prev, [dateStr]: updated };
+    });
+  };
+
+  const toggleFacility = (facId: string) => {
+    if (!currentActiveDate) return;
+    toggleFacilityForDate(currentActiveDate, facId);
+  };
+
+  const selectAllRoomsForDate = (dateStr: string) => {
+    const roomIds = facilities.filter((f) => f.type === "ROOM").map((f) => f.id);
+    setDateFacilityMap((prev) => {
+      const current = prev[dateStr] || [];
+      const allSelected = roomIds.every((id) => current.includes(id));
+      const nextList = allSelected
+        ? current.filter((id) => !roomIds.includes(id))
+        : Array.from(new Set([...current, ...roomIds]));
+      return { ...prev, [dateStr]: nextList };
     });
   };
 
   const selectAllRooms = () => {
     if (!currentActiveDate) return;
-    const roomIds = facilities.filter((f) => f.type === "ROOM").map((f) => f.id);
-    setDateFacilityMap((prev) => ({
-      ...prev,
-      [currentActiveDate]: Array.from(new Set([...(prev[currentActiveDate] || []), ...roomIds])),
-    }));
+    selectAllRoomsForDate(currentActiveDate);
+  };
+
+  const selectAllHallsForDate = (dateStr: string) => {
+    const hallIds = facilities.filter((f) => f.type === "HALL").map((f) => f.id);
+    setDateFacilityMap((prev) => {
+      const current = prev[dateStr] || [];
+      const allSelected = hallIds.every((id) => current.includes(id));
+      const nextList = allSelected
+        ? current.filter((id) => !hallIds.includes(id))
+        : Array.from(new Set([...current, ...hallIds]));
+      return { ...prev, [dateStr]: nextList };
+    });
   };
 
   const selectAllHalls = () => {
     if (!currentActiveDate) return;
-    const hallIds = facilities.filter((f) => f.type === "HALL").map((f) => f.id);
-    setDateFacilityMap((prev) => ({
-      ...prev,
-      [currentActiveDate]: Array.from(new Set([...(prev[currentActiveDate] || []), ...hallIds])),
-    }));
+    selectAllHallsForDate(currentActiveDate);
+  };
+
+  const selectAllDormsForDate = (dateStr: string) => {
+    const dormIds = facilities.filter((f) => f.type === "DORMITORY").map((f) => f.id);
+    setDateFacilityMap((prev) => {
+      const current = prev[dateStr] || [];
+      const allSelected = dormIds.every((id) => current.includes(id));
+      const nextList = allSelected
+        ? current.filter((id) => !dormIds.includes(id))
+        : Array.from(new Set([...current, ...dormIds]));
+      return { ...prev, [dateStr]: nextList };
+    });
   };
 
   const selectAllDorms = () => {
     if (!currentActiveDate) return;
-    const dormIds = facilities.filter((f) => f.type === "DORMITORY").map((f) => f.id);
+    selectAllDormsForDate(currentActiveDate);
+  };
+
+  const selectAllFacilitiesForDate = (dateStr: string) => {
     setDateFacilityMap((prev) => ({
       ...prev,
-      [currentActiveDate]: Array.from(new Set([...(prev[currentActiveDate] || []), ...dormIds])),
+      [dateStr]: facilities.map((f) => f.id),
     }));
   };
 
   const selectAllFacilities = () => {
     if (!currentActiveDate) return;
+    selectAllFacilitiesForDate(currentActiveDate);
+  };
+
+  const clearAllFacilitiesForDate = (dateStr: string) => {
     setDateFacilityMap((prev) => ({
       ...prev,
-      [currentActiveDate]: facilities.map((f) => f.id),
+      [dateStr]: [],
     }));
   };
 
   const clearAllFacilities = () => {
     if (!currentActiveDate) return;
-    setDateFacilityMap((prev) => ({
-      ...prev,
-      [currentActiveDate]: [],
-    }));
+    clearAllFacilitiesForDate(currentActiveDate);
+  };
+
+  const copyDateToAllOthers = (sourceDateStr: string) => {
+    const sourceFacs = dateFacilityMap[sourceDateStr] || [];
+    const sourceTimings = dateTimeTimingMap[sourceDateStr] || {};
+    const sourcePurpose = datePlotPurposeMap[sourceDateStr] || plotPurpose;
+    const sourceScope = dateTimingScopeMap[sourceDateStr] || "SAME_ALL";
+
+    setDateFacilityMap((prev) => {
+      const next = { ...prev };
+      for (const d of selectedDates) {
+        if (d !== sourceDateStr) next[d] = [...sourceFacs];
+      }
+      return next;
+    });
+    setDateTimeTimingMap((prev) => {
+      const next = { ...prev };
+      for (const d of selectedDates) {
+        if (d !== sourceDateStr) next[d] = JSON.parse(JSON.stringify(sourceTimings));
+      }
+      return next;
+    });
+    setDatePlotPurposeMap((prev) => {
+      const next = { ...prev };
+      for (const d of selectedDates) {
+        if (d !== sourceDateStr) next[d] = sourcePurpose;
+      }
+      return next;
+    });
+    setDateTimingScopeMap((prev) => {
+      const next = { ...prev };
+      for (const d of selectedDates) {
+        if (d !== sourceDateStr) next[d] = sourceScope;
+      }
+      return next;
+    });
+    setDateCopySuccess(true);
+    setTimeout(() => setDateCopySuccess(false), 3000);
   };
 
   const copyActiveDateFacilitiesToAll = () => {
     if (!currentActiveDate || selectedDates.length <= 1) return;
-    const currentFacs = dateFacilityMap[currentActiveDate] || [];
-    const currentTimings = dateTimeTimingMap[currentActiveDate] || {};
-    setDateFacilityMap((prev) => {
-      const nextMap = { ...prev };
-      for (const d of selectedDates) {
-        nextMap[d] = [...currentFacs];
-      }
-      return nextMap;
-    });
-    setDateTimeTimingMap((prev) => {
-      const nextMap = { ...prev };
-      for (const d of selectedDates) {
-        nextMap[d] = JSON.parse(JSON.stringify(currentTimings));
-      }
-      return nextMap;
-    });
-    setDateCopySuccess(true);
-    setTimeout(() => setDateCopySuccess(false), 3500);
+    copyDateToAllOthers(currentActiveDate);
   };
 
   const formatDateGu = (dateStr: string) => {
@@ -548,97 +620,114 @@ function BookingsManagementContent() {
     }
   };
 
-  const getActiveDateTimings = (dateStr: string): string[] => {
+  const getDateTimings = (dateStr: string): string[] => {
     const dateMap = dateTimeTimingMap[dateStr];
     if (dateMap && dateMap["__ALL__"] && dateMap["__ALL__"].length > 0) {
       return dateMap["__ALL__"];
     }
-    return selectedTimings.length > 0 ? selectedTimings : [WHOLE_DAY_SLOT_LABEL];
+    return [WHOLE_DAY_SLOT_LABEL];
   };
 
-  const activeDateTimings = getActiveDateTimings(currentActiveDate);
+  const getActiveDateTimings = (dateStr: string): string[] => {
+    return getDateTimings(dateStr);
+  };
+
+  const activeDateTimings = getDateTimings(currentActiveDate);
+
+  const toggleDateTimingSlot = (dateStr: string, slotLabel: string) => {
+    setDateTimeTimingMap((prev) => {
+      const dateMap = prev[dateStr] || {};
+      const current = (dateMap["__ALL__"] && dateMap["__ALL__"].length > 0)
+        ? dateMap["__ALL__"]
+        : [WHOLE_DAY_SLOT_LABEL];
+      let next: string[];
+      if (slotLabel === WHOLE_DAY_SLOT_LABEL) {
+        if (current.includes(WHOLE_DAY_SLOT_LABEL)) {
+          next = current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL);
+        } else {
+          next = [WHOLE_DAY_SLOT_LABEL, ...current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL)];
+        }
+      } else {
+        if (current.includes(slotLabel)) {
+          next = current.filter((s) => s !== slotLabel);
+        } else {
+          next = [...current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL), slotLabel];
+        }
+      }
+      const updatedDateMap: Record<string, string[]> = { ...dateMap, __ALL__: next };
+      const facIds = dateFacilityMap[dateStr] || [];
+      for (const fId of facIds) {
+        updatedDateMap[fId] = next;
+      }
+      return {
+        ...prev,
+        [dateStr]: updatedDateMap,
+      };
+    });
+  };
 
   const toggleTimingSlot = (slotLabel: string) => {
-    const current = activeDateTimings;
-    let next: string[];
-    if (slotLabel === WHOLE_DAY_SLOT_LABEL) {
-      if (current.includes(WHOLE_DAY_SLOT_LABEL)) {
-        next = current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL);
-      } else {
-        next = [WHOLE_DAY_SLOT_LABEL, ...current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL)];
-      }
-    } else {
-      if (current.includes(slotLabel)) {
-        next = current.filter((s) => s !== slotLabel);
-      } else {
-        next = [...current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL), slotLabel];
-      }
-    }
-    setSelectedTimings(next);
-    if (currentActiveDate) {
-      setDateTimeTimingMap((prev) => {
-        const dateMap = prev[currentActiveDate] || {};
-        const updatedDateMap: Record<string, string[]> = { ...dateMap, __ALL__: next };
-        const facIds = dateFacilityMap[currentActiveDate] || [];
-        for (const fId of facIds) {
-          updatedDateMap[fId] = next;
-        }
-        return {
-          ...prev,
-          [currentActiveDate]: updatedDateMap,
-        };
-      });
-    }
+    if (!currentActiveDate) return;
+    toggleDateTimingSlot(currentActiveDate, slotLabel);
   };
 
-  const addCustomSlot = (from: string, to: string) => {
+  const addDateCustomSlot = (dateStr: string, from: string, to: string) => {
     const customSlot = `${from} - ${to}`;
     if (!customSlotsList.includes(customSlot)) {
       setCustomSlotsList((prev) => [...prev, customSlot]);
     }
-    const current = activeDateTimings;
-    if (current.includes(customSlot)) return;
-    const next = [...current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL), customSlot];
-    setSelectedTimings(next);
-    if (currentActiveDate) {
-      setDateTimeTimingMap((prev) => {
-        const dateMap = prev[currentActiveDate] || {};
-        const updatedDateMap: Record<string, string[]> = { ...dateMap, __ALL__: next };
-        const facIds = dateFacilityMap[currentActiveDate] || [];
-        for (const fId of facIds) {
-          updatedDateMap[fId] = next;
-        }
-        return {
-          ...prev,
-          [currentActiveDate]: updatedDateMap,
-        };
-      });
-    }
+    setDateTimeTimingMap((prev) => {
+      const dateMap = prev[dateStr] || {};
+      const current = (dateMap["__ALL__"] && dateMap["__ALL__"].length > 0)
+        ? dateMap["__ALL__"]
+        : [WHOLE_DAY_SLOT_LABEL];
+      if (current.includes(customSlot)) return prev;
+      const next = [...current.filter((s) => s !== WHOLE_DAY_SLOT_LABEL), customSlot];
+      const updatedDateMap: Record<string, string[]> = { ...dateMap, __ALL__: next };
+      const facIds = dateFacilityMap[dateStr] || [];
+      for (const fId of facIds) {
+        updatedDateMap[fId] = next;
+      }
+      return {
+        ...prev,
+        [dateStr]: updatedDateMap,
+      };
+    });
+  };
+
+  const addCustomSlot = (from: string, to: string) => {
+    if (!currentActiveDate) return;
+    addDateCustomSlot(currentActiveDate, from, to);
+  };
+
+  const removeDateCustomSlot = (dateStr: string, slotStr: string) => {
+    setDateTimeTimingMap((prev) => {
+      const dateMap = prev[dateStr] || {};
+      const current = (dateMap["__ALL__"] && dateMap["__ALL__"].length > 0)
+        ? dateMap["__ALL__"]
+        : [WHOLE_DAY_SLOT_LABEL];
+      const next = current.filter((s) => s !== slotStr);
+      const updatedDateMap: Record<string, string[]> = { ...dateMap, __ALL__: next };
+      const facIds = dateFacilityMap[dateStr] || [];
+      for (const fId of facIds) {
+        updatedDateMap[fId] = next;
+      }
+      return {
+        ...prev,
+        [dateStr]: updatedDateMap,
+      };
+    });
   };
 
   const removeCustomSlot = (slotStr: string) => {
     setCustomSlotsList((prev) => prev.filter((s) => s !== slotStr));
-    const current = activeDateTimings;
-    const next = current.filter((s) => s !== slotStr);
-    setSelectedTimings(next);
     if (currentActiveDate) {
-      setDateTimeTimingMap((prev) => {
-        const dateMap = prev[currentActiveDate] || {};
-        const updatedDateMap: Record<string, string[]> = { ...dateMap, __ALL__: next };
-        const facIds = dateFacilityMap[currentActiveDate] || [];
-        for (const fId of facIds) {
-          updatedDateMap[fId] = next;
-        }
-        return {
-          ...prev,
-          [currentActiveDate]: updatedDateMap,
-        };
-      });
+      removeDateCustomSlot(currentActiveDate, slotStr);
     }
   };
 
-  const getActiveFacilitySlots = (facId: string): string[] => {
-    const dateMap = dateTimeTimingMap[currentActiveDate];
+  const getDateFacilitySlots = (dateStr: string, facId: string): string[] => {
+    const dateMap = dateTimeTimingMap[dateStr];
     if (dateMap && dateMap[facId] !== undefined && dateMap[facId].length > 0) {
       return dateMap[facId];
     }
@@ -648,10 +737,14 @@ function BookingsManagementContent() {
     return [WHOLE_DAY_SLOT_LABEL];
   };
 
-  const toggleFacilityCustomTiming = (facId: string, slotStr: string) => {
-    if (!currentActiveDate) return;
+  const getActiveFacilitySlots = (facId: string): string[] => {
+    if (!currentActiveDate) return [WHOLE_DAY_SLOT_LABEL];
+    return getDateFacilitySlots(currentActiveDate, facId);
+  };
+
+  const toggleFacilityCustomTimingForDate = (dateStr: string, facId: string, slotStr: string) => {
     setDateTimeTimingMap((prev) => {
-      const dateMap = prev[currentActiveDate] || {};
+      const dateMap = prev[dateStr] || {};
       const currentSlots = dateMap[facId] !== undefined ? dateMap[facId] : (dateMap["__ALL__"] || [WHOLE_DAY_SLOT_LABEL]);
       let updatedSlots: string[];
       if (slotStr === WHOLE_DAY_SLOT_LABEL) {
@@ -669,7 +762,7 @@ function BookingsManagementContent() {
       }
       return {
         ...prev,
-        [currentActiveDate]: {
+        [dateStr]: {
           ...dateMap,
           [facId]: updatedSlots,
         },
@@ -677,21 +770,30 @@ function BookingsManagementContent() {
     });
   };
 
-  const addFacilityCustomTimingSlot = (facId: string, from: string, to: string) => {
+  const toggleFacilityCustomTiming = (facId: string, slotStr: string) => {
     if (!currentActiveDate) return;
+    toggleFacilityCustomTimingForDate(currentActiveDate, facId, slotStr);
+  };
+
+  const addFacilityCustomTimingSlotForDate = (dateStr: string, facId: string, from: string, to: string) => {
     const slotStr = `${from} - ${to}`;
     setDateTimeTimingMap((prev) => {
-      const dateMap = prev[currentActiveDate] || {};
+      const dateMap = prev[dateStr] || {};
       const currentSlots = dateMap[facId] !== undefined ? dateMap[facId] : (dateMap["__ALL__"] || [WHOLE_DAY_SLOT_LABEL]);
       if (currentSlots.includes(slotStr)) return prev;
       return {
         ...prev,
-        [currentActiveDate]: {
+        [dateStr]: {
           ...dateMap,
           [facId]: [...currentSlots.filter((s) => s !== WHOLE_DAY_SLOT_LABEL), slotStr],
         },
       };
     });
+  };
+
+  const addFacilityCustomTimingSlot = (facId: string, from: string, to: string) => {
+    if (!currentActiveDate) return;
+    addFacilityCustomTimingSlotForDate(currentActiveDate, facId, from, to);
   };
 
   const getNextDateStr = (dateStr: string) => {
@@ -774,8 +876,9 @@ function BookingsManagementContent() {
 
         let baseRent = fac.baseRent || 0;
         if (fac.code === "PLOT-OUTSIDE" || fac.type === "PLOT") {
+          const dtPurpose = datePlotPurposeMap[dateStr] || plotPurpose;
           baseRent =
-            plotPurpose === "WEDDING"
+            dtPurpose === "WEDDING"
               ? fac.weddingRent || fac.baseRent || 0
               : fac.familyRent || fac.baseRent || 0;
         }
@@ -2568,602 +2671,410 @@ function BookingsManagementContent() {
                 </div>
               </div>
 
-              {/* SECTION 2: Facility Selection with Checkboxes */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                {/* Multi-Date Tabs Bar */}
-                {selectedDates.length > 1 && (
-                  <div className="bg-amber-50/90 p-3 rounded-2xl border-2 border-amber-300 space-y-2">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <span className="text-xs font-black text-amber-950 flex items-center gap-1.5 uppercase">
-                        <Calendar className="w-4 h-4 text-amber-800" />
-                        તારીખ પસંદ કરો (Select Date to Setup Facilities & Timings):
-                      </span>
-                      <button
-                        type="button"
-                        onClick={copyActiveDateFacilitiesToAll}
-                        className="text-[11px] font-bold px-3 py-1 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white transition cursor-pointer flex items-center gap-1 shadow-2xs self-start sm:self-auto"
-                        title="આ તારીખની સુવિધાઓ બાકીની બધી તારીખોમાં લાગુ કરો"
-                      >
-                        <span>📋 આ સુવિધાઓ બધી તારીખોમાં કોપી કરો (Copy to All)</span>
-                      </button>
-                    </div>
-
-                    {dateCopySuccess && (
-                      <div className="p-2 bg-emerald-100 border border-emerald-400 text-emerald-900 text-xs font-bold rounded-lg flex items-center gap-1.5 animate-in fade-in">
-                        <CheckCircle className="w-4 h-4 text-emerald-700" />
-                        <span>✓ સુવિધાઓ અને સમય બાકીની બધી તારીખોમાં સફળતાપૂર્વક કોપી થઈ ગયા છે!</span>
-                      </div>
-                    )}
-
-                    {/* Date Tabs */}
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {selectedDates.map((dStr, dIdx) => {
-                        const isActive = dStr === currentActiveDate;
-                        const facCount = (dateFacilityMap[dStr] || []).length;
-                        const [y, m, d] = dStr.split("-").map(Number);
-                        const dt = new Date(y, m - 1, d);
-                        const weekdaysGu = ["રવિ", "સોમ", "મંગળ", "બુધ", "ગુરુ", "શુક્ર", "શનિ"];
-                        const monthsEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                        const label = `${d} ${monthsEn[dt.getMonth()]} (${weekdaysGu[dt.getDay()]})`;
-
-                        return (
-                          <button
-                            key={`tab-btn-${dStr}`}
-                            type="button"
-                            onClick={() => setActiveDate(dStr)}
-                            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer border-2 ${
-                              isActive
-                                ? "bg-red-800 text-white border-red-950 shadow-md ring-2 ring-amber-400"
-                                : "bg-white text-slate-700 border-slate-300 hover:border-red-400 hover:bg-red-50"
-                            }`}
-                          >
-                            <span>📅 {dIdx + 1}. {label}</span>
-                            <span
-                              className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                                isActive
-                                  ? "bg-amber-300 text-red-950"
-                                  : facCount > 0
-                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                                  : "bg-amber-100 text-amber-800 border border-amber-300"
-                              }`}
-                            >
-                              {facCount > 0 ? `${facCount} સુવિધા` : "બાકી"}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
-                      <Building className="w-4 h-4 text-red-800" />
-                      ૨. સુવિધાઓ પસંદ કરો {currentActiveDate && `(તારીખ: ${formatDateGu(currentActiveDate)})`} *
+              {/* ============================================================== */}
+              {/* SECTION 2: DATE-WISE FACILITY & TIMING CARDS (One Per Date)    */}
+              {/* ============================================================== */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-1">
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Calendar className="w-4 h-4 text-red-800" />
+                    ૨. તારીખ મુજબ સુવિધાઓ અને સમય પસંદ કરો ({selectedDates.length} તારીખ)
+                  </span>
+                  {dateCopySuccess && (
+                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
+                      સુવિધાઓ બાકીની તારીખોમાં કોપી થઈ ગઈ!
                     </span>
-                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
-                      {activeDateFacilityIds.length} પસંદ
-                    </span>
-                  </div>
-
-                  {/* Quick Shortcuts */}
-                  <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-                    <button
-                      type="button"
-                      onClick={selectAllRooms}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
-                    >
-                      ✓ બધા એસી રૂમ (All Rooms)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={selectAllHalls}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
-                    >
-                      ✓ બંને હોલ (Both Halls)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={selectAllDorms}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition cursor-pointer"
-                    >
-                      ✓ બધી ડોર્મિટરી
-                    </button>
-                    <button
-                      type="button"
-                      onClick={selectAllFacilities}
-                      className="px-2 py-1 rounded-lg bg-red-800 text-white hover:bg-red-700 transition cursor-pointer"
-                    >
-                      બધું (All)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={clearAllFacilities}
-                      className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition cursor-pointer"
-                    >
-                      સાફ (Clear)
-                    </button>
-                  </div>
+                  )}
                 </div>
 
-                {/* Outside Party Plot */}
-                {facilities.filter((f) => f.type === "PLOT").length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1">
-                      <span>🌿 આઉટસાઇડ પાર્ટી પ્લોટ (Outside Party Plot - Dual Pricing)</span>
-                    </div>
-                    {facilities
-                      .filter((f) => f.type === "PLOT")
-                      .map((fac) => {
-                        const isChecked = activeDateFacilityIds.includes(fac.id);
-                        const currentRent =
-                          plotPurpose === "WEDDING"
-                            ? fac.weddingRent || fac.baseRent || 0
-                            : fac.familyRent || fac.baseRent || 0;
-                        return (
-                          <div
-                            key={fac.id}
-                            className={`p-3 rounded-xl border-2 transition ${
-                              isChecked
-                                ? "border-red-600 bg-red-50/50 shadow-xs"
-                                : "border-slate-200 bg-white hover:border-slate-300"
-                            }`}
-                          >
-                            <label className="flex items-start justify-between gap-3 cursor-pointer">
-                              <div className="flex items-start gap-3">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleFacility(fac.id)}
-                                  className="w-5 h-5 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                />
-                                <div>
-                                  <div className="font-extrabold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
-                                    <span>{fac.name}</span>
-                                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">
-                                      {fac.code}
-                                    </span>
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 mt-0.5">
-                                    ક્ષમતા: {fac.capacity} Persons • ડિપોઝિટ: ₹{(fac.cautionDeposit || 0).toLocaleString("en-IN")}
-                                  </div>
-                                </div>
-                              </div>
-
-                              <div className="text-right shrink-0">
-                                <span className="text-xs sm:text-sm font-black text-red-800 block">
-                                  {currentRent > 0 ? `₹${currentRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                </span>
-                                <span className="text-[10px] font-bold text-slate-500">
-                                  {plotPurpose === "WEDDING" ? "Wedding Tariff" : "Family Tariff"}
-                                </span>
-                              </div>
-                            </label>
-
-                            {/* Outside Party Plot Purpose Selector */}
-                            {isChecked && (
-                              <div className="mt-3 pt-3 border-t border-red-200/60 bg-white/80 p-2.5 rounded-lg space-y-2">
-                                <span className="text-[11px] font-bold text-amber-950 block">
-                                  પાર્ટી પ્લોટ ઉપયોગનો પ્રકાર (Select Purpose & Tariff):
-                                </span>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                  <button
-                                    type="button"
-                                    onClick={() => handlePlotPurposeChange("WEDDING")}
-                                    className={`p-2 rounded-lg border text-left transition cursor-pointer ${
-                                      plotPurpose === "WEDDING"
-                                        ? "bg-red-800 text-white border-red-900 shadow-xs"
-                                        : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    <div className="font-bold">💍 Wedding Function (લગ્ન પ્રસંગ)</div>
-                                    <div className="text-[11px] opacity-90 mt-0.5">
-                                      {fac.weddingRent && fac.weddingRent > 0
-                                        ? `₹${fac.weddingRent.toLocaleString("en-IN")}`
-                                        : "Rate Pending"}
-                                    </div>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handlePlotPurposeChange("FAMILY")}
-                                    className={`p-2 rounded-lg border text-left transition cursor-pointer ${
-                                      plotPurpose === "FAMILY"
-                                        ? "bg-red-800 text-white border-red-900 shadow-xs"
-                                        : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
-                                    }`}
-                                  >
-                                    <div className="font-bold">👨‍👩‍👧‍👦 Family Function (પારિવારિક)</div>
-                                    <div className="text-[11px] opacity-90 mt-0.5">
-                                      {fac.familyRent && fac.familyRent > 0
-                                        ? `₹${fac.familyRent.toLocaleString("en-IN")}`
-                                        : "Rate Pending"}
-                                    </div>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
-
-                {/* Community Halls */}
-                {facilities.filter((f) => f.type === "HALL").length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-                      🏛️ કોમ્યુનિટી હોલ (Community Halls)
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {facilities
-                        .filter((f) => f.type === "HALL")
-                        .map((fac) => {
-                          const isChecked = activeDateFacilityIds.includes(fac.id);
-                          return (
-                            <label
-                              key={fac.id}
-                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
-                                isChecked
-                                  ? "border-red-600 bg-red-50/50 shadow-xs"
-                                  : "border-slate-200 bg-white hover:border-slate-300"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleFacility(fac.id)}
-                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                />
-                                <div className="min-w-0">
-                                  <div className="font-extrabold text-xs text-slate-900 truncate">
-                                    {fac.name}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500">
-                                    {fac.capacity} Persons
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-xs font-black text-slate-800 block">
-                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                </span>
-                              </div>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Dormitories */}
-                {facilities.filter((f) => f.type === "DORMITORY").length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-                      🛏️ ડોર્મિટરી (Dormitories)
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {facilities
-                        .filter((f) => f.type === "DORMITORY")
-                        .map((fac) => {
-                          const isChecked = activeDateFacilityIds.includes(fac.id);
-                          return (
-                            <label
-                              key={fac.id}
-                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
-                                isChecked
-                                  ? "border-red-600 bg-red-50/50 shadow-xs"
-                                  : "border-slate-200 bg-white hover:border-slate-300"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleFacility(fac.id)}
-                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                />
-                                <div className="min-w-0">
-                                  <div className="font-extrabold text-xs text-slate-900 truncate">
-                                    {fac.name}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500">
-                                    {fac.capacity} Beds
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-xs font-black text-slate-800 block">
-                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                </span>
-                              </div>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {/* AC Guest Rooms */}
-                {facilities.filter((f) => f.type === "ROOM").length > 0 && (
-                  <div className="space-y-1.5">
-                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                      <span>🚪 એસી ગેસ્ટ રૂમ (AC Guest Rooms)</span>
-                      <button
-                        type="button"
-                        onClick={selectAllRooms}
-                        className="text-[10px] text-red-800 hover:underline font-bold cursor-pointer"
-                      >
-                        ✓ બધા ૩ રૂમ પસંદ કરો
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      {facilities
-                        .filter((f) => f.type === "ROOM")
-                        .map((fac) => {
-                          const isChecked = activeDateFacilityIds.includes(fac.id);
-                          return (
-                            <label
-                              key={fac.id}
-                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
-                                isChecked
-                                  ? "border-red-600 bg-red-50/50 shadow-xs"
-                                  : "border-slate-200 bg-white hover:border-slate-300"
-                              }`}
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleFacility(fac.id)}
-                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                />
-                                <div className="min-w-0">
-                                  <div className="font-extrabold text-xs text-slate-900 truncate">
-                                    {fac.name}
-                                  </div>
-                                  <div className="text-[10px] text-slate-500">
-                                    {fac.capacity} Beds
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-[11px] font-black text-slate-800 block">
-                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                </span>
-                              </div>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* SECTION 3: Time Slot & Timings (Only 2 Options: Whole Day & Custom) */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wide">
-                      <Clock className="w-4 h-4 text-red-800" />
-                      ૩. સમય સ્લોટ્સ (Select Time Slots) {currentActiveDate && `(${formatDateGu(currentActiveDate)})`} *
-                    </span>
-                    <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
-                      {activeDateTimings.length} સ્લોટ પસંદ
-                    </span>
-                  </div>
-
-                  {/* Timing Scope Toggle */}
-                  <div className="flex items-center bg-white p-0.5 rounded-xl border border-slate-300 text-xs font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setTimingScope("SAME_ALL")}
-                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                        timingScope === "SAME_ALL"
-                          ? "bg-red-800 text-white shadow-xs"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      બધી સુવિધાઓ માટે સરખો સમય (Same for all)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setTimingScope("CUSTOM_PER_FACILITY")}
-                      className={`px-3 py-1 rounded-lg transition cursor-pointer ${
-                        timingScope === "CUSTOM_PER_FACILITY"
-                          ? "bg-red-800 text-white shadow-xs"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      સુવિધા મુજબ અલગ સમય (Per Facility)
-                    </button>
-                  </div>
-                </div>
-
-                {timingScope === "SAME_ALL" ? (
-                  <div className="space-y-3">
-                    {/* Option 1: Whole Day / 24 Hours */}
-                    <label
-                      className={`p-3.5 rounded-xl border-2 flex items-start gap-3 transition cursor-pointer ${
-                        activeDateTimings.includes(WHOLE_DAY_SLOT_LABEL)
-                          ? "border-red-600 bg-red-50/50 shadow-xs"
-                          : "border-slate-200 bg-white hover:border-slate-300"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={activeDateTimings.includes(WHOLE_DAY_SLOT_LABEL)}
-                        onChange={() => toggleTimingSlot(WHOLE_DAY_SLOT_LABEL)}
-                        className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="font-extrabold text-xs text-slate-900 flex items-center gap-2">
-                          <span>૧. આખો દિવસ / 24 Hours (Whole Day)</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-200">
-                            09:00 AM થી બીજા દિવસે 08:00 AM
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-slate-600 mt-0.5 font-medium">
-                          ચેક-ઇન પ્રસંગના દિવસે સવારે 09:00 AM થી ચેક-આઉટ બીજા દિવસે સવારે 08:00 AM સુધી (24 કલાક પૂરા)
-                        </div>
-                      </div>
-                    </label>
-
-                    {/* Option 2: Custom Hourly Timing Box */}
-                    <div className="bg-white p-3.5 rounded-xl border border-blue-200 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5 text-blue-700" />
-                          ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો (Add Custom Timing Slot):
-                        </span>
-                        <span className="text-xs font-mono font-bold bg-blue-50 text-blue-900 px-2.5 py-0.5 rounded-full border border-blue-200">
-                          {customStartTime} થી {customEndTime}
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            શરૂ થવાનો સમય (From Time):
-                          </label>
-                          <select
-                            value={customStartTime}
-                            onChange={(e) => setCustomStartTime(e.target.value)}
-                            className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-900 outline-none"
-                          >
-                            {STANDARD_HOURS.map((hr) => (
-                              <option key={`c-from-${hr}`} value={hr}>{hr}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            પૂરો થવાનો સમય (To Time):
-                          </label>
-                          <select
-                            value={customEndTime}
-                            onChange={(e) => setCustomEndTime(e.target.value)}
-                            className="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2 font-bold text-slate-900 outline-none"
-                          >
-                            {STANDARD_HOURS.map((hr) => (
-                              <option key={`c-to-${hr}`} value={hr}>{hr}</option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => addCustomSlot(customStartTime, customEndTime)}
-                            className="w-full px-3 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>આ સમય ઉમેરો (+ Add)</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Quick presets */}
-                      <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-slate-100">
-                        <span className="text-[10px] font-bold text-slate-500 mr-1 uppercase">ઝડપી સ્લોટ:</span>
-                        {TIMING_PRESETS.map((preset) => (
-                          <button
-                            key={preset.label}
-                            type="button"
-                            onClick={() => {
-                              setCustomStartTime(preset.from);
-                              setCustomEndTime(preset.to);
-                              addCustomSlot(preset.from, preset.to);
-                            }}
-                            className="text-[11px] font-bold px-2 py-0.5 rounded bg-slate-100 hover:bg-blue-100 hover:text-blue-900 text-slate-700 border border-slate-200 transition cursor-pointer"
-                          >
-                            + {preset.from} - {preset.to}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Added custom slots pills with checkbox */}
-                      {customSlotsList.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                          <span className="text-[11px] font-bold text-slate-600">ઉમેરેલ કસ્ટમ સ્લોટ્સ:</span>
-                          {customSlotsList.map((slotStr) => {
-                            const isChecked = activeDateTimings.includes(slotStr);
-                            return (
-                              <div
-                                key={slotStr}
-                                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold transition ${
-                                  isChecked
-                                    ? "bg-blue-100 border-blue-400 text-blue-950 shadow-2xs"
-                                    : "bg-slate-100 border-slate-300 text-slate-500"
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => toggleTimingSlot(slotStr)}
-                                  className="w-3.5 h-3.5 rounded text-blue-700 cursor-pointer"
-                                />
-                                <span>{slotStr}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => removeCustomSlot(slotStr)}
-                                  className="text-slate-400 hover:text-red-700 ml-1 text-xs font-bold cursor-pointer"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                {selectedDates.length === 0 ? (
+                  <div className="bg-amber-50 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center space-y-2">
+                    <Calendar className="w-8 h-8 text-amber-700 mx-auto" />
+                    <div className="text-sm font-bold text-amber-950">ડાબી બાજુ કેલેન્ડરમાંથી તારીખ પસંદ કરો</div>
+                    <div className="text-xs text-amber-800">
+                      તમે કેલેન્ડરમાંથી જેટલી તારીખો પસંદ કરશો તે દરેક તારીખ માટે અલગ-અલગ સુવિધા અને સમય અહીં દેખાશે.
                     </div>
                   </div>
                 ) : (
-                  /* Custom Timing Per Facility (ONLY 2 TIMINGS: WHOLE DAY & CUSTOM) */
-                  <div className="space-y-3">
-                    <div className="text-[11px] text-slate-700 font-semibold bg-amber-50 p-2.5 rounded-lg border border-amber-200">
-                      ℹ️ દરેક સુવિધા માટે માત્ર બે વિકલ્પો ઉપલબ્ધ છે: ૧. આખો દિવસ (09:00 AM થી બીજા દિવસે 08:00 AM) અથવા ૨. ચોક્કસ કસ્ટમ સમય
-                    </div>
-                    {activeDateFacilityIds.length === 0 ? (
-                      <div className="p-4 bg-amber-50/90 rounded-xl border border-amber-300 text-center text-xs font-bold text-amber-900">
-                        ⚠️ આ તારીખ {currentActiveDate && `(${formatDateGu(currentActiveDate)})`} માટે ઉપરથી પહેલા સુવિધાઓ પસંદ કરો, જેથી તેનો સમય નક્કી કરી શકાય.
-                      </div>
-                    ) : (
-                      activeDateFacilityIds.map((facId) => {
-                        const fac = facilities.find((f) => f.id === facId);
-                        if (!fac) return null;
-                        const currentSlots = getActiveFacilitySlots(facId);
-                        const isWholeDay = currentSlots.includes(WHOLE_DAY_SLOT_LABEL);
-                        const facilityCustomSlots = currentSlots.filter((s) => s !== WHOLE_DAY_SLOT_LABEL);
+                  selectedDates.map((dateStr, dateIdx) => {
+                    const facIds = dateFacilityMap[dateStr] || [];
+                    const dtTimings = getDateTimings(dateStr);
+                    const dtScope = getDateTimingScope(dateStr);
+                    const dtPlotPurpose = getDatePlotPurpose(dateStr);
 
-                        return (
-                          <div key={fac.id} className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-3 shadow-2xs">
-                            <div className="flex items-center justify-between font-bold text-xs text-slate-900 pb-1.5 border-b border-slate-100">
-                              <span className="flex items-center gap-1.5">
-                                <Building className="w-3.5 h-3.5 text-red-800" />
-                                {fac.name} ({fac.code})
+                    return (
+                      <div
+                        key={`date-card-${dateStr}`}
+                        className="bg-white rounded-2xl border-2 border-slate-300 hover:border-slate-400 p-4 sm:p-5 shadow-xs space-y-3.5 transition"
+                      >
+                        {/* Date Card Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-slate-100">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-8 h-8 rounded-xl bg-red-800 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
+                              {dateIdx + 1}
+                            </span>
+                            <div>
+                              <div className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-1.5">
+                                <Calendar className="w-4 h-4 text-red-800" />
+                                <span>{formatDateGu(dateStr)}</span>
+                              </div>
+                              <div className="text-[11px] font-bold mt-0.5">
+                                {facIds.length > 0 ? (
+                                  <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                    ✓ {facIds.length} સુવિધા પસંદ કરેલ છે
+                                  </span>
+                                ) : (
+                                  <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                    ⚠️ આ તારીખ માટે સુવિધા પસંદ કરવાની બાકી છે
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Quick Actions for this Date */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                            <button
+                              type="button"
+                              onClick={() => selectAllRoomsForDate(dateStr)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200"
+                            >
+                              ✓ બધા રૂમ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => selectAllHallsForDate(dateStr)}
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200"
+                            >
+                              ✓ બંને હોલ
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => selectAllFacilitiesForDate(dateStr)}
+                              className="px-2 py-1 rounded-lg bg-red-800 text-white hover:bg-red-700 transition cursor-pointer"
+                            >
+                              બધું (All)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => clearAllFacilitiesForDate(dateStr)}
+                              className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition cursor-pointer"
+                            >
+                              સાફ
+                            </button>
+                            {selectedDates.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => copyDateToAllOthers(dateStr)}
+                                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition cursor-pointer shadow-2xs"
+                                title="આ તારીખની સુવિધાઓ અને સમય બાકીની બધી તારીખોમાં કોપી કરો"
+                              >
+                                📋 આ બાકીમાં કોપી કરો
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ૮ સુવિધાઓ (8 Facilities) */}
+                        <div className="space-y-3">
+                          {/* 1. Outside Party Plot */}
+                          {facilities.filter((f) => f.type === "PLOT").length > 0 && (
+                            <div className="space-y-1.5">
+                              <div className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                                <span>🌿 આઉટસાઇડ પાર્ટી પ્લોટ (Outside Party Plot)</span>
+                              </div>
+                              {facilities
+                                .filter((f) => f.type === "PLOT")
+                                .map((fac) => {
+                                  const isChecked = facIds.includes(fac.id);
+                                  const currentRent =
+                                    dtPlotPurpose === "WEDDING"
+                                      ? fac.weddingRent || fac.baseRent || 0
+                                      : fac.familyRent || fac.baseRent || 0;
+                                  return (
+                                    <div
+                                      key={`${dateStr}-${fac.id}`}
+                                      className={`p-3 rounded-xl border-2 transition ${
+                                        isChecked
+                                          ? "border-red-600 bg-red-50/50 shadow-xs"
+                                          : "border-slate-200 bg-white hover:border-slate-300"
+                                      }`}
+                                    >
+                                      <label className="flex items-start justify-between gap-3 cursor-pointer">
+                                        <div className="flex items-start gap-3">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                            className="w-5 h-5 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                          />
+                                          <div>
+                                            <div className="font-extrabold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
+                                              <span>{fac.name}</span>
+                                              <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">
+                                                {fac.code}
+                                              </span>
+                                            </div>
+                                            <div className="text-[11px] text-slate-500 mt-0.5">
+                                              ક્ષમતા: {fac.capacity} Persons • ડિપોઝિટ: ₹{(fac.cautionDeposit || 0).toLocaleString("en-IN")}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        <div className="text-right shrink-0">
+                                          <span className="text-xs sm:text-sm font-black text-red-800 block">
+                                            {currentRent > 0 ? `₹${currentRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                          </span>
+                                          <span className="text-[10px] font-bold text-slate-500">
+                                            {dtPlotPurpose === "WEDDING" ? "Wedding Tariff" : "Family Tariff"}
+                                          </span>
+                                        </div>
+                                      </label>
+
+                                      {/* Outside Party Plot Purpose Selector for this Date */}
+                                      {isChecked && (
+                                        <div className="mt-2.5 pt-2.5 border-t border-red-200/60 bg-white/80 p-2 rounded-lg space-y-1.5">
+                                          <span className="text-[10px] font-bold text-amber-950 block">
+                                            આ તારીખ માટે પાર્ટી પ્લોટ ઉપયોગનો પ્રકાર:
+                                          </span>
+                                          <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <button
+                                              type="button"
+                                              onClick={() => setDatePlotPurpose(dateStr, "WEDDING")}
+                                              className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${
+                                                dtPlotPurpose === "WEDDING"
+                                                  ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                                  : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
+                                              }`}
+                                            >
+                                              <div className="font-bold text-[11px]">💍 Wedding Function (લગ્ન)</div>
+                                              <div className="text-[10px] opacity-90">
+                                                ₹{(fac.weddingRent || fac.baseRent || 0).toLocaleString("en-IN")}
+                                              </div>
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => setDatePlotPurpose(dateStr, "FAMILY")}
+                                              className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${
+                                                dtPlotPurpose === "FAMILY"
+                                                  ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                                  : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
+                                              }`}
+                                            >
+                                              <div className="font-bold text-[11px]">👨‍👩‍👧‍👦 Family Function (પારિવારિક)</div>
+                                              <div className="text-[10px] opacity-90">
+                                                ₹{(fac.familyRent || fac.baseRent || 0).toLocaleString("en-IN")}
+                                              </div>
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          )}
+
+                          {/* 2. Community Halls */}
+                          {facilities.filter((f) => f.type === "HALL").length > 0 && (
+                            <div className="space-y-1">
+                              <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                                🏛️ કોમ્યુનિટી હોલ (Community Halls)
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {facilities
+                                  .filter((f) => f.type === "HALL")
+                                  .map((fac) => {
+                                    const isChecked = facIds.includes(fac.id);
+                                    return (
+                                      <label
+                                        key={`${dateStr}-${fac.id}`}
+                                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
+                                          isChecked
+                                            ? "border-red-600 bg-red-50/50 shadow-xs"
+                                            : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                          />
+                                          <div className="min-w-0">
+                                            <div className="font-extrabold text-xs text-slate-900 truncate">
+                                              {fac.name}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500">
+                                              {fac.capacity} Persons
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <span className="text-xs font-black text-slate-800 block">
+                                            {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                          </span>
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 3. Dormitories */}
+                          {facilities.filter((f) => f.type === "DORMITORY").length > 0 && (
+                            <div className="space-y-1">
+                              <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                                🛏️ ડોર્મિટરી (Dormitories)
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {facilities
+                                  .filter((f) => f.type === "DORMITORY")
+                                  .map((fac) => {
+                                    const isChecked = facIds.includes(fac.id);
+                                    return (
+                                      <label
+                                        key={`${dateStr}-${fac.id}`}
+                                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
+                                          isChecked
+                                            ? "border-red-600 bg-red-50/50 shadow-xs"
+                                            : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                          />
+                                          <div className="min-w-0">
+                                            <div className="font-extrabold text-xs text-slate-900 truncate">
+                                              {fac.name}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500">
+                                              {fac.capacity} Beds
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <span className="text-xs font-black text-slate-800 block">
+                                            {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                          </span>
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 4. AC Guest Rooms */}
+                          {facilities.filter((f) => f.type === "ROOM").length > 0 && (
+                            <div className="space-y-1">
+                              <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                                <span>🚪 એસી ગેસ્ટ રૂમ (AC Guest Rooms)</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                {facilities
+                                  .filter((f) => f.type === "ROOM")
+                                  .map((fac) => {
+                                    const isChecked = facIds.includes(fac.id);
+                                    return (
+                                      <label
+                                        key={`${dateStr}-${fac.id}`}
+                                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
+                                          isChecked
+                                            ? "border-red-600 bg-red-50/50 shadow-xs"
+                                            : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                          />
+                                          <div className="min-w-0">
+                                            <div className="font-extrabold text-xs text-slate-900 truncate">
+                                              {fac.name}
+                                            </div>
+                                            <div className="text-[10px] text-slate-500">
+                                              {fac.capacity} Beds
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <span className="text-[11px] font-black text-slate-800 block">
+                                            {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                          </span>
+                                        </div>
+                                      </label>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* સમય સ્લોટ્સ (Time Slots for this date) */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-slate-200">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-red-800" />
+                              <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                                સમય સ્લોટ્સ (Time Slots for {dateStr}):
                               </span>
-                              <span className="text-[11px] font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                                {currentSlots.length} સ્લોટ પસંદ
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
+                                {dtTimings.length} સ્લોટ પસંદ
                               </span>
                             </div>
 
-                            <div className="space-y-2.5">
+                            <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-300 text-[10px] font-bold">
+                              <button
+                                type="button"
+                                onClick={() => setDateTimingScope(dateStr, "SAME_ALL")}
+                                className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                                  dtScope === "SAME_ALL"
+                                    ? "bg-red-800 text-white shadow-2xs"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                બધી સુવિધાઓ માટે સરખો સમય
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDateTimingScope(dateStr, "CUSTOM_PER_FACILITY")}
+                                className={`px-2 py-0.5 rounded transition cursor-pointer ${
+                                  dtScope === "CUSTOM_PER_FACILITY"
+                                    ? "bg-red-800 text-white shadow-2xs"
+                                    : "text-slate-600 hover:text-slate-900"
+                                }`}
+                              >
+                                સુવિધા મુજબ અલગ સમય
+                              </button>
+                            </div>
+                          </div>
+
+                          {dtScope === "SAME_ALL" ? (
+                            <div className="space-y-2">
                               {/* Option 1: Whole Day */}
                               <label
-                                className={`p-3 rounded-xl border-2 flex items-start gap-2.5 transition cursor-pointer ${
-                                  isWholeDay
+                                className={`p-2.5 rounded-xl border-2 flex items-start gap-2.5 transition cursor-pointer ${
+                                  dtTimings.includes(WHOLE_DAY_SLOT_LABEL)
                                     ? "border-red-600 bg-red-50/50 shadow-2xs"
                                     : "border-slate-200 bg-white hover:border-slate-300"
                                 }`}
                               >
                                 <input
                                   type="checkbox"
-                                  checked={isWholeDay}
-                                  onChange={() => toggleFacilityCustomTiming(fac.id, WHOLE_DAY_SLOT_LABEL)}
+                                  checked={dtTimings.includes(WHOLE_DAY_SLOT_LABEL)}
+                                  onChange={() => toggleDateTimingSlot(dateStr, WHOLE_DAY_SLOT_LABEL)}
                                   className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
                                 />
                                 <div className="min-w-0">
@@ -3173,177 +3084,171 @@ function BookingsManagementContent() {
                                       09:00 AM થી બીજા દિવસે 08:00 AM
                                     </span>
                                   </div>
-                                  <div className="text-[11px] text-slate-600 mt-0.5 font-medium">
+                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
                                     ચેક-ઇન સવારે 09:00 AM → ચેક-આઉટ બીજા દિવસે સવારે 08:00 AM (24 કલાક સંપૂર્ણ સાઇકલ)
                                   </div>
                                 </div>
                               </label>
 
-                              {/* Option 2: Custom Timing */}
-                              <div className="p-3 rounded-xl border-2 border-blue-200 bg-blue-50/30 space-y-2.5">
+                              {/* Option 2: Custom Hourly Timing */}
+                              <div className="p-2.5 rounded-xl border border-blue-200 bg-white space-y-2">
                                 <div className="flex flex-wrap items-center justify-between gap-1">
-                                  <span className="text-xs font-black text-blue-950 flex items-center gap-1.5">
-                                    <Clock className="w-3.5 h-3.5 text-blue-700" />
-                                    ૨. ચોક્કસ સમય (Custom Timing - કલાક મુજબ):
+                                  <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-blue-700" />
+                                    ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો:
                                   </span>
-                                  <span className="text-[11px] font-bold text-blue-800 bg-blue-100 px-2 py-0.5 rounded-full border border-blue-200">
-                                    {facilityCustomSlots.length > 0
-                                      ? `${facilityCustomSlots.length} કસ્ટમ સ્લોટ પસંદ`
-                                      : "કસ્ટમ સમય પસંદ કરો"}
-                                  </span>
+                                  {/* Presets */}
+                                  <div className="flex flex-wrap items-center gap-1">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase">ઝડપી સ્લોટ:</span>
+                                    {TIMING_PRESETS.map((preset) => {
+                                      const presetStr = `${preset.from} - ${preset.to}`;
+                                      const isChecked = dtTimings.includes(presetStr);
+                                      return (
+                                        <button
+                                          key={`${dateStr}-${preset.label}`}
+                                          type="button"
+                                          onClick={() => toggleDateTimingSlot(dateStr, presetStr)}
+                                          className={`text-[10px] font-bold px-2 py-0.5 rounded border transition cursor-pointer ${
+                                            isChecked
+                                              ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                                              : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
+                                          }`}
+                                        >
+                                          {isChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
 
-                                {/* Quick Presets for this facility */}
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase">ઝડપી સ્લોટ:</span>
-                                  {TIMING_PRESETS.map((preset) => {
-                                    const presetSlot = `${preset.from} - ${preset.to}`;
-                                    const isSelected = currentSlots.includes(presetSlot);
-                                    return (
-                                      <button
-                                        key={`${fac.id}-${preset.label}`}
-                                        type="button"
-                                        onClick={() => toggleFacilityCustomTiming(fac.id, presetSlot)}
-                                        className={`text-[11px] font-bold px-2 py-0.5 rounded border transition cursor-pointer ${
-                                          isSelected
-                                            ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
-                                            : "bg-white hover:bg-blue-100 text-slate-700 border-slate-300"
-                                        }`}
-                                      >
-                                        {isSelected ? "✓ " : "+ "}{preset.from} - {preset.to}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-
-                                {/* From / To time dropdowns for this facility */}
-                                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-blue-100">
+                                {/* From / To dropdowns */}
+                                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[11px] font-bold text-slate-600">શરૂ:</span>
+                                    <span className="text-[10px] font-bold text-slate-600">શરૂ:</span>
                                     <select
-                                      id={`fac-start-${fac.id}`}
+                                      id={`dt-st-${dateStr}`}
                                       defaultValue="12:00 PM"
-                                      className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold text-slate-900 outline-none"
+                                      className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
                                     >
                                       {STANDARD_HOURS.map((hr) => (
-                                        <option key={`fac-st-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                        <option key={`st-${dateStr}-${hr}`} value={hr}>{hr}</option>
                                       ))}
                                     </select>
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[11px] font-bold text-slate-600">અંત:</span>
+                                    <span className="text-[10px] font-bold text-slate-600">અંત:</span>
                                     <select
-                                      id={`fac-end-${fac.id}`}
+                                      id={`dt-en-${dateStr}`}
                                       defaultValue="02:00 PM"
-                                      className="text-xs bg-white border border-slate-300 rounded-lg px-2 py-1 font-bold text-slate-900 outline-none"
+                                      className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
                                     >
                                       {STANDARD_HOURS.map((hr) => (
-                                        <option key={`fac-en-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                        <option key={`en-${dateStr}-${hr}`} value={hr}>{hr}</option>
                                       ))}
                                     </select>
                                   </div>
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const stEl = document.getElementById(`fac-start-${fac.id}`) as HTMLSelectElement;
-                                      const enEl = document.getElementById(`fac-end-${fac.id}`) as HTMLSelectElement;
+                                      const stEl = document.getElementById(`dt-st-${dateStr}`) as HTMLSelectElement;
+                                      const enEl = document.getElementById(`dt-en-${dateStr}`) as HTMLSelectElement;
                                       if (stEl && enEl) {
-                                        addFacilityCustomTimingSlot(fac.id, stEl.value, enEl.value);
+                                        addDateCustomSlot(dateStr, stEl.value, enEl.value);
                                       }
                                     }}
-                                    className="px-2.5 py-1 rounded-lg bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                    className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
                                   >
-                                    <Plus className="w-3.5 h-3.5" />
-                                    <span>આ સમય ઉમેરો (+ Add)</span>
+                                    <Plus className="w-3 h-3" />
+                                    <span>ઉમેરો</span>
                                   </button>
-                                </div>
 
-                                {/* Render selected custom timing chips */}
-                                {facilityCustomSlots.length > 0 && (
-                                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                                    <span className="text-[11px] font-bold text-blue-900">પસંદ કરેલ સ્લોટ્સ:</span>
-                                    {facilityCustomSlots.map((slotStr) => (
-                                      <span
-                                        key={`${fac.id}-${slotStr}`}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-blue-100 border border-blue-300 text-blue-950 text-xs font-bold shadow-2xs"
+                                  {/* Display custom slots pills */}
+                                  {dtTimings.filter((s) => s !== WHOLE_DAY_SLOT_LABEL).map((slotStr) => (
+                                    <span
+                                      key={`${dateStr}-${slotStr}`}
+                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 border border-blue-300 text-blue-950 font-bold text-[10px]"
+                                    >
+                                      <span>{slotStr}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleDateTimingSlot(dateStr, slotStr)}
+                                        className="text-blue-500 hover:text-red-700 font-bold cursor-pointer"
                                       >
-                                        <span>{slotStr}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleFacilityCustomTiming(fac.id, slotStr)}
-                                          className="text-blue-500 hover:text-red-700 ml-1 font-bold cursor-pointer"
-                                          title="કાઢી નાખો (Remove)"
-                                        >
-                                          ✕
-                                        </button>
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                                        ✕
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                          ) : (
+                            /* Per Facility timing on this date */
+                            <div className="space-y-2">
+                              {facIds.length === 0 ? (
+                                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-center text-xs font-bold text-amber-900">
+                                  ⚠️ ઉપરથી પહેલા સુવિધાઓ પસંદ કરો, જેથી તેનો સમય નક્કી કરી શકાય.
+                                </div>
+                              ) : (
+                                facIds.map((facId) => {
+                                  const fac = facilities.find((f) => f.id === facId);
+                                  if (!fac) return null;
+                                  const currentSlots = getDateFacilitySlots(dateStr, facId);
+                                  const isWholeDay = currentSlots.includes(WHOLE_DAY_SLOT_LABEL);
+
+                                  return (
+                                    <div key={`fac-time-${dateStr}-${fac.id}`} className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                                      <div className="flex items-center justify-between font-bold text-xs text-slate-900">
+                                        <span className="flex items-center gap-1">
+                                          <Building className="w-3 h-3 text-red-800" />
+                                          {fac.name} ({fac.code})
+                                        </span>
+                                        <span className="text-[10px] font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                                          {currentSlots.length} સ્લોટ
+                                        </span>
+                                      </div>
+
+                                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
+                                        <label className="flex items-center gap-1.5 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={isWholeDay}
+                                            onChange={() => toggleFacilityCustomTimingForDate(dateStr, fac.id, WHOLE_DAY_SLOT_LABEL)}
+                                            className="w-3.5 h-3.5 rounded text-red-800"
+                                          />
+                                          <span className="font-bold text-[11px]">આખો દિવસ (09 AM થી 08 AM)</span>
+                                        </label>
+
+                                        {TIMING_PRESETS.map((preset) => {
+                                          const pStr = `${preset.from} - ${preset.to}`;
+                                          const isPChecked = currentSlots.includes(pStr);
+                                          return (
+                                            <button
+                                              key={`fac-p-${dateStr}-${fac.id}-${preset.label}`}
+                                              type="button"
+                                              onClick={() => toggleFacilityCustomTimingForDate(dateStr, fac.id, pStr)}
+                                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition cursor-pointer ${
+                                                isPChecked
+                                                  ? "bg-blue-600 text-white border-blue-700"
+                                                  : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
+                                              }`}
+                                            >
+                                              {isPChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
-
-              {/* Multi-Date Step Navigation Bar */}
-              {selectedDates.length > 1 && (
-                <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-3.5 rounded-2xl border-2 border-amber-300 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-7 h-7 rounded-full bg-amber-700 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
-                      {activeDateIndex + 1}/{selectedDates.length}
-                    </span>
-                    <div className="text-xs">
-                      <div className="font-extrabold text-amber-950 flex items-center gap-1.5">
-                        <span>તારીખ {activeDateIndex + 1} ની ગોઠવણી:</span>
-                        <span className="font-mono bg-white px-2 py-0.5 rounded border border-amber-300 text-amber-900">
-                          {formatDateGu(currentActiveDate)}
-                        </span>
-                      </div>
-                      <div className="text-[11px] font-bold mt-0.5">
-                        {activeDateFacilityIds.length > 0 ? (
-                          <span className="text-emerald-700">✓ {activeDateFacilityIds.length} સુવિધા પસંદ કરેલ છે</span>
-                        ) : (
-                          <span className="text-amber-800">⚠️ આ તારીખ માટે સુવિધા પસંદ કરવાની બાકી છે</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                    {activeDateIndex > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setActiveDate(selectedDates[activeDateIndex - 1])}
-                        className="px-3.5 py-2 rounded-xl bg-white border border-amber-300 text-amber-950 hover:bg-amber-100 text-xs font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                        <span>પાછલી તારીખ</span>
-                      </button>
-                    )}
-
-                    {hasNextDate ? (
-                      <button
-                        type="button"
-                        onClick={() => setActiveDate(nextDateStr)}
-                        className="px-4 py-2 rounded-xl bg-red-800 hover:bg-red-700 active:scale-95 text-white text-xs font-black transition cursor-pointer flex items-center gap-1.5 shadow-md"
-                      >
-                        <span>આગળની તારીખ ({formatDateGu(nextDateStr)}) પર જાઓ</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
-                    ) : (
-                      <div className="text-xs font-extrabold text-emerald-800 bg-emerald-100 px-3.5 py-2 rounded-xl border border-emerald-300 flex items-center gap-1.5">
-                        <CheckCircle className="w-4 h-4 text-emerald-700" />
-                        <span>તમામ {selectedDates.length} તારીખો કન્ફિગર થઈ ગઈ છે! નીચેથી કન્ફર્મ કરો ⬇️</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* SECTION 4: Add-on Services: Cleaning & Waste Collection */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
