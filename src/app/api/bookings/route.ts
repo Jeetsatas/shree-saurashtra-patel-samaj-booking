@@ -8,6 +8,10 @@ import {
   isFullDaySlot,
   WHOLE_DAY_SLOT_LABEL,
 } from "@/lib/slotUtils";
+import {
+  getNextAvailableBookingNumbers,
+  executeWithBookingNumberRetry,
+} from "@/lib/bookingSequence";
 
 export async function GET(req: NextRequest) {
   try {
@@ -154,27 +158,15 @@ export async function POST(req: NextRequest) {
     // BRANCH A: MULTI-FACILITY / MULTI-DATE / MULTI-TIMING BATCH CREATION
     // =========================================================================
     if (items && Array.isArray(items) && items.length > 0) {
-      // 1. Fetch facilities, discount rule, and latest booking number in parallel
-      const [allFacilities, discountRule, latestBooking] = await Promise.all([
+      // 1. Fetch facilities and optional discount rule in parallel
+      const [allFacilities, discountRule] = await Promise.all([
         prisma.facility.findMany(),
         discountCode && discountCode !== "NONE" && !discountOverridden
           ? prisma.discountRule.findUnique({ where: { code: discountCode } })
           : Promise.resolve(null),
-        prisma.booking.findFirst({
-          orderBy: { createdAt: "desc" },
-          select: { bookingNumber: true },
-        }),
       ]);
       const facMap = new Map(allFacilities.map((f) => [f.id, f]));
-
       const currentYear = new Date().getFullYear();
-      let nextSeq = 1;
-      if (latestBooking?.bookingNumber) {
-        const match = latestBooking.bookingNumber.match(/SSPS-\d{4}-(\d+)/);
-        if (match) {
-          nextSeq = parseInt(match[1], 10) + 1;
-        }
-      }
 
       // 2. Fetch active bookings for conflict checking (scoped by facility/group and bounded date range)
       const targetFacilityIds = Array.from(new Set(items.map((it: any) => it.facilityId)));
@@ -332,48 +324,54 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // 4. Create all bookings in a SINGLE atomic database transaction (Pipeline Batch)
-      const createOperations = preparedItems.map((item, idx) => {
-        const bookingNum = `SSPS-${currentYear}-${String(nextSeq + idx).padStart(4, "0")}`;
-        return prisma.booking.create({
-          data: {
-            bookingNumber: bookingNum,
-            facilityId: item.facilityId,
-            customerName,
-            customerPhone,
-            customerEmail: customerEmail || null,
-            customerAddress: customerAddress || null,
-            customerAadhar: customerAadhar || null,
-            eventType: eventType || "General Function",
-            startDate: item.startDate,
-            endDate: item.endDate,
-            slot: item.slot,
-            status: status || "CONFIRMED",
-            facilityAmount: item.facilityAmount,
-            discountCode: discountCode || null,
-            discountPercent: discPct,
-            discountAmount: item.discountAmount,
-            discountOverridden: !!discountOverridden,
-            discountOverrideReason: discountOverrideReason || null,
-            selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
-            servicesAmount: item.servicesAmount,
-            totalAmount: item.totalAmount,
-            depositAmount: item.depositAmount,
-            paymentStatus: paymentStatus || "PENDING",
-            paymentMethod: paymentMethod || "OFFLINE_CASH",
-            paymentRefNo: paymentRefNo || null,
-            notes: notes || null,
-            bookedByUserId: user.id,
-            createdByName: user.name,
-            lastUpdatedByName: user.name,
-          },
-          include: {
-            facility: true,
-          },
-        });
-      });
+      // 4. Create all bookings in a SINGLE atomic database transaction with collision-proof sequence allocation
+      const createdBookings = await executeWithBookingNumberRetry(
+        async (bookingNumbers) => {
+          const createOperations = preparedItems.map((item, idx) => {
+            const bookingNum = bookingNumbers[idx];
+            return prisma.booking.create({
+              data: {
+                bookingNumber: bookingNum,
+                facilityId: item.facilityId,
+                customerName,
+                customerPhone,
+                customerEmail: customerEmail || null,
+                customerAddress: customerAddress || null,
+                customerAadhar: customerAadhar || null,
+                eventType: eventType || "General Function",
+                startDate: item.startDate,
+                endDate: item.endDate,
+                slot: item.slot,
+                status: status || "CONFIRMED",
+                facilityAmount: item.facilityAmount,
+                discountCode: discountCode || null,
+                discountPercent: discPct,
+                discountAmount: item.discountAmount,
+                discountOverridden: !!discountOverridden,
+                discountOverrideReason: discountOverrideReason || null,
+                selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
+                servicesAmount: item.servicesAmount,
+                totalAmount: item.totalAmount,
+                depositAmount: item.depositAmount,
+                paymentStatus: paymentStatus || "PENDING",
+                paymentMethod: paymentMethod || "OFFLINE_CASH",
+                paymentRefNo: paymentRefNo || null,
+                notes: notes || null,
+                bookedByUserId: user.id,
+                createdByName: user.name,
+                lastUpdatedByName: user.name,
+              },
+              include: {
+                facility: true,
+              },
+            });
+          });
 
-      const createdBookings = await prisma.$transaction(createOperations);
+          return await prisma.$transaction(createOperations);
+        },
+        preparedItems.length,
+        currentYear
+      );
 
       // 5. Fire-and-forget non-blocking audit logging using Promise.allSettled
       // Executes asynchronously in the background so the HTTP response returns immediately
@@ -421,18 +419,14 @@ export async function POST(req: NextRequest) {
       end = new Date(start.getTime() + 86400000);
     }
 
-    // 1. Fetch Target Facility, optional Discount Rule, and latest booking in parallel
-    const [targetFacility, discountRule, latestBooking] = await Promise.all([
+    // 1. Fetch Target Facility and optional Discount Rule in parallel
+    const [targetFacility, discountRule] = await Promise.all([
       prisma.facility.findUnique({
         where: { id: facilityId },
       }),
       discountCode && discountCode !== "NONE" && !discountOverridden
         ? prisma.discountRule.findUnique({ where: { code: discountCode } })
         : Promise.resolve(null),
-      prisma.booking.findFirst({
-        orderBy: { createdAt: "desc" },
-        select: { bookingNumber: true },
-      }),
     ]);
 
     if (!targetFacility) {
@@ -510,53 +504,50 @@ export async function POST(req: NextRequest) {
     const finalTotalAmount =
       totalAmount !== undefined ? Number(totalAmount) : calculatedTotal;
 
-    // Generate unique booking number from latest sequence
+    // Generate unique booking number using collision-proof allocator with automatic retry
     const currentYear = new Date().getFullYear();
-    let nextNum = 1;
-    if (latestBooking?.bookingNumber) {
-      const match = latestBooking.bookingNumber.match(/SSPS-\d{4}-(\d+)/);
-      if (match) {
-        nextNum = parseInt(match[1], 10) + 1;
-      }
-    }
-    const bookingNumber = `SSPS-${currentYear}-${String(nextNum).padStart(4, "0")}`;
-
-    const newBooking = await prisma.booking.create({
-      data: {
-        bookingNumber,
-        facilityId,
-        customerName,
-        customerPhone,
-        customerEmail: customerEmail || null,
-        customerAddress: customerAddress || null,
-        customerAadhar: customerAadhar || null,
-        eventType: eventType || "General Function",
-        startDate: start,
-        endDate: end,
-        slot: requestedSlot,
-        status: status || "CONFIRMED",
-        facilityAmount: baseFacilityCost,
-        discountCode: discountCode || null,
-        discountPercent: finalDiscountPercent,
-        discountAmount: finalDiscountAmount,
-        discountOverridden: !!discountOverridden,
-        discountOverrideReason: discountOverrideReason || null,
-        selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
-        servicesAmount: finalServicesCost,
-        totalAmount: finalTotalAmount,
-        depositAmount: Number(depositAmount ?? targetFacility.cautionDeposit) || 0,
-        paymentStatus: paymentStatus || "PENDING",
-        paymentMethod: paymentMethod || "OFFLINE_CASH",
-        paymentRefNo: paymentRefNo || null,
-        notes: notes || null,
-        bookedByUserId: user.id,
-        createdByName: user.name,
-        lastUpdatedByName: user.name,
+    const newBooking = await executeWithBookingNumberRetry(
+      async ([bookingNumber]) => {
+        return await prisma.booking.create({
+          data: {
+            bookingNumber,
+            facilityId,
+            customerName,
+            customerPhone,
+            customerEmail: customerEmail || null,
+            customerAddress: customerAddress || null,
+            customerAadhar: customerAadhar || null,
+            eventType: eventType || "General Function",
+            startDate: start,
+            endDate: end,
+            slot: requestedSlot,
+            status: status || "CONFIRMED",
+            facilityAmount: baseFacilityCost,
+            discountCode: discountCode || null,
+            discountPercent: finalDiscountPercent,
+            discountAmount: finalDiscountAmount,
+            discountOverridden: !!discountOverridden,
+            discountOverrideReason: discountOverrideReason || null,
+            selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
+            servicesAmount: finalServicesCost,
+            totalAmount: finalTotalAmount,
+            depositAmount: Number(depositAmount ?? targetFacility.cautionDeposit) || 0,
+            paymentStatus: paymentStatus || "PENDING",
+            paymentMethod: paymentMethod || "OFFLINE_CASH",
+            paymentRefNo: paymentRefNo || null,
+            notes: notes || null,
+            bookedByUserId: user.id,
+            createdByName: user.name,
+            lastUpdatedByName: user.name,
+          },
+          include: {
+            facility: true,
+          },
+        });
       },
-      include: {
-        facility: true,
-      },
-    });
+      1,
+      currentYear
+    );
 
     // Record activity non-blocking so client receives response immediately
     prisma.activityLog
