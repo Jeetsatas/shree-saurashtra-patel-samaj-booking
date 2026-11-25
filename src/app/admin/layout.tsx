@@ -44,6 +44,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isLoginPage = pathname === "/admin/login";
 
+  const handleNewBookingClick = () => {
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/admin/bookings")) {
+      window.dispatchEvent(new CustomEvent("open-new-booking-modal"));
+    }
+  };
+
   useEffect(() => {
     if (isLoginPage) {
       setLoading(false);
@@ -243,6 +249,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {isSuper && (
               <Link
                 href="/admin/bookings?new=true"
+                onClick={handleNewBookingClick}
                 className="flex items-center px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold bg-gradient-to-r from-red-700 to-amber-700 hover:from-red-600 hover:to-amber-600 active:scale-95 text-white shadow-lg border border-amber-400/40 transition"
               >
                 <Plus className="w-4 h-4 mr-1.5 text-amber-300 stroke-[3]" />
@@ -486,7 +493,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {isSuper && (
                 <Link
                   href="/admin/bookings?new=true"
-                  onClick={() => setMobileMenuOpen(false)}
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleNewBookingClick();
+                  }}
                   className="flex items-center px-3.5 py-3 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-red-700 to-amber-700 text-white shadow-md border border-amber-400/30 transition min-h-[48px]"
                 >
                   <Plus className="w-5 h-5 mr-3 text-amber-300 stroke-[3]" />
@@ -600,6 +610,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <Link
               href="/admin/bookings?new=true"
+              onClick={handleNewBookingClick}
               className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-[10px] font-black text-amber-300 bg-red-900/80 border border-amber-500/40 min-w-[54px] min-h-[44px]"
             >
               <Plus className="w-5 h-5 mb-0.5 text-amber-300 stroke-[3]" />

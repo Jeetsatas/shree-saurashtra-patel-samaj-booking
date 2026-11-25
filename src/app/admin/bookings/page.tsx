@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
 import {
   doSlotsOverlap,
@@ -44,6 +45,24 @@ import {
 } from "lucide-react";
 
 export default function BookingsManagementPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-3 border-red-700 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-bold text-slate-600">બુકિંગ્સ લોડ થઈ રહ્યા છે...</span>
+          </div>
+        </div>
+      }
+    >
+      <BookingsManagementContent />
+    </Suspense>
+  );
+}
+
+function BookingsManagementContent() {
+  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [bookings, setBookings] = useState<any[]>([]);
   const [facilities, setFacilities] = useState<any[]>([]);
@@ -129,6 +148,65 @@ export default function BookingsManagementPage() {
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
 
+  // Open and Close Modal Helpers with URL Cleanup
+  const openNewBookingModal = (dateParam?: string | null, facParam?: string | null) => {
+    setCreateError("");
+    setShowCreateModal(true);
+    if (dateParam) {
+      setSelectedDates([dateParam]);
+      setFormData((prev) => ({
+        ...prev,
+        startDate: dateParam,
+        endDate: dateParam,
+      }));
+    }
+    if (facParam) {
+      setSelectedFacilityIds([facParam]);
+    }
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    if (typeof window !== "undefined" && window.location.search.includes("new=true")) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("new");
+      url.searchParams.delete("date");
+      url.searchParams.delete("facilityId");
+      window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+    }
+  };
+
+  // React to searchParams change (handles navigation from calendar or direct URL with ?new=true)
+  useEffect(() => {
+    if (searchParams && searchParams.get("new") === "true") {
+      const dateParam = searchParams.get("date");
+      const facParam = searchParams.get("facilityId");
+      openNewBookingModal(dateParam, facParam);
+    }
+  }, [searchParams]);
+
+  // React to custom event (handles clicking "+ નવું બુકિંગ" in navbar while already on /admin/bookings)
+  useEffect(() => {
+    const handleOpenModal = () => {
+      openNewBookingModal();
+    };
+    window.addEventListener("open-new-booking-modal", handleOpenModal);
+    return () => {
+      window.removeEventListener("open-new-booking-modal", handleOpenModal);
+    };
+  }, []);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showCreateModal) {
+        closeCreateModal();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [showCreateModal]);
+
   useEffect(() => {
     const cachedBookings = getAdminCachedData<any>("/api/bookings");
     const cachedFacilities = getAdminCachedData<any>("/api/facilities");
@@ -140,25 +218,6 @@ export default function BookingsManagementPage() {
     if (cachedServices?.services) setServices(cachedServices.services);
     if (cachedBookings) setLoading(false);
     fetchInitialData();
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get("new") === "true") {
-        setShowCreateModal(true);
-        const dateParam = params.get("date");
-        if (dateParam) {
-          setSelectedDates([dateParam]);
-          setFormData((prev) => ({
-            ...prev,
-            startDate: dateParam,
-            endDate: dateParam,
-          }));
-        }
-        const facParam = params.get("facilityId");
-        if (facParam) {
-          setSelectedFacilityIds([facParam]);
-        }
-      }
-    }
     let lastRefreshTime = 0;
     const refreshWhileVisible = () => {
       if (document.visibilityState === "visible") {
@@ -773,7 +832,7 @@ export default function BookingsManagementPage() {
         setBookings((prev) => [enriched, ...prev]);
       }
 
-      setShowCreateModal(false);
+      closeCreateModal();
       refreshBookings();
     } catch (err: any) {
       setCreateError(err.message || "Failed to create booking");
@@ -1059,10 +1118,7 @@ export default function BookingsManagementPage() {
 
           {isSuperAdmin && (
             <button
-              onClick={() => {
-                setCreateError("");
-                setShowCreateModal(true);
-              }}
+              onClick={() => openNewBookingModal()}
               className="bg-red-800 hover:bg-red-700 text-white text-xs font-bold px-4 py-2.5 rounded-lg shadow transition flex items-center"
             >
               <Plus className="w-4 h-4 mr-1.5" />
@@ -1821,7 +1877,12 @@ export default function BookingsManagementPage() {
 
       {/* New Booking Modal with Multi-Facility, Multi-Date, and Multi-Timing Checkboxes */}
       {showCreateModal && isSuperAdmin && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeCreateModal();
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150"
+        >
           <div className="bg-white rounded-3xl max-w-6xl xl:max-w-7xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-red-800 to-amber-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 shadow-md">
@@ -1843,7 +1904,7 @@ export default function BookingsManagementPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateModal(false)}
+                onClick={closeCreateModal}
                 className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center font-bold text-lg transition cursor-pointer"
               >
                 ✕
@@ -3114,7 +3175,7 @@ export default function BookingsManagementPage() {
           <div className="flex items-center space-x-2 shrink-0">
             <button
               type="button"
-              onClick={() => setShowCreateModal(false)}
+              onClick={closeCreateModal}
               className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
             >
               Cancel (રદ કરો)
