@@ -159,15 +159,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const getRoleBadge = (role: string) => {
     if (role === "SUPER_ADMIN") {
       return (
-        <span className="bg-red-800 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded flex items-center justify-center">
-          <Shield className="w-2.5 h-2.5 mr-1" />
+        <span className="bg-amber-50 text-amber-900 border border-amber-300 font-semibold text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full shadow-2xs flex items-center">
+          <Shield className="w-2.5 h-2.5 mr-1 text-amber-700 stroke-[2.2]" />
           Trustee (Super Admin)
         </span>
       );
     }
     return (
-      <span className="bg-amber-900/80 text-amber-200 text-[10px] font-bold px-2 py-0.5 rounded flex items-center justify-center border border-amber-600/40">
-        <Lock className="w-2.5 h-2.5 mr-1" />
+      <span className="bg-slate-100 text-slate-700 border border-slate-300 font-semibold text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full shadow-2xs flex items-center">
+        <Lock className="w-2.5 h-2.5 mr-1 text-slate-500 stroke-[2.2]" />
         Admin (View Only)
       </span>
     );
@@ -175,8 +175,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="admin-shell min-h-screen flex flex-col bg-slate-100 text-slate-800">
-      {/* Admin Top Navigation */}
-      <header className="bg-slate-900/95 backdrop-blur-md text-white shadow-md sticky top-0 z-40 border-b border-slate-800">
+      {/* Admin Top Navigation - Sleek Transparent Floating Header */}
+      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/90 shadow-2xs transition-all text-slate-800">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 flex items-center justify-between h-14 sm:h-16">
           {/* Logo / Brand */}
           <div className="flex items-center space-x-2.5 sm:space-x-3">
@@ -184,7 +184,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               href={isSuper ? "/admin" : "/admin/calendar"}
               className="flex items-center space-x-2 sm:space-x-2.5 active:scale-95 transition-transform"
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden bg-white/95 border border-amber-400/40 shadow-sm flex items-center justify-center shrink-0 p-0.5">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl overflow-hidden bg-white border border-slate-200 shadow-2xs flex items-center justify-center shrink-0 p-0.5">
                 <Image
                   src="/images/logo.png"
                   alt="Shree Saurashtra Patel Samaj Trust Logo"
@@ -195,10 +195,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 />
               </div>
               <div className="leading-tight">
-                <span className="font-extrabold text-xs sm:text-sm text-white tracking-wide block truncate max-w-[170px] xs:max-w-[210px] sm:max-w-none">
+                <span className="font-extrabold text-xs sm:text-sm text-slate-900 tracking-wide block truncate max-w-[170px] xs:max-w-[210px] sm:max-w-none">
                   શ્રી સૌરાષ્ટ્ર પટેલ સમાજ
                 </span>
-                <span className="text-[9px] sm:text-[10px] text-amber-400 block font-medium">
+                <span className="text-[9px] sm:text-[10px] text-blue-700 block font-bold">
                   Nikol - Naroda Private Admin
                 </span>
               </div>
@@ -206,30 +206,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
 
           {/* Desktop Nav Links (Promoting the 3 Primary Actions for Seniors) */}
-          <nav className="hidden lg:flex items-center space-x-2">
+          <nav className="hidden lg:flex items-center space-x-1.5">
             {/* 1. Live Calendar (કેલેન્ડર) */}
             <Link
               href="/admin/calendar"
-              className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
+              className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
                 pathname.startsWith("/admin/calendar")
-                  ? "bg-amber-500 text-slate-950 font-black shadow-md"
-                  : "text-slate-200 hover:text-white hover:bg-slate-800"
+                  ? "bg-blue-50 text-blue-700 border border-blue-200/90 shadow-2xs font-black"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
               }`}
             >
-              <Calendar className="w-4 h-4 mr-2 text-amber-400" />
+              <Calendar className={`w-4 h-4 mr-2 ${pathname.startsWith("/admin/calendar") ? "text-blue-600" : "text-slate-400"}`} />
               <span>કેલેન્ડર</span>
             </Link>
 
             {/* 2. Bookings & Slips (બુકિંગ લિસ્ટ) */}
             <Link
               href="/admin/bookings"
-              className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
+              className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
                 pathname.startsWith("/admin/bookings")
-                  ? "bg-amber-500 text-slate-950 font-black shadow-md"
-                  : "text-slate-200 hover:text-white hover:bg-slate-800"
+                  ? "bg-blue-50 text-blue-700 border border-blue-200/90 shadow-2xs font-black"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
               }`}
             >
-              <BookOpen className="w-4 h-4 mr-2 text-amber-400" />
+              <BookOpen className={`w-4 h-4 mr-2 ${pathname.startsWith("/admin/bookings") ? "text-blue-600" : "text-slate-400"}`} />
               <span>બુકિંગ્સ</span>
             </Link>
 
@@ -237,13 +237,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {isSuper && (
               <Link
                 href="/admin/payments"
-                className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition ${
+                className={`flex items-center px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
                   pathname.startsWith("/admin/payments")
-                    ? "bg-amber-500 text-slate-950 font-black shadow-md"
-                    : "text-slate-200 hover:text-white hover:bg-slate-800"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200/90 shadow-2xs font-black"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
                 }`}
               >
-                <CreditCard className="w-4 h-4 mr-2 text-amber-400" />
+                <CreditCard className={`w-4 h-4 mr-2 ${pathname.startsWith("/admin/payments") ? "text-blue-600" : "text-slate-400"}`} />
                 <span>પેમેન્ટ સ્થિતિ</span>
               </Link>
             )}
@@ -270,10 +270,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   onClick={() => setTrustMenuOpen(!trustMenuOpen)}
                   aria-expanded={trustMenuOpen}
                   aria-controls="trust-management-menu"
-                  className={`flex items-center px-3 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+                  className={`flex items-center px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                     isManagementRoute
-                      ? "bg-slate-800 text-amber-300 border border-amber-500/30"
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
+                      ? "bg-blue-50 text-blue-700 border border-blue-200/90 shadow-2xs"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80"
                   }`}
                 >
                   <Settings className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
@@ -287,17 +287,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       className="fixed inset-0 z-40"
                       onClick={() => setTrustMenuOpen(false)}
                     />
-                    <div id="trust-management-menu" className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl py-2 z-50 divide-y divide-slate-800/80 text-xs">
-                      <div className="px-3.5 py-1.5 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                    <div id="trust-management-menu" className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-2xl shadow-xl py-2 z-50 divide-y divide-slate-100 text-xs animate-in fade-in zoom-in-95 duration-100">
+                      <div className="px-3.5 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                         ટ્રસ્ટ સંચાલન (Trust Management)
                       </div>
                       <div className="py-1">
                         <Link
                           href="/admin"
                           onClick={() => setTrustMenuOpen(false)}
-                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
                         >
-                          <LayoutDashboard className="w-4 h-4 mr-2.5 text-amber-400" />
+                          <LayoutDashboard className="w-4 h-4 mr-2.5 text-blue-600" />
                           <div>
                             <div className="font-bold">ડેશબોર્ડ (Dashboard)</div>
                             <div className="text-[10px] text-slate-400">મુખ્ય ઓવરવ્યૂ અને આંકડા</div>
@@ -306,9 +306,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Link
                           href="/admin/payments"
                           onClick={() => setTrustMenuOpen(false)}
-                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
                         >
-                          <CreditCard className="w-4 h-4 mr-2.5 text-amber-400" />
+                          <CreditCard className="w-4 h-4 mr-2.5 text-blue-600" />
                           <div>
                             <div className="font-bold">પેમેન્ટ સ્થિતિ (Payment Status)</div>
                             <div className="text-[10px] text-slate-400">સંપૂર્ણ અને બાકી ચુકવણી ટ્રેકિંગ</div>
@@ -317,9 +317,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Link
                           href="/admin/facilities"
                           onClick={() => setTrustMenuOpen(false)}
-                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
                         >
-                          <Building2 className="w-4 h-4 mr-2.5 text-amber-400" />
+                          <Building2 className="w-4 h-4 mr-2.5 text-blue-600" />
                           <div>
                             <div className="font-bold">હોલ અને રૂમ ભાડા (Facilities)</div>
                             <div className="text-[10px] text-slate-400">પ્લોટ, હોલ અને રૂમનું લિસ્ટ અને ભાડા</div>
@@ -328,9 +328,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Link
                           href="/admin/discounts"
                           onClick={() => setTrustMenuOpen(false)}
-                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
                         >
-                          <Percent className="w-4 h-4 mr-2.5 text-amber-400" />
+                          <Percent className="w-4 h-4 mr-2.5 text-blue-600" />
                           <div>
                             <div className="font-bold">ડિસ્કાઉન્ટ અને સર્વિસ (Discounts)</div>
                             <div className="text-[10px] text-slate-400">ટ્રસ્ટી/દાતા ડિસ્કાઉન્ટ અને સફાઈ ચાર્જ</div>
@@ -339,9 +339,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Link
                           href="/admin/activity"
                           onClick={() => setTrustMenuOpen(false)}
-                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
                         >
-                          <History className="w-4 h-4 mr-2.5 text-amber-400" />
+                          <History className="w-4 h-4 mr-2.5 text-blue-600" />
                           <div>
                             <div className="font-bold">પ્રવૃત્તિ ઇતિહાસ (Audit Logs)</div>
                             <div className="text-[10px] text-slate-400">કોણે શું ફેરફાર કર્યો તેનો રેકોર્ડ</div>
@@ -351,9 +351,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           <Link
                             href="/admin/users"
                             onClick={() => setTrustMenuOpen(false)}
-                            className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                            className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
                           >
-                            <Users className="w-4 h-4 mr-2.5 text-amber-400" />
+                            <Users className="w-4 h-4 mr-2.5 text-blue-600" />
                             <div>
                               <div className="font-bold">ટ્રસ્ટી એકાઉન્ટ્સ (Admin Accounts)</div>
                               <div className="text-[10px] text-slate-400">અધિકૃત એડમિન અને પાસવર્ડ નિયંત્રણ</div>
@@ -363,9 +363,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <Link
                           href="/admin/settings"
                           onClick={() => setTrustMenuOpen(false)}
-                          className="flex items-center px-3.5 py-2 text-slate-200 hover:bg-slate-800 hover:text-white"
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
                         >
-                          <Settings className="w-4 h-4 mr-2.5 text-amber-400" />
+                          <Settings className="w-4 h-4 mr-2.5 text-blue-600" />
                           <div>
                             <div className="font-bold">ટ્રસ્ટ સેટિંગ્સ (Trust Settings)</div>
                             <div className="text-[10px] text-slate-400">સામાન્ય નિયમો અને સેટિંગ્સ</div>
@@ -379,54 +379,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </nav>
 
-          {/* User Profile & Prominent Log Out Button (Desktop / Tablet) */}
+          {/* User Profile & Sleek Ghost Log Out Button (Desktop / Tablet) */}
           <div className="hidden md:flex items-center space-x-2.5 sm:space-x-3">
             <div className="text-right leading-tight hidden xl:block">
-              <span className="text-xs font-bold text-white block truncate max-w-[170px]">
+              <span className="text-xs font-bold text-slate-900 block truncate max-w-[170px]">
                 {currentUser?.name || "Administrator"}
               </span>
-              <span className="text-[10px] font-medium text-amber-400 block">
+              <span className="text-[10px] font-medium text-slate-500 block">
                 {currentUser?.email}
               </span>
             </div>
 
             {currentUser && getRoleBadge(currentUser.role)}
 
-            {/* Clear, Prominent Log Out Button */}
+            {/* Sleek Ghost / Outline Log Out Button */}
             <button
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="relative z-50 flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs shadow-md border border-red-600/50 transition cursor-pointer disabled:opacity-60"
+              className="group flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200 hover:border-rose-300 font-bold text-xs shadow-2xs hover:shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-60"
               title="Log out and switch administrator"
             >
-              <LogOut className="w-3.5 h-3.5 text-amber-300" />
+              <LogOut className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-600 transition-colors" />
               <span>{loggingOut ? "Logging out..." : "Log Out"}</span>
             </button>
           </div>
 
           {/* Mobile Quick Role Indicator & Hamburger Menu Button */}
           <div className="flex md:hidden items-center space-x-1.5">
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-800 text-amber-300 border border-slate-700 truncate max-w-[100px]">
-              {isSuper ? "Super Admin" : "View Only"}
-            </span>
+            {currentUser && getRoleBadge(currentUser.role)}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               aria-label="Toggle navigation menu"
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-admin-menu"
-              className="p-2 text-slate-300 hover:text-white hover:bg-slate-800 active:bg-slate-700 rounded-xl transition min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 active:bg-slate-200 rounded-xl transition min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
             >
-              {mobileMenuOpen ? <X className="w-5 h-5 text-amber-400" /> : <Menu className="w-5 h-5" />}
+              {mobileMenuOpen ? <X className="w-5 h-5 text-slate-700" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
 
         {/* View-Only Read-Only Notice Banner */}
         {!isSuper && (
-          <div className="bg-amber-950/90 border-t border-amber-600/30 px-3 py-1.5 text-center text-[11px] sm:text-xs text-amber-300 font-semibold flex items-center justify-center space-x-1.5">
-            <Lock className="w-3 h-3 text-amber-400 flex-shrink-0" />
+          <div className="bg-amber-50 border-t border-amber-200 px-3 py-1.5 text-center text-[11px] sm:text-xs text-amber-800 font-semibold flex items-center justify-center space-x-1.5">
+            <Lock className="w-3 h-3 text-amber-600 flex-shrink-0" />
             <span className="truncate">
               View-Only Mode ({currentUser?.name}): Updates refresh automatically every few seconds.
             </span>
@@ -442,12 +440,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             onClick={() => setMobileMenuOpen(false)}
             className="fixed inset-0 z-30 bg-slate-950/35 lg:hidden"
           />
-          <div id="mobile-admin-menu" className="relative z-40 lg:hidden max-h-[calc(100dvh-10rem)] overflow-y-auto overscroll-contain border-t border-slate-800 px-4 pt-3 pb-6 space-y-3 bg-slate-900/98 backdrop-blur-lg shadow-2xl">
+          <div id="mobile-admin-menu" className="relative z-40 lg:hidden max-h-[calc(100dvh-10rem)] overflow-y-auto overscroll-contain border-t border-slate-200 px-4 pt-3 pb-6 space-y-3 bg-white/98 backdrop-blur-lg shadow-2xl">
             {/* User Profile Card */}
-            <div className="p-3 bg-slate-800/80 rounded-xl border border-slate-700/60 flex items-center justify-between">
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
               <div>
-                <div className="text-xs font-bold text-white">{currentUser?.name}</div>
-                <div className="text-[10px] text-slate-400 truncate max-w-[190px]">{currentUser?.email}</div>
+                <div className="text-xs font-bold text-slate-900">{currentUser?.name}</div>
+                <div className="text-[10px] text-slate-500 truncate max-w-[190px]">{currentUser?.email}</div>
               </div>
               <div>{currentUser && getRoleBadge(currentUser.role)}</div>
             </div>
@@ -459,11 +457,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center px-3.5 py-3 rounded-xl text-xs sm:text-sm font-bold transition min-h-[48px] ${
                   pathname === "/admin/calendar"
-                    ? "bg-amber-500 text-slate-950 shadow-md font-black"
-                    : "text-slate-200 hover:bg-slate-800"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs font-black"
+                    : "text-slate-700 hover:bg-slate-100"
                 }`}
               >
-                <Calendar className="w-5 h-5 mr-3 text-amber-400" />
+                <Calendar className="w-5 h-5 mr-3 text-blue-600" />
                 <span>કેલેન્ડર (Live Calendar)</span>
               </Link>
 
@@ -472,11 +470,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onClick={() => setMobileMenuOpen(false)}
                 className={`flex items-center px-3.5 py-3 rounded-xl text-xs sm:text-sm font-bold transition min-h-[48px] ${
                   pathname === "/admin/bookings"
-                    ? "bg-amber-500 text-slate-950 shadow-md font-black"
-                    : "text-slate-200 hover:bg-slate-800"
+                    ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs font-black"
+                    : "text-slate-700 hover:bg-slate-100"
                 }`}
               >
-                <BookOpen className="w-5 h-5 mr-3 text-amber-400" />
+                <BookOpen className="w-5 h-5 mr-3 text-blue-600" />
                 <span>બુકિંગ લિસ્ટ (Bookings & Slips)</span>
               </Link>
 
@@ -486,11 +484,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   onClick={() => setMobileMenuOpen(false)}
                   className={`flex items-center px-3.5 py-3 rounded-xl text-xs sm:text-sm font-bold transition min-h-[48px] ${
                     pathname === "/admin/payments"
-                      ? "bg-amber-500 text-slate-950 shadow-md font-black"
-                      : "text-slate-200 hover:bg-slate-800"
+                      ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs font-black"
+                      : "text-slate-700 hover:bg-slate-100"
                   }`}
                 >
-                  <CreditCard className="w-5 h-5 mr-3 text-amber-400" />
+                  <CreditCard className="w-5 h-5 mr-3 text-blue-600" />
                   <span>પેમેન્ટ સ્થિતિ (Payment Status)</span>
                 </Link>
               )}
@@ -512,50 +510,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               )}
 
               {isSuper && (
-                <div className="pt-2 border-t border-slate-800/80 mt-2 space-y-1">
-                  <div className="px-3 py-1 text-[10px] font-bold text-amber-400 uppercase tracking-wider">
+                <div className="pt-2 border-t border-slate-200 mt-2 space-y-1">
+                  <div className="px-3 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     વહીવટ અને સેટિંગ્સ (Settings)
                   </div>
                   <Link
                     href="/admin/facilities"
                     onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-slate-100 min-h-[44px]"
                   >
-                    <Building2 className="w-4 h-4 mr-3 text-amber-400" />
+                    <Building2 className="w-4 h-4 mr-3 text-blue-600" />
                     <span>હોલ અને રૂમ ભાડા (Facilities)</span>
                   </Link>
                   <Link
                     href="/admin/discounts"
                     onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-slate-100 min-h-[44px]"
                   >
-                    <Percent className="w-4 h-4 mr-3 text-amber-400" />
+                    <Percent className="w-4 h-4 mr-3 text-blue-600" />
                     <span>ડિસ્કાઉન્ટ અને સર્વિસ (Discounts)</span>
                   </Link>
                   <Link
                     href="/admin/activity"
                     onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-slate-100 min-h-[44px]"
                   >
-                    <History className="w-4 h-4 mr-3 text-amber-400" />
+                    <History className="w-4 h-4 mr-3 text-blue-600" />
                     <span>પ્રવૃત્તિ ઇતિહાસ (Audit Logs)</span>
                   </Link>
                   {isSuper && (
                     <Link
                       href="/admin/users"
                       onClick={() => setMobileMenuOpen(false)}
-                      className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
+                      className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-slate-100 min-h-[44px]"
                     >
-                      <Users className="w-4 h-4 mr-3 text-amber-400" />
+                      <Users className="w-4 h-4 mr-3 text-blue-600" />
                       <span>ટ્રસ્ટી એકાઉન્ટ્સ (Accounts)</span>
                     </Link>
                   )}
                   <Link
                     href="/admin/settings"
                     onClick={() => setMobileMenuOpen(false)}
-                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-200 hover:bg-slate-800 min-h-[44px]"
+                  className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-slate-100 min-h-[44px]"
                   >
-                    <Settings className="w-4 h-4 mr-3 text-amber-400" />
+                    <Settings className="w-4 h-4 mr-3 text-blue-600" />
                     <span>ટ્રસ્ટ સેટિંગ્સ (Trust Settings)</span>
                   </Link>
                 </div>
@@ -563,14 +561,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
 
             {/* Mobile Prominent Log Out Button */}
-            <div className="pt-2 border-t border-slate-800 space-y-2">
+            <div className="pt-2 border-t border-slate-200 space-y-2">
               <button
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="w-full py-2.5 px-4 rounded-xl bg-red-800 hover:bg-red-700 active:bg-red-900 text-white text-xs font-bold flex items-center justify-center space-x-2 shadow-md border border-red-600/50 transition min-h-[44px] cursor-pointer disabled:opacity-60"
+                className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-rose-50 active:bg-rose-100 text-rose-700 font-bold text-xs flex items-center justify-center space-x-2 shadow-2xs border border-rose-200 transition min-h-[44px] cursor-pointer disabled:opacity-60"
               >
-                <LogOut className="w-4 h-4 text-amber-300" />
+                <LogOut className="w-4 h-4 text-rose-500" />
                 <span>{loggingOut ? "Logging out..." : "Log Out"}</span>
               </button>
               <div className="text-center text-[10px] text-slate-500">
@@ -588,15 +586,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </main>
 
       {/* Native-Style Mobile Bottom Navigation Bar (Phone & iPod & Tablet) */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 px-2 pt-1.5 pb-safe flex items-center justify-around shadow-lg">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200/80 px-2 pt-1.5 pb-safe flex items-center justify-around shadow-lg">
         {isSuper ? (
           <>
             <Link
               href="/admin/calendar"
               className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] transition ${
                 pathname.startsWith("/admin/calendar")
-                  ? "text-amber-400 font-extrabold"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "text-blue-700 font-extrabold"
+                  : "text-slate-500 hover:text-slate-900"
               }`}
             >
               <Calendar className="w-5 h-5 mb-0.5" />
@@ -607,8 +605,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               href="/admin/bookings"
               className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] transition ${
                 pathname.startsWith("/admin/bookings")
-                  ? "text-amber-400 font-extrabold"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "text-blue-700 font-extrabold"
+                  : "text-slate-500 hover:text-slate-900"
               }`}
             >
               <BookOpen className="w-5 h-5 mb-0.5" />
@@ -632,7 +630,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               aria-label="Open navigation menu"
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-admin-menu"
-              className="flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] text-slate-400 hover:text-slate-200"
+              className="flex flex-col items-center justify-center py-1 px-2.5 rounded-lg text-[10px] font-bold min-w-[54px] min-h-[44px] text-slate-500 hover:text-slate-900"
             >
               <Menu className="w-5 h-5 mb-0.5" />
               <span>મેનુ</span>
@@ -644,35 +642,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               href="/admin/calendar"
               className={`flex-1 flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-xs font-bold min-h-[44px] transition ${
                 pathname.startsWith("/admin/calendar")
-                  ? "bg-amber-500 text-slate-950 font-black shadow-sm"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-blue-50 text-blue-700 font-black border border-blue-200"
+                  : "text-slate-500 hover:text-slate-900"
               }`}
             >
               <Calendar className="w-5 h-5 mb-0.5" />
-              <span>Calendar View</span>
+              <span>કેલેન્ડર (Calendar)</span>
             </Link>
 
             <Link
               href="/admin/bookings"
               className={`flex-1 flex flex-col items-center justify-center py-1.5 px-3 rounded-xl text-xs font-bold min-h-[44px] transition ml-2 ${
                 pathname.startsWith("/admin/bookings")
-                  ? "bg-amber-500 text-slate-950 font-black shadow-sm"
-                  : "text-slate-400 hover:text-white"
+                  ? "bg-blue-50 text-blue-700 font-black border border-blue-200"
+                  : "text-slate-500 hover:text-slate-900"
               }`}
             >
               <BookOpen className="w-5 h-5 mb-0.5" />
-              <span>All Bookings</span>
+              <span>બુકિંગ્સ (Bookings)</span>
             </Link>
 
             <button
               type="button"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 ml-1 text-slate-400 hover:text-white rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center"
-              aria-label="More options"
-              aria-expanded={mobileMenuOpen}
-              aria-controls="mobile-admin-menu"
+              onClick={handleLogout}
+              className="p-2 ml-1 text-rose-600 hover:bg-rose-50 rounded-xl min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              aria-label="Log Out"
             >
-              <Menu className="w-5 h-5" />
+              <LogOut className="w-5 h-5" />
             </button>
           </>
         )}
