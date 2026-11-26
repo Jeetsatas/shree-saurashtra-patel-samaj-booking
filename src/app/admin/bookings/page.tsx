@@ -622,7 +622,7 @@ function BookingsManagementContent() {
 
   const getDateTimings = (dateStr: string): string[] => {
     const dateMap = dateTimeTimingMap[dateStr];
-    if (dateMap && dateMap["__ALL__"] && dateMap["__ALL__"].length > 0) {
+    if (dateMap && dateMap["__ALL__"] !== undefined) {
       return dateMap["__ALL__"];
     }
     return [WHOLE_DAY_SLOT_LABEL];
@@ -637,7 +637,7 @@ function BookingsManagementContent() {
   const toggleDateTimingSlot = (dateStr: string, slotLabel: string) => {
     setDateTimeTimingMap((prev) => {
       const dateMap = prev[dateStr] || {};
-      const current = (dateMap["__ALL__"] && dateMap["__ALL__"].length > 0)
+      const current = (dateMap["__ALL__"] !== undefined)
         ? dateMap["__ALL__"]
         : [WHOLE_DAY_SLOT_LABEL];
       let next: string[];
@@ -678,7 +678,7 @@ function BookingsManagementContent() {
     }
     setDateTimeTimingMap((prev) => {
       const dateMap = prev[dateStr] || {};
-      const current = (dateMap["__ALL__"] && dateMap["__ALL__"].length > 0)
+      const current = (dateMap["__ALL__"] !== undefined)
         ? dateMap["__ALL__"]
         : [WHOLE_DAY_SLOT_LABEL];
       if (current.includes(customSlot)) return prev;
@@ -703,7 +703,7 @@ function BookingsManagementContent() {
   const removeDateCustomSlot = (dateStr: string, slotStr: string) => {
     setDateTimeTimingMap((prev) => {
       const dateMap = prev[dateStr] || {};
-      const current = (dateMap["__ALL__"] && dateMap["__ALL__"].length > 0)
+      const current = (dateMap["__ALL__"] !== undefined)
         ? dateMap["__ALL__"]
         : [WHOLE_DAY_SLOT_LABEL];
       const next = current.filter((s) => s !== slotStr);
@@ -728,10 +728,10 @@ function BookingsManagementContent() {
 
   const getDateFacilitySlots = (dateStr: string, facId: string): string[] => {
     const dateMap = dateTimeTimingMap[dateStr];
-    if (dateMap && dateMap[facId] !== undefined && dateMap[facId].length > 0) {
+    if (dateMap && dateMap[facId] !== undefined) {
       return dateMap[facId];
     }
-    if (dateMap && dateMap["__ALL__"] && dateMap["__ALL__"].length > 0) {
+    if (dateMap && dateMap["__ALL__"] !== undefined) {
       return dateMap["__ALL__"];
     }
     return [WHOLE_DAY_SLOT_LABEL];
@@ -745,7 +745,7 @@ function BookingsManagementContent() {
   const toggleFacilityCustomTimingForDate = (dateStr: string, facId: string, slotStr: string) => {
     setDateTimeTimingMap((prev) => {
       const dateMap = prev[dateStr] || {};
-      const currentSlots = dateMap[facId] !== undefined ? dateMap[facId] : (dateMap["__ALL__"] || [WHOLE_DAY_SLOT_LABEL]);
+      const currentSlots = dateMap[facId] !== undefined ? dateMap[facId] : (dateMap["__ALL__"] !== undefined ? dateMap["__ALL__"] : [WHOLE_DAY_SLOT_LABEL]);
       let updatedSlots: string[];
       if (slotStr === WHOLE_DAY_SLOT_LABEL) {
         if (currentSlots.includes(WHOLE_DAY_SLOT_LABEL)) {
@@ -779,7 +779,7 @@ function BookingsManagementContent() {
     const slotStr = `${from} - ${to}`;
     setDateTimeTimingMap((prev) => {
       const dateMap = prev[dateStr] || {};
-      const currentSlots = dateMap[facId] !== undefined ? dateMap[facId] : (dateMap["__ALL__"] || [WHOLE_DAY_SLOT_LABEL]);
+      const currentSlots = dateMap[facId] !== undefined ? dateMap[facId] : (dateMap["__ALL__"] !== undefined ? dateMap["__ALL__"] : [WHOLE_DAY_SLOT_LABEL]);
       if (currentSlots.includes(slotStr)) return prev;
       return {
         ...prev,
@@ -885,9 +885,9 @@ function BookingsManagementContent() {
         const cautionDeposit = fac.cautionDeposit || 0;
 
         const facSlots =
-          timingsForDate[facId] && timingsForDate[facId].length > 0
+          timingsForDate[facId] !== undefined
             ? timingsForDate[facId]
-            : timingsForDate["__ALL__"] && timingsForDate["__ALL__"].length > 0
+            : timingsForDate["__ALL__"] !== undefined
               ? timingsForDate["__ALL__"]
               : selectedTimings.length > 0
                 ? selectedTimings
@@ -1034,6 +1034,22 @@ function BookingsManagementContent() {
         `તારીખ ${formatDateGu(emptyDateStr)} માટે કોઈ સુવિધા પસંદ નથી. કૃપા કરીને સુવિધા પસંદ કરો અથવા ડાબી બાજુ કેલેન્ડરમાંથી તે તારીખ દૂર કરો.`
       );
       return;
+    }
+
+    // Check if any facility on any date has 0 time slots selected
+    for (const d of selectedDates) {
+      const fIds = dateFacilityMap[d] || [];
+      for (const fId of fIds) {
+        const slots = getDateFacilitySlots(d, fId);
+        if (slots.length === 0) {
+          const facObj = facilities.find((f) => f.id === fId);
+          setActiveDate(d);
+          setCreateError(
+            `તારીખ ${formatDateGu(d)} પર "${facObj?.name || 'સુવિધા'}" માટે કોઈ સમય સ્લોટ પસંદ કરેલ નથી. કૃપા કરીને આખો દિવસ અથવા ચોક્કસ સમય પસંદ કરો.`
+          );
+          return;
+        }
+      }
     }
 
     if (bookingItems.length === 0) {
@@ -3005,8 +3021,12 @@ function BookingsManagementContent() {
                                     <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
                                       સમય સ્લોટ્સ (Time Slots for {dateStr}):
                                     </span>
-                                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
-                                      {dtTimings.length} સ્લોટ પસંદ
+                                    <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                                      dtTimings.length > 0
+                                        ? "bg-red-100 text-red-800 border-red-300"
+                                        : "bg-amber-100 text-amber-800 border-amber-300"
+                                    }`}>
+                                      {dtTimings.length > 0 ? `${dtTimings.length} સ્લોટ પસંદ` : "સમય પસંદ કરો"}
                                     </span>
                                   </div>
 
@@ -3036,6 +3056,12 @@ function BookingsManagementContent() {
 
                                 {dtScope === "SAME_ALL" ? (
                                   <div className="space-y-2">
+                                    {dtTimings.length === 0 && (
+                                      <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1.5">
+                                        <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                        <span>આ તારીખ માટે ઉપરથી આખો દિવસ, ઝડપી સ્લોટ અથવા ચોક્કસ સમય પસંદ કરો.</span>
+                                      </div>
+                                    )}
                                     {/* Option 1: Whole Day */}
                                     <label
                                       className={`p-2.5 rounded-xl border-2 flex items-start gap-2.5 transition cursor-pointer ${dtTimings.includes(WHOLE_DAY_SLOT_LABEL)
@@ -3173,10 +3199,21 @@ function BookingsManagementContent() {
                                                 <Building className="w-3 h-3 text-red-800" />
                                                 {fac.name} ({fac.code})
                                               </span>
-                                              <span className="text-[10px] font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                                                {currentSlots.length} સ્લોટ
+                                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                                currentSlots.length > 0
+                                                  ? "text-red-800 bg-red-50 border-red-200"
+                                                  : "text-amber-800 bg-amber-50 border-amber-300"
+                                              }`}>
+                                                {currentSlots.length > 0 ? `${currentSlots.length} સ્લોટ પસંદ` : "સમય પસંદ કરો"}
                                               </span>
                                             </div>
+
+                                            {currentSlots.length === 0 && (
+                                              <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-200 flex items-center gap-1.5">
+                                                <Clock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                                <span>આ સુવિધા માટે ઉપરથી ઝડપી સ્લોટ અથવા નીચેથી ચોક્કસ સમય પસંદ કરો.</span>
+                                              </div>
+                                            )}
 
                                             <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
                                               <label className="flex items-center gap-1.5 cursor-pointer">
