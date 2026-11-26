@@ -389,46 +389,52 @@ export default function AdminCalendarPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          {/* View Mode Switcher (Month, Week, Day) */}
-          <div className="flex items-center bg-slate-100 p-0.5 sm:p-1 rounded-xl border border-slate-200 text-xs font-bold">
+          {/* View Mode Switcher (Month, Week, Day) - iOS Segmented Control */}
+          <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-2xl border border-slate-200/90 shadow-inner">
             <button
               onClick={() => setViewMode("MONTH")}
-              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition min-h-[36px] sm:min-h-0 flex items-center justify-center ${
-                viewMode === "MONTH" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              className={`px-3 sm:px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 min-h-[32px] flex items-center justify-center cursor-pointer ${
+                viewMode === "MONTH"
+                  ? "bg-white text-slate-900 shadow-xs font-black scale-[1.02]"
+                  : "text-slate-600 hover:text-slate-900 font-semibold"
               }`}
             >
-              Month
+              Month (મહિનો)
             </button>
             <button
               onClick={() => setViewMode("WEEK")}
-              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition min-h-[36px] sm:min-h-0 flex items-center justify-center ${
-                viewMode === "WEEK" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              className={`px-3 sm:px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 min-h-[32px] flex items-center justify-center cursor-pointer ${
+                viewMode === "WEEK"
+                  ? "bg-white text-slate-900 shadow-xs font-black scale-[1.02]"
+                  : "text-slate-600 hover:text-slate-900 font-semibold"
               }`}
             >
-              Week
+              Week (અઠવાડિયું)
             </button>
             <button
               onClick={() => setViewMode("DAY")}
-              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg transition min-h-[36px] sm:min-h-0 flex items-center justify-center ${
-                viewMode === "DAY" ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
+              className={`px-3 sm:px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 min-h-[32px] flex items-center justify-center cursor-pointer ${
+                viewMode === "DAY"
+                  ? "bg-white text-slate-900 shadow-xs font-black scale-[1.02]"
+                  : "text-slate-600 hover:text-slate-900 font-semibold"
               }`}
             >
-              Day
+              Day (દિવસ)
             </button>
           </div>
 
-          {/* Month / Date Navigation */}
-          <div className="flex items-center space-x-1 bg-slate-100 p-0.5 sm:p-1 rounded-xl border border-slate-200">
+          {/* Month / Date Navigation - Apple Style Secondary Controls */}
+          <div className="flex items-center space-x-1 bg-slate-50 p-1 rounded-2xl border border-slate-200 shadow-2xs">
             <button
               onClick={prevMonth}
               aria-label="Previous Period"
-              className="p-1 sm:p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition shadow-xs min-h-[36px] min-w-[36px] flex items-center justify-center"
+              className="p-1.5 hover:bg-white rounded-xl text-slate-600 hover:text-slate-900 transition-all shadow-2xs hover:shadow-xs min-h-[34px] min-w-[34px] flex items-center justify-center cursor-pointer active:scale-95"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={goToToday}
-              className="px-2 sm:px-3 py-1 text-[11px] sm:text-xs font-bold text-slate-800 hover:bg-white rounded-lg transition whitespace-nowrap min-h-[36px] flex items-center justify-center"
+              className="px-3 py-1 text-xs font-bold text-slate-800 hover:bg-white rounded-xl transition-all shadow-2xs hover:shadow-xs whitespace-nowrap min-h-[34px] flex items-center justify-center cursor-pointer active:scale-95"
             >
               {viewMode === "MONTH" && `${monthNames[month]} ${year}`}
               {viewMode === "WEEK" && `Week of ${currentWeekDays[0].toLocaleDateString("en-IN", { month: "short", day: "numeric" })}`}
@@ -437,7 +443,7 @@ export default function AdminCalendarPage() {
             <button
               onClick={nextMonth}
               aria-label="Next Period"
-              className="p-1 sm:p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 transition shadow-xs min-h-[36px] min-w-[36px] flex items-center justify-center"
+              className="p-1.5 hover:bg-white rounded-xl text-slate-600 hover:text-slate-900 transition-all shadow-2xs hover:shadow-xs min-h-[34px] min-w-[34px] flex items-center justify-center cursor-pointer active:scale-95"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -446,9 +452,11 @@ export default function AdminCalendarPage() {
           {isSuper && (
             <Link
               href="/admin/bookings?new=true"
-              className="bg-red-800 hover:bg-red-700 active:scale-95 text-white text-xs sm:text-sm font-black px-3.5 sm:px-4 py-2 rounded-xl shadow-md transition flex items-center min-h-[38px] border border-amber-400/40"
+              className="group bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.98] text-white text-xs sm:text-sm font-black px-3.5 sm:px-4 py-2 rounded-xl shadow-sm hover:shadow-lg hover:shadow-blue-500/25 border border-blue-400/30 transition-all duration-200 flex items-center min-h-[38px]"
             >
-              <Plus className="w-4 h-4 mr-1.5 text-amber-300 stroke-[3]" />
+              <span className="w-5 h-5 rounded-full bg-white/20 group-hover:bg-white/30 flex items-center justify-center mr-2 shadow-2xs transition-all duration-200">
+                <Plus className="w-3.5 h-3.5 text-white stroke-[3]" />
+              </span>
               <span>+ નવું બુકિંગ (New Booking)</span>
             </Link>
           )}
@@ -477,10 +485,10 @@ export default function AdminCalendarPage() {
                   setFilterType(tab.id);
                   setSelectedFacilityId("ALL");
                 }}
-                className={`text-[11px] sm:text-xs font-bold px-2.5 sm:px-3 py-1.5 rounded-full transition whitespace-nowrap flex-shrink-0 min-h-[32px] ${
+                className={`text-[11px] sm:text-xs font-bold px-3 py-1.5 rounded-full transition-all duration-150 whitespace-nowrap flex-shrink-0 min-h-[32px] cursor-pointer active:scale-95 ${
                   filterType === tab.id
-                    ? "bg-red-800 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200 active:bg-slate-300"
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-xs font-black"
+                    : "bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900 shadow-2xs"
                 }`}
               >
                 {tab.label}
@@ -494,7 +502,7 @@ export default function AdminCalendarPage() {
                 setSelectedFacilityId("ALL");
                 setFilterType("ALL");
               }}
-              className="inline-flex items-center text-[11px] sm:text-xs font-bold text-red-800 hover:text-red-950 bg-red-100 hover:bg-red-200 px-3 py-1.5 rounded-lg transition self-start sm:self-auto flex-shrink-0"
+              className="inline-flex items-center text-[11px] sm:text-xs font-bold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-3 py-1.5 rounded-xl transition-all shadow-2xs active:scale-95 self-start sm:self-auto flex-shrink-0 cursor-pointer"
             >
               ✕ Show All Facilities
             </button>
@@ -939,9 +947,9 @@ export default function AdminCalendarPage() {
                           {isSuper ? (
                             <Link
                               href={`/admin/bookings?new=true&date=${selectedDate ? selectedDate.toISOString().split("T")[0] : ""}&facilityId=${fac.id}`}
-                              className="inline-flex items-center px-3.5 py-1.5 rounded-full bg-[#0066cc] hover:bg-[#0071e3] active:bg-[#0077ed] text-white font-bold text-xs shadow-xs transition"
+                              className="group inline-flex items-center px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.98] text-white font-bold text-xs shadow-sm hover:shadow-md hover:shadow-blue-500/20 transition-all duration-150 border border-blue-400/30"
                             >
-                              <Plus className="w-3.5 h-3.5 mr-1" />
+                              <Plus className="w-3.5 h-3.5 mr-1 stroke-[2.5]" />
                               <span>બુક કરો</span>
                             </Link>
                           ) : (
@@ -1005,9 +1013,9 @@ export default function AdminCalendarPage() {
                           {showAsYellow && (
                             <Link
                               href={`/admin/bookings?new=true&date=${selectedDate ? selectedDate.toISOString().split("T")[0] : ""}&facilityId=${fac.id}`}
-                              className="inline-flex items-center px-3 py-1 rounded-full bg-[#0066cc] hover:bg-[#0071e3] text-white font-bold text-xs shadow-xs transition"
+                              className="group inline-flex items-center px-3 py-1 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.98] text-white font-bold text-xs shadow-sm hover:shadow-md hover:shadow-blue-500/20 transition-all duration-150 border border-blue-400/30"
                             >
-                              <Plus className="w-3 h-3 mr-1" />
+                              <Plus className="w-3 h-3 mr-1 stroke-[2.5]" />
                               <span>+ અન્ય સમય બુક કરો</span>
                             </Link>
                           )}

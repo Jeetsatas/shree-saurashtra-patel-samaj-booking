@@ -253,10 +253,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 href="/admin/bookings?new=true"
                 onClick={handleNewBookingClick}
-                className="flex items-center px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold bg-gradient-to-r from-red-700 to-amber-700 hover:from-red-600 hover:to-amber-600 active:scale-95 text-white shadow-lg border border-amber-400/40 transition"
+                className="group flex items-center px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.98] text-white shadow-sm hover:shadow-lg hover:shadow-blue-500/25 border border-blue-400/30 transition-all duration-200"
               >
-                <Plus className="w-4 h-4 mr-1.5 text-amber-300 stroke-[3]" />
-                <span>નવું બુકિંગ</span>
+                <span className="w-5 h-5 rounded-full bg-white/20 group-hover:bg-white/30 flex items-center justify-center mr-2 shadow-2xs transition-all duration-200">
+                  <Plus className="w-3.5 h-3.5 text-white stroke-[3]" />
+                </span>
+                <span>+ નવું બુકિંગ</span>
               </Link>
             )}
 
@@ -500,9 +502,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     setMobileMenuOpen(false);
                     handleNewBookingClick();
                   }}
-                  className="flex items-center px-3.5 py-3 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-red-700 to-amber-700 text-white shadow-md border border-amber-400/30 transition min-h-[48px]"
+                  className="group flex items-center px-3.5 py-3 rounded-xl text-xs sm:text-sm font-black bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.98] text-white shadow-sm hover:shadow-lg hover:shadow-blue-500/25 border border-blue-400/30 transition-all duration-200 min-h-[48px]"
                 >
-                  <Plus className="w-5 h-5 mr-3 text-amber-300 stroke-[3]" />
+                  <span className="w-6 h-6 rounded-full bg-white/20 group-hover:bg-white/30 flex items-center justify-center mr-3 shadow-2xs transition-all duration-200">
+                    <Plus className="w-4 h-4 text-white stroke-[3]" />
+                  </span>
                   <span>+ નવું બુકિંગ (New Booking)</span>
                 </Link>
               )}
@@ -614,10 +618,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Link
               href="/admin/bookings?new=true"
               onClick={handleNewBookingClick}
-              className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-[10px] font-black text-amber-300 bg-red-900/80 border border-amber-500/40 min-w-[54px] min-h-[44px]"
+              className="group flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-[10px] font-black text-white bg-gradient-to-b from-blue-600 to-indigo-700 shadow-sm hover:shadow-md hover:shadow-blue-500/20 active:scale-[0.98] border border-blue-400/30 min-w-[54px] min-h-[44px] transition-all"
             >
-              <Plus className="w-5 h-5 mb-0.5 text-amber-300 stroke-[3]" />
-              <span>+ નવું બુકિંગ</span>
+              <span className="w-4 h-4 rounded-full bg-white/20 flex items-center justify-center mb-0.5">
+                <Plus className="w-3 h-3 text-white stroke-[3]" />
+              </span>
+              <span>નવું બુકિંગ</span>
             </Link>
 
             <button
