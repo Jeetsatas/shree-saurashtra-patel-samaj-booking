@@ -19,6 +19,7 @@ import {
   View,
   MessageSquare,
   Printer,
+  Edit3,
 } from "lucide-react";
 import Link from "next/link";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
@@ -1074,8 +1075,8 @@ export default function AdminCalendarPage() {
                                 </div>
                               )}
 
-                              {/* Action buttons (Call, WhatsApp, Slip) */}
-                              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                              {/* Action buttons (Call, WhatsApp, Slip, Edit) */}
+                              <div className={`grid ${isSuper ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-3"} gap-1.5 pt-1`}>
                                 {b.customerPhone && (
                                   <a
                                     href={`tel:${b.customerPhone}`}
@@ -1104,6 +1105,16 @@ export default function AdminCalendarPage() {
                                   <Printer className="w-3.5 h-3.5 text-slate-600" />
                                   <span>રસીદ</span>
                                 </Link>
+                                {isSuper && (
+                                  <Link
+                                    href={`/admin/bookings?edit=${b.id}`}
+                                    className="py-2 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs shadow-2xs transition flex items-center justify-center space-x-1"
+                                    title="પાર્ટીની વિગતો સુધારો"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                                    <span>સુધારો</span>
+                                  </Link>
+                                )}
                               </div>
                             </div>
                           );

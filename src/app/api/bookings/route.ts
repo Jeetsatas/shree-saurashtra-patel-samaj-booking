@@ -599,6 +599,12 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const {
       id,
+      customerName,
+      customerPhone,
+      customerEmail,
+      customerAddress,
+      customerAadhar,
+      eventType,
       status,
       slot,
       facilityAmount,
@@ -621,36 +627,52 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "Booking ID is required" }, { status: 400 });
     }
 
-    const updated = await prisma.booking.update({
-      where: { id },
-      data: {
-        ...(status && { status }),
-        ...(slot && { slot: slot.trim() }),
-        ...(facilityAmount !== undefined && { facilityAmount: Number(facilityAmount) }),
-        ...(discountCode !== undefined && { discountCode }),
-        ...(discountPercent !== undefined && { discountPercent: Number(discountPercent) }),
-        ...(discountAmount !== undefined && { discountAmount: Number(discountAmount) }),
-        ...(discountOverridden !== undefined && { discountOverridden: Boolean(discountOverridden) }),
-        ...(discountOverrideReason !== undefined && { discountOverrideReason }),
-        ...(selectedServices !== undefined && {
-          selectedServices:
-            typeof selectedServices === "string"
-              ? selectedServices
-              : JSON.stringify(selectedServices),
-        }),
-        ...(servicesAmount !== undefined && { servicesAmount: Number(servicesAmount) }),
-        ...(totalAmount !== undefined && { totalAmount: Number(totalAmount) }),
-        ...(depositAmount !== undefined && { depositAmount: Number(depositAmount) }),
-        ...(paymentStatus && { paymentStatus }),
-        ...(paymentMethod !== undefined && { paymentMethod }),
-        ...(paymentRefNo !== undefined && { paymentRefNo }),
-        ...(notes !== undefined && { notes }),
-        lastUpdatedByName: user.name,
-      },
-      include: {
-        facility: true,
-      },
-    });
+    if (customerName !== undefined && !customerName.trim()) {
+      return NextResponse.json({ error: "અરજદાર / પાર્ટીનું નામ જરૂરી છે (Party name is required)" }, { status: 400 });
+    }
+
+    if (customerPhone !== undefined && !customerPhone.trim()) {
+      return NextResponse.json({ error: "સંપર્ક નંબર જરૂરી છે (Contact phone is required)" }, { status: 400 });
+    }
+
+    const updated = await withDbRetry(() =>
+      prisma.booking.update({
+        where: { id },
+        data: {
+          ...(customerName !== undefined && { customerName: customerName.trim() }),
+          ...(customerPhone !== undefined && { customerPhone: customerPhone.trim() }),
+          ...(customerEmail !== undefined && { customerEmail: customerEmail?.trim() || null }),
+          ...(customerAddress !== undefined && { customerAddress: customerAddress?.trim() || null }),
+          ...(customerAadhar !== undefined && { customerAadhar: customerAadhar?.trim() || null }),
+          ...(eventType !== undefined && { eventType: eventType.trim() }),
+          ...(status && { status }),
+          ...(slot && { slot: slot.trim() }),
+          ...(facilityAmount !== undefined && { facilityAmount: Number(facilityAmount) }),
+          ...(discountCode !== undefined && { discountCode }),
+          ...(discountPercent !== undefined && { discountPercent: Number(discountPercent) }),
+          ...(discountAmount !== undefined && { discountAmount: Number(discountAmount) }),
+          ...(discountOverridden !== undefined && { discountOverridden: Boolean(discountOverridden) }),
+          ...(discountOverrideReason !== undefined && { discountOverrideReason }),
+          ...(selectedServices !== undefined && {
+            selectedServices:
+              typeof selectedServices === "string"
+                ? selectedServices
+                : JSON.stringify(selectedServices),
+          }),
+          ...(servicesAmount !== undefined && { servicesAmount: Number(servicesAmount) }),
+          ...(totalAmount !== undefined && { totalAmount: Number(totalAmount) }),
+          ...(depositAmount !== undefined && { depositAmount: Number(depositAmount) }),
+          ...(paymentStatus && { paymentStatus }),
+          ...(paymentMethod !== undefined && { paymentMethod }),
+          ...(paymentRefNo !== undefined && { paymentRefNo }),
+          ...(notes !== undefined && { notes: notes?.trim() || null }),
+          lastUpdatedByName: user.name,
+        },
+        include: {
+          facility: true,
+        },
+      })
+    );
 
     // Record activity
     try {
@@ -661,7 +683,7 @@ export async function PUT(req: NextRequest) {
           userEmail: user.email,
           userRole: user.role,
           action: "UPDATE_BOOKING",
-          details: `Updated booking ${updated.bookingNumber} (${updated.customerName}, Status: ${updated.status}, Total: ₹${updated.totalAmount})`,
+          details: `Updated booking ${updated.bookingNumber} (${updated.customerName}, Phone: ${updated.customerPhone}, Event: ${updated.eventType}, Status: ${updated.status})`,
           recordId: updated.id,
           recordType: "BOOKING",
         },

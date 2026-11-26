@@ -34,6 +34,7 @@ import {
   Shield,
   Download,
   Eye,
+  Edit3,
   ArrowUpDown,
   Tag,
   User,
@@ -161,6 +162,25 @@ function BookingsManagementContent() {
   // Booking Detail Modal State
   const [detailBooking, setDetailBooking] = useState<any | null>(null);
 
+  // Edit Booking Modal State (Super Admin)
+  const [editingBooking, setEditingBooking] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    customerName: "",
+    customerPhone: "",
+    customerEmail: "",
+    customerAddress: "",
+    customerAadhar: "",
+    eventType: "Wedding",
+    notes: "",
+    paymentStatus: "PENDING",
+    paymentMethod: "CASH_AT_OFFICE",
+    paymentRefNo: "",
+    status: "CONFIRMED",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [editSuccess, setEditSuccess] = useState("");
+
   // Export State
   const [exporting, setExporting] = useState(false);
   const bookingsRefresh = useRef<Promise<void> | null>(null);
@@ -218,7 +238,19 @@ function BookingsManagementContent() {
       const facParam = searchParams.get("facilityId");
       openNewBookingModal(dateParam, facParam);
     }
-  }, [searchParams]);
+    if (searchParams && searchParams.get("edit") && bookings.length > 0) {
+      const editId = searchParams.get("edit");
+      const target = bookings.find((b) => b.id === editId || b.bookingNumber === editId);
+      if (target) {
+        handleOpenEdit(target);
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("edit");
+          window.history.replaceState(null, "", url.pathname + (url.search ? url.search : ""));
+        }
+      }
+    }
+  }, [searchParams, bookings]);
 
   // React to custom event (handles clicking "+ નવું બુકિંગ" in navbar while already on /admin/bookings)
   useEffect(() => {
@@ -1187,6 +1219,106 @@ function BookingsManagementContent() {
     }
   };
 
+  const handleOpenEdit = (b: any) => {
+    if (!isSuperAdmin) {
+      alert("Only the Super Admin is authorized to edit booking details.");
+      return;
+    }
+    setEditingBooking(b);
+    setEditFormData({
+      customerName: b.customerName || "",
+      customerPhone: b.customerPhone || "",
+      customerEmail: b.customerEmail || "",
+      customerAddress: b.customerAddress || "",
+      customerAadhar: b.customerAadhar || "",
+      eventType: b.eventType || "Wedding",
+      notes: b.notes || "",
+      paymentStatus: b.paymentStatus || "PENDING",
+      paymentMethod: b.paymentMethod || "CASH_AT_OFFICE",
+      paymentRefNo: b.paymentRefNo || "",
+      status: b.status || "CONFIRMED",
+    });
+    setEditError("");
+    setEditSuccess("");
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBooking) return;
+
+    if (!editFormData.customerName.trim()) {
+      setEditError("કૃપા કરીને અરજદાર / પાર્ટીનું નામ દાખલ કરો (Party Name is required)");
+      return;
+    }
+    if (!editFormData.customerPhone.trim()) {
+      setEditError("કૃપા કરીને સંપર્ક નંબર દાખલ કરો (Phone number is required)");
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditError("");
+    setEditSuccess("");
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingBooking.id,
+          customerName: editFormData.customerName.trim(),
+          customerPhone: editFormData.customerPhone.trim(),
+          customerEmail: editFormData.customerEmail.trim(),
+          customerAddress: editFormData.customerAddress.trim(),
+          customerAadhar: editFormData.customerAadhar.trim(),
+          eventType: editFormData.eventType.trim(),
+          notes: editFormData.notes.trim(),
+          paymentStatus: editFormData.paymentStatus,
+          paymentMethod: editFormData.paymentMethod,
+          paymentRefNo: editFormData.paymentRefNo.trim(),
+          status: editFormData.status,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update booking");
+      }
+
+      // Optimistically update bookings in state
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === editingBooking.id
+            ? {
+                ...b,
+                ...data.booking,
+                facility: b.facility,
+              }
+            : b
+        )
+      );
+
+      // If details modal was open or viewing this booking, update it too
+      if (detailBooking?.id === editingBooking.id) {
+        setDetailBooking((prev: any) => ({
+          ...prev,
+          ...data.booking,
+          facility: prev?.facility,
+        }));
+      }
+
+      setEditSuccess("✓ બુકિંગ અને પાર્ટીની વિગતો સફળતાપૂર્વક સુધારાઈ ગઈ છે!");
+      setTimeout(() => {
+        setEditingBooking(null);
+        setEditSuccess("");
+      }, 700);
+    } catch (err: any) {
+      console.error("Booking edit error:", err);
+      setEditError(err.message || "Failed to save booking edits");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
   const handleDeleteClick = (b: any) => {
     if (!isSuperAdmin) {
       alert("Only the Super Admin is authorized to cancel or delete bookings.");
@@ -1820,6 +1952,16 @@ function BookingsManagementContent() {
 
                         {isSuperAdmin && (
                           <button
+                            onClick={() => handleOpenEdit(b)}
+                            title="બુકિંગ અને પાર્ટીની વિગતો સુધારો (Edit Booking & Party Details)"
+                            className="inline-flex items-center justify-center p-2 rounded-xl text-slate-600 hover:text-amber-700 bg-slate-50 hover:bg-amber-50 border border-slate-200/90 hover:border-amber-200 shadow-2xs hover:shadow-xs active:scale-95 transition-all duration-150 group cursor-pointer"
+                          >
+                            <Edit3 className="w-4 h-4 transition-transform group-hover:scale-110 text-amber-600" />
+                          </button>
+                        )}
+
+                        {isSuperAdmin && (
+                          <button
                             onClick={() => handleDeleteClick(b)}
                             title="બુકિંગ રદ અને ડીલીટ કરો (Cancel & Delete Booking)"
                             className="inline-flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200/90 hover:border-rose-200 shadow-2xs hover:shadow-xs active:scale-95 transition-all duration-150 group cursor-pointer"
@@ -1948,6 +2090,16 @@ function BookingsManagementContent() {
                       <Printer className="w-3.5 h-3.5 mr-1.5 text-emerald-600" />
                       Print Slip
                     </Link>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => handleOpenEdit(b)}
+                        title="વિગતો સુધારો (Edit Details)"
+                        className="flex-1 py-2 px-3 text-xs font-bold bg-slate-50 hover:bg-amber-50 active:bg-amber-100 text-slate-700 hover:text-amber-800 rounded-xl border border-slate-200 shadow-2xs transition-all flex items-center justify-center min-h-[40px] cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5 mr-1.5 text-amber-600" />
+                        Edit
+                      </button>
+                    )}
                     {isSuperAdmin && (
                       <button
                         onClick={() => handleDeleteClick(b)}
@@ -2161,6 +2313,20 @@ function BookingsManagementContent() {
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200">
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      const target = detailBooking;
+                      setDetailBooking(null);
+                      handleOpenEdit(target);
+                    }}
+                    title="પાર્ટીનું નામ કે વિગતો સુધારો (Edit Booking & Party Details)"
+                    className="bg-amber-50 border border-amber-300 text-amber-900 hover:bg-amber-100 active:scale-[0.98] text-xs font-bold px-4 py-2 rounded-xl flex items-center shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 mr-1.5 text-amber-700" />
+                    વિગતો સુધારો (Edit Details)
+                  </button>
+                )}
                 <Link
                   href={`/admin/bookings/${detailBooking.id}/receipt`}
                   target="_blank"
@@ -2177,6 +2343,292 @@ function BookingsManagementContent() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Booking Modal (For Super Admin) */}
+      {editingBooking && isSuperAdmin && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !savingEdit) setEditingBooking(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-150"
+        >
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-700 via-indigo-700 to-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shrink-0 shadow-md">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-amber-400 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Super Admin Only
+                  </span>
+                  <span className="text-xs text-blue-200 font-bold">
+                    પાર્ટી અને બુકિંગ વિગતો સુધારો
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-amber-300" />
+                  <span>બુકિંગ સુધારો: {editingBooking.bookingNumber}</span>
+                </h3>
+                <p className="text-xs text-blue-100/90 mt-0.5">
+                  પાર્ટીનું નામ કે વિગતો સુધારીને સાચવો. જૂનો ડેટા ઓવરરાઈટ થશે.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => !savingEdit && setEditingBooking(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 text-white flex items-center justify-center font-bold text-lg transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSaveEdit} className="p-4 sm:p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              {editError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{editError}</span>
+                </div>
+              )}
+
+              {editSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl font-bold flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{editSuccess}</span>
+                </div>
+              )}
+
+              {/* Booking Context Pill (Readonly Summary) */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                <div>
+                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">સુવિધા (Facility)</span>
+                  <span className="font-bold text-slate-800 block truncate mt-0.5">{editingBooking.facility?.name || "Facility"}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">તારીખ (Date)</span>
+                  <span className="font-bold text-slate-800 block mt-0.5">
+                    {new Date(editingBooking.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">સમય (Slot)</span>
+                  <span className="font-bold text-slate-800 block mt-0.5">{editingBooking.slot}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">કુલ રકમ (Tariff)</span>
+                  <span className="font-black text-slate-900 block mt-0.5">₹{editingBooking.totalAmount?.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+
+              {/* Section 1: Party / Applicant Details */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-200">
+                  <User className="w-4 h-4 text-blue-600" />
+                  <span className="font-extrabold text-slate-800 text-xs uppercase tracking-wide">
+                    અરજદાર / પાર્ટીની વિગતો (Applicant & Party Information)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      અરજદાર / પાર્ટીનું પૂરું નામ (Applicant / Party Full Name) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.customerName}
+                      onChange={(e) => setEditFormData({ ...editFormData, customerName: e.target.value })}
+                      placeholder="દા.ત. શ્રી નરેશભાઈ મનસુખભાઈ પાનસુરીયા"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 text-sm shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      સંપર્ક મોબાઇલ નંબર (Contact Phone) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      required
+                      value={editFormData.customerPhone}
+                      onChange={(e) => setEditFormData({ ...editFormData, customerPhone: e.target.value })}
+                      placeholder="દા.ત. 9824454129"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold text-slate-900 text-xs shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      પ્રસંગનો પ્રકાર (Function / Event Type) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={editFormData.eventType}
+                      onChange={(e) => setEditFormData({ ...editFormData, eventType: e.target.value })}
+                      placeholder="દા.ત. Wedding, લગ્ન પ્રસંગ, સગાઈ"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-900 text-xs shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ઈમેલ સરનામું (Email Address - વૈકલ્પિક)
+                    </label>
+                    <input
+                      type="email"
+                      value={editFormData.customerEmail}
+                      onChange={(e) => setEditFormData({ ...editFormData, customerEmail: e.target.value })}
+                      placeholder="દા.ત. example@gmail.com"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 text-xs shadow-2xs"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      આધાર / ઓળખપત્ર (Aadhar / ID Proof - વૈકલ્પિક)
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.customerAadhar}
+                      onChange={(e) => setEditFormData({ ...editFormData, customerAadhar: e.target.value })}
+                      placeholder="દા.ત. Verified at Nikol Office / 1234 5678 9012"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 text-xs shadow-2xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      સરનામું / વતન (Address / Native Place - વૈકલ્પિક)
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.customerAddress}
+                      onChange={(e) => setEditFormData({ ...editFormData, customerAddress: e.target.value })}
+                      placeholder="દા.ત. Ahmedabad, Gujarat"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 text-xs shadow-2xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Status & Payment Information */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center gap-2 pb-1 border-b border-slate-200">
+                  <Tag className="w-4 h-4 text-emerald-600" />
+                  <span className="font-extrabold text-slate-800 text-xs uppercase tracking-wide">
+                    બુકિંગ અને ચુકવણી સ્થિતિ (Booking & Payment Status)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      બુકિંગ સ્થિતિ (Booking Status)
+                    </label>
+                    <select
+                      value={editFormData.status}
+                      onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 text-xs shadow-2xs cursor-pointer bg-white"
+                    >
+                      <option value="CONFIRMED">CONFIRMED (કન્ફર્મ)</option>
+                      <option value="PENDING_APPROVAL">PENDING (પેન્ડિંગ)</option>
+                      <option value="CANCELLED">CANCELLED (રદ થયેલ)</option>
+                      <option value="BLOCKED_BY_TRUST">BLOCKED (ટ્રસ્ટ દ્વારા બ્લોક)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      પેમેન્ટ સ્થિતિ (Payment Status)
+                    </label>
+                    <select
+                      value={editFormData.paymentStatus}
+                      onChange={(e) => setEditFormData({ ...editFormData, paymentStatus: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 text-xs shadow-2xs cursor-pointer bg-white"
+                    >
+                      <option value="PAID">PAID (સંપૂર્ણ ચુકવણી)</option>
+                      <option value="PENDING">PENDING (ચુકવણી બાકી)</option>
+                      <option value="PARTIAL">PARTIAL (આંશિક ચુકવણી)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ચુકવણી પદ્ધતિ (Payment Mode)
+                    </label>
+                    <select
+                      value={editFormData.paymentMethod}
+                      onChange={(e) => setEditFormData({ ...editFormData, paymentMethod: e.target.value })}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-900 text-xs shadow-2xs cursor-pointer bg-white"
+                    >
+                      <option value="CASH_AT_OFFICE">CASH_AT_OFFICE (રોકડ)</option>
+                      <option value="ONLINE_UPI">ONLINE_UPI (ઓનલાઈન UPI)</option>
+                      <option value="BANK_TRANSFER">BANK_TRANSFER (બેંક ટ્રાન્સફર)</option>
+                      <option value="CHEQUE">CHEQUE (ચેક)</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ચુકવણી સંદર્ભ નંબર / રસીદ નં (Payment Ref No - વૈકલ્પિક)
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.paymentRefNo}
+                      onChange={(e) => setEditFormData({ ...editFormData, paymentRefNo: e.target.value })}
+                      placeholder="દા.ત. Receipt-042 / UTR / Cheque No"
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 text-xs shadow-2xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ખાસ નોંધ / શેરો (Admin Notes - વૈકલ્પિક)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={editFormData.notes}
+                      onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                      placeholder="કોઈ વધારાની વિગત કે સુધારા અંગેની ખાસ નોંધ..."
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 text-xs shadow-2xs resize-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  disabled={savingEdit}
+                  onClick={() => setEditingBooking(null)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100 active:scale-[0.98] font-bold text-xs transition cursor-pointer shadow-2xs"
+                >
+                  રદ કરો (Cancel)
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 active:scale-[0.98] text-white font-extrabold text-xs transition shadow-sm hover:shadow-md cursor-pointer flex items-center gap-1.5"
+                >
+                  {savingEdit ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>સાચવી રહ્યા છીએ...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 stroke-[3]" />
+                      <span>ફેરફારો સાચવો (Save Changes)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
