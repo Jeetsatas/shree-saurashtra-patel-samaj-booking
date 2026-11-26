@@ -81,7 +81,12 @@ function getPaymentBadge(status: string) {
 }
 
 export default function AdminPaymentStatusPage() {
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [currentUser, setCurrentUser] = useState<any | null>(() => {
+    return getAdminCachedData<any>("/api/auth/me")?.user || null;
+  });
+  const [authLoading, setAuthLoading] = useState<boolean>(() => {
+    return !getAdminCachedData<any>("/api/auth/me")?.user;
+  });
   const [facilities, setFacilities] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,8 +116,13 @@ export default function AdminPaymentStatusPage() {
     const url = `/api/bookings?month=${m}&year=${y}`;
     const cachedBookings = getAdminCachedData<any>(url) || getAdminCachedData<any>("/api/bookings");
     const cachedFacilities = getAdminCachedData<any>("/api/facilities");
+    const cachedUser = getAdminCachedData<any>("/api/auth/me")?.user;
     if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
     if (cachedFacilities?.facilities) setFacilities(cachedFacilities.facilities);
+    if (cachedUser) {
+      setCurrentUser(cachedUser);
+      setAuthLoading(false);
+    }
     if (cachedBookings || cachedFacilities) setLoading(false);
 
     fetchInitialData();
@@ -159,12 +169,11 @@ export default function AdminPaymentStatusPage() {
       if (!getAdminCachedData(url) && !getAdminCachedData("/api/bookings")) {
         setLoading(true);
       }
-      const [facData, bookData, userRes] = await Promise.all([
+      const [facData, bookData, userData] = await Promise.all([
         fetchAdminJson<any>("/api/facilities"),
         fetchAdminJson<any>(url),
-        fetch("/api/auth/me", { cache: "no-store" }),
+        fetchAdminJson<any>("/api/auth/me"),
       ]);
-      const userData = userRes.ok ? await userRes.json() : { user: null };
 
       if (facData?.facilities) setFacilities(facData.facilities);
       if (bookData?.bookings) setBookings(bookData.bookings);
@@ -173,6 +182,7 @@ export default function AdminPaymentStatusPage() {
       console.error("Payment status load error:", err);
     } finally {
       setLoading(false);
+      setAuthLoading(false);
     }
   };
 
@@ -453,8 +463,18 @@ export default function AdminPaymentStatusPage() {
     }
   };
 
-  // Access Control: Only Super Admin Can View
-  if (!loading && !isSuper) {
+  // While user authentication is being verified, never flash "Restricted Access"!
+  if (authLoading || (currentUser === null && loading)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 space-y-4">
+        <div className="w-10 h-10 border-3 border-red-800 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-bold text-slate-500">પેમેન્ટ સ્થિતિ લોડ થઈ રહી છે...</p>
+      </div>
+    );
+  }
+
+  // Access Control: Only Super Admin Can View (and ONLY if auth has finished loading and currentUser is definitely not Super Admin)
+  if (!authLoading && currentUser && currentUser.role !== "SUPER_ADMIN") {
     return (
       <div className="max-w-2xl mx-auto my-12 bg-white rounded-3xl border border-rose-200 p-8 shadow-sm text-center space-y-4">
         <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">

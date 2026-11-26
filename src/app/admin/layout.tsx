@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { clearAdminClientCache } from "@/lib/admin-client-cache";
+import { clearAdminClientCache, getAdminCachedData, setAdminCachedData } from "@/lib/admin-client-cache";
 import {
   LayoutDashboard,
   Calendar,
@@ -36,7 +36,9 @@ interface AdminUser {
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<AdminUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AdminUser | null>(() => {
+    return getAdminCachedData<any>("/api/auth/me")?.user || null;
+  });
   const [loading, setLoading] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -69,6 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           return;
         }
         setCurrentUser(data.user);
+        setAdminCachedData("/api/auth/me", data);
 
         // View-only admins can only access Calendar and Bookings (Calendar is default)
         const isUserSuper = data.user.role === "SUPER_ADMIN";

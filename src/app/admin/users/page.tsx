@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { getAdminCachedData, fetchAdminJson } from "@/lib/admin-client-cache";
 import {
   Users,
   ShieldCheck,
@@ -25,7 +26,9 @@ import {
 } from "lucide-react";
 
 export default function AdminUsersPage() {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    return getAdminCachedData<any>("/api/auth/me")?.user || null;
+  });
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -75,19 +78,17 @@ export default function AdminUsersPage() {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [meRes, usersRes] = await Promise.all([
-        fetch("/api/auth/me"),
-        fetch("/api/users"),
+      const [meData, usersData] = await Promise.all([
+        fetchAdminJson<any>("/api/auth/me"),
+        fetchAdminJson<any>("/api/users", { forceRefresh: true }),
       ]);
 
-      if (meRes.ok) {
-        const meData = await meRes.json();
+      if (meData?.user) {
         setCurrentUser(meData.user);
       }
 
-      if (usersRes.ok) {
-        const usersData = await usersRes.json();
-        if (usersData.users) setUsers(usersData.users);
+      if (usersData?.users) {
+        setUsers(usersData.users);
       }
     } catch (err) {
       console.error("Failed to load user management data:", err);
@@ -302,7 +303,7 @@ export default function AdminUsersPage() {
   }
 
   // Strict Super Admin Access Guard
-  if (!isSuperAdmin) {
+  if (!loading && currentUser && !isSuperAdmin) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-md w-full shadow-lg text-center space-y-4">

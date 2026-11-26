@@ -33,7 +33,8 @@ export async function fetchAdminJson<T>(
     url.includes("/api/facilities") ||
     url.includes("/api/discounts") ||
     url.includes("/api/services") ||
-    url.includes("/api/settings");
+    url.includes("/api/settings") ||
+    url.includes("/api/auth/me");
 
   const effectiveTtl = options?.ttlMs ?? (isStatic ? STATIC_TTL_MS : 0);
 
