@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
+import { fetchAdminJson, getAdminCachedData, clearAdminClientCache } from "@/lib/admin-client-cache";
 import {
   doSlotsOverlap,
   parseSlotTimeRange,
@@ -164,6 +164,10 @@ function BookingsManagementContent() {
 
   // Edit Booking Modal State (Super Admin)
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
+  const [relatedBookings, setRelatedBookings] = useState<any[]>([]);
+  const [applyToAllRelated, setApplyToAllRelated] = useState(false);
+  const [isBulkEditMode, setIsBulkEditMode] = useState(false);
+  const [targetBulkIds, setTargetBulkIds] = useState<string[]>([]);
   const [editFormData, setEditFormData] = useState({
     customerName: "",
     customerPhone: "",
@@ -1219,12 +1223,36 @@ function BookingsManagementContent() {
     }
   };
 
-  const handleOpenEdit = (b: any) => {
+  const handleOpenEdit = (b: any, bulkIds?: string[]) => {
     if (!isSuperAdmin) {
       alert("Only the Super Admin is authorized to edit booking details.");
       return;
     }
+
+    const isBulk = Array.isArray(bulkIds) && bulkIds.length > 1;
+
+    // Smart Matching: find all other bookings by this party
+    const cleanPhone = b.customerPhone?.replace(/\D/g, "") || "";
+    const cleanName = b.customerName?.trim().toLowerCase() || "";
+
+    const related = isBulk
+      ? bookings.filter((item) => bulkIds.includes(item.id) && item.id !== b.id)
+      : bookings.filter((other) => {
+          if (other.id === b.id) return false;
+          const oPhone = other.customerPhone?.replace(/\D/g, "") || "";
+          const oName = other.customerName?.trim().toLowerCase() || "";
+          const phoneMatches = cleanPhone && oPhone && cleanPhone === oPhone;
+          const nameMatches = cleanName && oName && cleanName === oName;
+          return Boolean(phoneMatches || nameMatches);
+        });
+
     setEditingBooking(b);
+    setRelatedBookings(related);
+    // Smart default: if related bookings exist, enable batch update by default!
+    setApplyToAllRelated(related.length > 0 || isBulk);
+    setIsBulkEditMode(isBulk);
+    setTargetBulkIds(isBulk ? bulkIds! : [b.id]);
+
     setEditFormData({
       customerName: b.customerName || "",
       customerPhone: b.customerPhone || "",
@@ -1259,12 +1287,19 @@ function BookingsManagementContent() {
     setEditError("");
     setEditSuccess("");
 
+    let idsToUpdate: string[] = [editingBooking.id];
+    if (isBulkEditMode && targetBulkIds.length > 0) {
+      idsToUpdate = targetBulkIds;
+    } else if (applyToAllRelated && relatedBookings.length > 0) {
+      idsToUpdate = Array.from(new Set([editingBooking.id, ...relatedBookings.map((r) => r.id)]));
+    }
+
     try {
       const res = await fetch("/api/bookings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: editingBooking.id,
+          ids: idsToUpdate,
           customerName: editFormData.customerName.trim(),
           customerPhone: editFormData.customerPhone.trim(),
           customerEmail: editFormData.customerEmail.trim(),
@@ -1281,36 +1316,73 @@ function BookingsManagementContent() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to update booking");
+        throw new Error(data.error || "Failed to update bookings");
       }
 
-      // Optimistically update bookings in state
+      const updatedList: any[] = data.bookings || (data.booking ? [data.booking] : []);
+      const updatedMap = new Map(updatedList.map((item) => [item.id, item]));
+
+      // Optimistically update all affected bookings in state in 0ms
       setBookings((prev) =>
-        prev.map((b) =>
-          b.id === editingBooking.id
-            ? {
-                ...b,
-                ...data.booking,
-                facility: b.facility,
-              }
-            : b
-        )
+        prev.map((b) => {
+          if (updatedMap.has(b.id)) {
+            return {
+              ...b,
+              ...updatedMap.get(b.id),
+              facility: b.facility,
+            };
+          }
+          if (idsToUpdate.includes(b.id)) {
+            return {
+              ...b,
+              customerName: editFormData.customerName.trim(),
+              customerPhone: editFormData.customerPhone.trim(),
+              customerEmail: editFormData.customerEmail.trim() || null,
+              customerAddress: editFormData.customerAddress.trim() || null,
+              customerAadhar: editFormData.customerAadhar.trim() || null,
+              eventType: editFormData.eventType.trim(),
+              notes: editFormData.notes.trim() || null,
+              paymentStatus: editFormData.paymentStatus,
+              paymentMethod: editFormData.paymentMethod,
+              paymentRefNo: editFormData.paymentRefNo.trim() || null,
+              status: editFormData.status,
+            };
+          }
+          return b;
+        })
       );
 
       // If details modal was open or viewing this booking, update it too
-      if (detailBooking?.id === editingBooking.id) {
+      if (detailBooking && idsToUpdate.includes(detailBooking.id)) {
         setDetailBooking((prev: any) => ({
           ...prev,
-          ...data.booking,
-          facility: prev?.facility,
+          customerName: editFormData.customerName.trim(),
+          customerPhone: editFormData.customerPhone.trim(),
+          customerEmail: editFormData.customerEmail.trim() || null,
+          customerAddress: editFormData.customerAddress.trim() || null,
+          customerAadhar: editFormData.customerAadhar.trim() || null,
+          eventType: editFormData.eventType.trim(),
+          notes: editFormData.notes.trim() || null,
+          paymentStatus: editFormData.paymentStatus,
+          paymentMethod: editFormData.paymentMethod,
+          paymentRefNo: editFormData.paymentRefNo.trim() || null,
+          status: editFormData.status,
         }));
       }
 
-      setEditSuccess("✓ બુકિંગ અને પાર્ટીની વિગતો સફળતાપૂર્વક સુધારાઈ ગઈ છે!");
+      clearAdminClientCache();
+      setSelectedBookingIds([]);
+
+      setEditSuccess(
+        idsToUpdate.length > 1
+          ? `✓ આ અરજદારના તમામ ${idsToUpdate.length} બુકિંગ્સમાં વિગતો સફળતાપૂર્વક ઓવરરાઈટ થઈ ગઈ છે!`
+          : "✓ બુકિંગ અને પાર્ટીની વિગતો સફળતાપૂર્વક સુધારાઈ ગઈ છે!"
+      );
+
       setTimeout(() => {
         setEditingBooking(null);
         setEditSuccess("");
-      }, 700);
+      }, 750);
     } catch (err: any) {
       console.error("Booking edit error:", err);
       setEditError(err.message || "Failed to save booking edits");
@@ -1783,11 +1855,22 @@ function BookingsManagementContent() {
             </button>
             <button
               type="button"
+              onClick={() => {
+                const first = bookings.find((b) => selectedBookingIds.includes(b.id));
+                if (first) handleOpenEdit(first, selectedBookingIds);
+              }}
+              className="px-4 py-2 text-xs font-black rounded-xl bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-md flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>પસંદ કરેલ {selectedBookingIds.length} બુકિંગ સામૂહિક સુધારો (Bulk Edit)</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowBulkDeleteModal(true)}
               className="px-4 py-2 text-xs font-black rounded-xl bg-red-600 hover:bg-red-500 active:bg-red-700 text-white shadow-md flex items-center gap-1.5 transition cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
-              <span>પસંદ કરેલ {selectedBookingIds.length} બુકિંગ કાઢી નાખો (Delete Selected)</span>
+              <span>કાઢી નાખો (Delete)</span>
             </button>
           </div>
         </div>
@@ -2369,7 +2452,11 @@ function BookingsManagementContent() {
                 </div>
                 <h3 className="text-base sm:text-lg font-black text-white mt-1 flex items-center gap-2">
                   <Edit3 className="w-5 h-5 text-amber-300" />
-                  <span>બુકિંગ સુધારો: {editingBooking.bookingNumber}</span>
+                  <span>
+                    {isBulkEditMode
+                      ? `સામૂહિક બુકિંગ સુધારો (${targetBulkIds.length} બુકિંગ્સ)`
+                      : `બુકિંગ સુધારો: ${editingBooking.bookingNumber}`}
+                  </span>
                 </h3>
                 <p className="text-xs text-blue-100/90 mt-0.5">
                   પાર્ટીનું નામ કે વિગતો સુધારીને સાચવો. જૂનો ડેટા ઓવરરાઈટ થશે.
@@ -2421,6 +2508,76 @@ function BookingsManagementContent() {
                   <span className="font-black text-slate-900 block mt-0.5">₹{editingBooking.totalAmount?.toLocaleString("en-IN")}</span>
                 </div>
               </div>
+
+              {/* Smart Auto-Detection Banner for Multiple Bookings by Same Party */}
+              {relatedBookings.length > 0 && (
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 space-y-3 shadow-xs animate-in fade-in duration-150">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-sm shadow-2xs">
+                        ⚡
+                      </span>
+                      <div>
+                        <span className="font-black text-amber-950 text-xs sm:text-sm block">
+                          સ્માર્ટ લિન્કિંગ: આ અરજદારના અન્ય {relatedBookings.length} સંબંધિત બુકિંગ્સ શોધાયા!
+                        </span>
+                        <span className="text-[10px] text-amber-800 font-semibold block">
+                          {isBulkEditMode
+                            ? `તમે પસંદ કરેલ કુલ ${targetBulkIds.length} બુકિંગ્સ એકસાથે સુધારી રહ્યા છો.`
+                            : `આ જ અરજદાર / ફોન નંબર સાથે જોડાયેલા કુલ ${relatedBookings.length + 1} બુકિંગ્સ ઉપલબ્ધ છે.`}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2.5 py-1 rounded-full border border-amber-300">
+                      કુલ {relatedBookings.length + 1} બુકિંગ્સ
+                    </span>
+                  </div>
+
+                  {/* Checkbox to batch apply */}
+                  <label className="flex items-start sm:items-center gap-3 bg-white p-3 rounded-xl border-2 border-amber-300 cursor-pointer hover:bg-amber-100/40 transition shadow-2xs">
+                    <input
+                      type="checkbox"
+                      checked={applyToAllRelated}
+                      onChange={(e) => setApplyToAllRelated(e.target.checked)}
+                      className="w-5 h-5 text-blue-600 rounded mt-0.5 sm:mt-0 focus:ring-blue-500 cursor-pointer shrink-0"
+                    />
+                    <div className="text-xs">
+                      <span className="font-black text-slate-950 block">
+                        આ તમામ {relatedBookings.length + 1} બુકિંગ્સમાં નવું પાર્ટી નામ અને વિગતો એકસાથે લાગુ કરો (સૂચિત)
+                      </span>
+                      <span className="text-[11px] text-slate-500 font-medium block">
+                        (એક-એક કરીને સુધારવાની જરૂર નથી — એક જ સેવ ક્લિકથી તમામ બુકિંગ્સ ઓવરરાઈટ થશે)
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Chips of the related bookings */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">
+                      સંબંધિત બુકિંગ નંબરો:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      <span className="text-[10px] font-mono font-bold text-amber-950 bg-white border border-amber-400 px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600" />
+                        <span>{editingBooking.bookingNumber}</span>
+                        <span className="font-sans font-semibold text-amber-700">(હાલનું)</span>
+                      </span>
+                      {relatedBookings.map((rb: any) => (
+                        <span
+                          key={rb.id}
+                          className="text-[10px] font-mono font-bold text-blue-900 bg-white border border-blue-200 px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1"
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                          <span>{rb.bookingNumber}</span>
+                          <span className="font-sans font-normal text-slate-600">
+                            ({rb.facility?.name || "Facility"} • {new Date(rb.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })})
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Section 1: Party / Applicant Details */}
               <div className="space-y-3">

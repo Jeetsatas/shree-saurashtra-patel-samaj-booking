@@ -599,6 +599,8 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const {
       id,
+      ids,
+      updateAllRelated,
       customerName,
       customerPhone,
       customerEmail,
@@ -623,8 +625,15 @@ export async function PUT(req: NextRequest) {
       notes,
     } = body;
 
-    if (!id) {
-      return NextResponse.json({ error: "Booking ID is required" }, { status: 400 });
+    let targetIds: string[] = [];
+    if (Array.isArray(ids) && ids.length > 0) {
+      targetIds = ids.filter((item: any) => typeof item === "string" && item.trim().length > 0);
+    } else if (id && typeof id === "string") {
+      targetIds = [id.trim()];
+    }
+
+    if (targetIds.length === 0) {
+      return NextResponse.json({ error: "Booking ID or IDs list is required" }, { status: 400 });
     }
 
     if (customerName !== undefined && !customerName.trim()) {
@@ -635,46 +644,78 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: "સંપર્ક નંબર જરૂરી છે (Contact phone is required)" }, { status: 400 });
     }
 
-    const updated = await withDbRetry(() =>
-      prisma.booking.update({
-        where: { id },
-        data: {
-          ...(customerName !== undefined && { customerName: customerName.trim() }),
-          ...(customerPhone !== undefined && { customerPhone: customerPhone.trim() }),
-          ...(customerEmail !== undefined && { customerEmail: customerEmail?.trim() || null }),
-          ...(customerAddress !== undefined && { customerAddress: customerAddress?.trim() || null }),
-          ...(customerAadhar !== undefined && { customerAadhar: customerAadhar?.trim() || null }),
-          ...(eventType !== undefined && { eventType: eventType.trim() }),
-          ...(status && { status }),
-          ...(slot && { slot: slot.trim() }),
-          ...(facilityAmount !== undefined && { facilityAmount: Number(facilityAmount) }),
-          ...(discountCode !== undefined && { discountCode }),
-          ...(discountPercent !== undefined && { discountPercent: Number(discountPercent) }),
-          ...(discountAmount !== undefined && { discountAmount: Number(discountAmount) }),
-          ...(discountOverridden !== undefined && { discountOverridden: Boolean(discountOverridden) }),
-          ...(discountOverrideReason !== undefined && { discountOverrideReason }),
-          ...(selectedServices !== undefined && {
-            selectedServices:
-              typeof selectedServices === "string"
-                ? selectedServices
-                : JSON.stringify(selectedServices),
-          }),
-          ...(servicesAmount !== undefined && { servicesAmount: Number(servicesAmount) }),
-          ...(totalAmount !== undefined && { totalAmount: Number(totalAmount) }),
-          ...(depositAmount !== undefined && { depositAmount: Number(depositAmount) }),
-          ...(paymentStatus && { paymentStatus }),
-          ...(paymentMethod !== undefined && { paymentMethod }),
-          ...(paymentRefNo !== undefined && { paymentRefNo }),
-          ...(notes !== undefined && { notes: notes?.trim() || null }),
-          lastUpdatedByName: user.name,
-        },
+    // Smart auto-detection: If updateAllRelated is requested, include all other bookings by this same customer/phone
+    if (updateAllRelated && targetIds.length > 0) {
+      const baseBooking = await prisma.booking.findUnique({
+        where: { id: targetIds[0] },
+        select: { customerPhone: true, customerName: true },
+      });
+      if (baseBooking) {
+        const related = await prisma.booking.findMany({
+          where: {
+            OR: [
+              ...(baseBooking.customerPhone ? [{ customerPhone: baseBooking.customerPhone }] : []),
+              ...(baseBooking.customerName ? [{ customerName: baseBooking.customerName }] : []),
+            ],
+          },
+          select: { id: true },
+        });
+        targetIds = Array.from(new Set([...targetIds, ...related.map((r) => r.id)]));
+      }
+    }
+
+    const updateData: any = {
+      ...(customerName !== undefined && { customerName: customerName.trim() }),
+      ...(customerPhone !== undefined && { customerPhone: customerPhone.trim() }),
+      ...(customerEmail !== undefined && { customerEmail: customerEmail?.trim() || null }),
+      ...(customerAddress !== undefined && { customerAddress: customerAddress?.trim() || null }),
+      ...(customerAadhar !== undefined && { customerAadhar: customerAadhar?.trim() || null }),
+      ...(eventType !== undefined && { eventType: eventType.trim() }),
+      ...(status && { status }),
+      ...(paymentStatus && { paymentStatus }),
+      ...(paymentMethod !== undefined && { paymentMethod }),
+      ...(paymentRefNo !== undefined && { paymentRefNo }),
+      ...(notes !== undefined && { notes: notes?.trim() || null }),
+      lastUpdatedByName: user.name,
+    };
+
+    // If updating a single booking, allow tariff and slot fields as well
+    if (targetIds.length === 1) {
+      if (slot) updateData.slot = slot.trim();
+      if (facilityAmount !== undefined) updateData.facilityAmount = Number(facilityAmount);
+      if (discountCode !== undefined) updateData.discountCode = discountCode;
+      if (discountPercent !== undefined) updateData.discountPercent = Number(discountPercent);
+      if (discountAmount !== undefined) updateData.discountAmount = Number(discountAmount);
+      if (discountOverridden !== undefined) updateData.discountOverridden = Boolean(discountOverridden);
+      if (discountOverrideReason !== undefined) updateData.discountOverrideReason = discountOverrideReason;
+      if (selectedServices !== undefined) {
+        updateData.selectedServices =
+          typeof selectedServices === "string" ? selectedServices : JSON.stringify(selectedServices);
+      }
+      if (servicesAmount !== undefined) updateData.servicesAmount = Number(servicesAmount);
+      if (totalAmount !== undefined) updateData.totalAmount = Number(totalAmount);
+      if (depositAmount !== undefined) updateData.depositAmount = Number(depositAmount);
+    }
+
+    // Execute atomic batch update across all target bookings
+    await withDbRetry(() =>
+      prisma.booking.updateMany({
+        where: { id: { in: targetIds } },
+        data: updateData,
+      })
+    );
+
+    // Fetch the updated bookings to return
+    const updatedBookings = await withDbRetry(() =>
+      prisma.booking.findMany({
+        where: { id: { in: targetIds } },
         include: {
           facility: true,
         },
       })
     );
 
-    // Record activity
+    // Record activity log
     try {
       await prisma.activityLog.create({
         data: {
@@ -683,8 +724,8 @@ export async function PUT(req: NextRequest) {
           userEmail: user.email,
           userRole: user.role,
           action: "UPDATE_BOOKING",
-          details: `Updated booking ${updated.bookingNumber} (${updated.customerName}, Phone: ${updated.customerPhone}, Event: ${updated.eventType}, Status: ${updated.status})`,
-          recordId: updated.id,
+          details: `Updated ${targetIds.length} booking(s) for ${customerName || updatedBookings[0]?.customerName} (${updatedBookings.map((b) => b.bookingNumber).join(", ")})`,
+          recordId: targetIds[0],
           recordType: "BOOKING",
         },
       });
@@ -692,7 +733,13 @@ export async function PUT(req: NextRequest) {
       console.error("Activity log error:", logErr);
     }
 
-    return NextResponse.json({ success: true, booking: updated });
+    return NextResponse.json({
+      success: true,
+      booking: updatedBookings[0],
+      bookings: updatedBookings,
+      count: updatedBookings.length,
+      updatedIds: targetIds,
+    });
   } catch (error: any) {
     console.error("Booking PUT error:", error);
     return NextResponse.json({ error: "Failed to update booking" }, { status: 500 });
