@@ -888,10 +888,10 @@ function BookingsManagementContent() {
           timingsForDate[facId] && timingsForDate[facId].length > 0
             ? timingsForDate[facId]
             : timingsForDate["__ALL__"] && timingsForDate["__ALL__"].length > 0
-            ? timingsForDate["__ALL__"]
-            : selectedTimings.length > 0
-            ? selectedTimings
-            : [WHOLE_DAY_SLOT_LABEL];
+              ? timingsForDate["__ALL__"]
+              : selectedTimings.length > 0
+                ? selectedTimings
+                : [WHOLE_DAY_SLOT_LABEL];
 
         for (const slotLabel of facSlots) {
           const isFull = isFullDaySlot(slotLabel);
@@ -1364,9 +1364,8 @@ function BookingsManagementContent() {
             <span className="text-xs font-bold text-red-800 uppercase tracking-wide">
               {isSuperAdmin ? "Reservation Management" : "Community Bookings"}
             </span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-              isSuperAdmin ? "bg-red-50 text-red-800 border-red-200" : "bg-amber-50 text-amber-800 border-amber-200"
-            }`}>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isSuperAdmin ? "bg-red-50 text-red-800 border-red-200" : "bg-amber-50 text-amber-800 border-amber-200"
+              }`}>
               {isSuperAdmin ? "Super Admin Full Access" : `${currentUser?.name || "View-Only Admin"} (View Only)`}
             </span>
           </div>
@@ -1439,11 +1438,10 @@ function BookingsManagementContent() {
                     setCategoryFilter(tab.id);
                     setFacilityFilter("ALL");
                   }}
-                  className={`text-xs font-bold px-3 py-1.5 rounded-full transition ${
-                    categoryFilter === tab.id
-                      ? "bg-red-800 text-white shadow-sm"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full transition ${categoryFilter === tab.id
+                    ? "bg-red-800 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
                 >
                   {tab.label}
                 </button>
@@ -1468,11 +1466,10 @@ function BookingsManagementContent() {
             <span className="text-[11px] font-bold text-slate-500 mr-1">Direct Facility:</span>
             <button
               onClick={() => setFacilityFilter("ALL")}
-              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition ${
-                facilityFilter === "ALL"
-                  ? "bg-slate-800 text-white font-bold"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              className={`text-xs px-2.5 py-1 rounded-lg font-medium transition ${facilityFilter === "ALL"
+                ? "bg-slate-800 text-white font-bold"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
             >
               All in Category
             </button>
@@ -1487,11 +1484,10 @@ function BookingsManagementContent() {
                       setFacilityFilter(f.id);
                       setCategoryFilter(f.type);
                     }}
-                    className={`text-xs px-2.5 py-1 rounded-lg transition font-medium ${
-                      isSelected
-                        ? "bg-red-800 text-white font-bold shadow-xs"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
+                    className={`text-xs px-2.5 py-1 rounded-lg transition font-medium ${isSelected
+                      ? "bg-red-800 text-white font-bold shadow-xs"
+                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                      }`}
                   >
                     {f.name.replace("Outside Party Plot — ", "").replace("Dormitory — ", "")}
                   </button>
@@ -1682,11 +1678,10 @@ function BookingsManagementContent() {
                   return (
                     <tr
                       key={b.id}
-                      className={`transition ${
-                        isSelected
-                          ? "bg-red-50/80 hover:bg-red-100/60 font-semibold"
-                          : "hover:bg-slate-50/80"
-                      }`}
+                      className={`transition ${isSelected
+                        ? "bg-red-50/80 hover:bg-red-100/60 font-semibold"
+                        : "hover:bg-slate-50/80"
+                        }`}
                     >
                       {isSuperAdmin && (
                         <td className="py-3 px-3 text-center">
@@ -1707,113 +1702,111 @@ function BookingsManagementContent() {
                           {b.bookingNumber}
                         </button>
                       </td>
-                    <td className="py-3 px-4 font-semibold text-slate-800">
-                      <div>{b.facility?.name}</div>
-                      <span className="text-[10px] text-amber-800 font-normal">
-                        {b.facility?.code}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900">{b.customerName}</div>
-                      <div className="text-[11px] text-slate-500 flex items-center">
-                        <Phone className="w-3 h-3 mr-1 text-slate-400" />
-                        {b.customerPhone}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-800">{b.eventType}</div>
-                      <div className="text-[10px] text-slate-500 font-bold">{b.slot}</div>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="font-semibold text-slate-800">
-                        {new Date(b.startDate).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      <div className="font-bold text-slate-900">
-                        ₹{b.totalAmount.toLocaleString("en-IN")}
-                      </div>
-                      {b.discountPercent > 0 && (
-                        <div className="text-[10px] text-emerald-700 font-semibold">
-                          Discount: -₹{b.discountAmount.toLocaleString("en-IN")} ({b.discountPercent}%)
-                        </div>
-                      )}
-                      {b.servicesAmount > 0 && (
-                        <div className="text-[10px] text-blue-700 font-semibold">
-                          Services: +₹{b.servicesAmount.toLocaleString("en-IN")}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 whitespace-nowrap">
-                      {isSuperAdmin ? (
-                        <select
-                          value={b.status}
-                          onChange={(e) => handleStatusUpdate(b.id, e.target.value)}
-                          className={`text-[11px] font-bold px-2 py-1 rounded-md border ${
-                            b.status === "CONFIRMED"
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              : b.status === "CANCELLED"
-                              ? "bg-rose-50 text-rose-800 border-rose-200"
-                              : "bg-amber-50 text-amber-800 border-amber-200"
-                          }`}
-                        >
-                          <option value="CONFIRMED">CONFIRMED</option>
-                          <option value="PENDING_APPROVAL">PENDING</option>
-                          <option value="BLOCKED_BY_TRUST">BLOCKED</option>
-                          <option value="CANCELLED">CANCELLED</option>
-                        </select>
-                      ) : (
-                        <span
-                          className={`inline-block text-[11px] font-bold px-2.5 py-1 rounded-md border ${
-                            b.status === "CONFIRMED"
-                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                              : b.status === "CANCELLED"
-                              ? "bg-rose-50 text-rose-800 border-rose-200"
-                              : "bg-amber-50 text-amber-800 border-amber-200"
-                          }`}
-                        >
-                          {b.status}
+                      <td className="py-3 px-4 font-semibold text-slate-800">
+                        <div>{b.facility?.name}</div>
+                        <span className="text-[10px] text-amber-800 font-normal">
+                          {b.facility?.code}
                         </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
-                      <button
-                        onClick={() => setDetailBooking(b)}
-                        title="View Full Booking Details"
-                        className="inline-flex items-center text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border border-slate-300 transition"
-                      >
-                        <Eye className="w-3.5 h-3.5 mr-1" />
-                        Details
-                      </button>
-
-                      <Link
-                        href={`/admin/bookings/${b.id}/receipt`}
-                        target="_blank"
-                        title="Print Official Slip"
-                        className="inline-flex items-center text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2 py-1 rounded border border-slate-300 transition"
-                      >
-                        <Printer className="w-3.5 h-3.5 mr-1" />
-                        Slip
-                      </Link>
-
-                      {isSuperAdmin && (
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-bold text-slate-900">{b.customerName}</div>
+                        <div className="text-[11px] text-slate-500 flex items-center">
+                          <Phone className="w-3 h-3 mr-1 text-slate-400" />
+                          {b.customerPhone}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="font-semibold text-slate-800">{b.eventType}</div>
+                        <div className="text-[10px] text-slate-500 font-bold">{b.slot}</div>
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-semibold text-slate-800">
+                          {new Date(b.startDate).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-bold text-slate-900">
+                          ₹{b.totalAmount.toLocaleString("en-IN")}
+                        </div>
+                        {b.discountPercent > 0 && (
+                          <div className="text-[10px] text-emerald-700 font-semibold">
+                            Discount: -₹{b.discountAmount.toLocaleString("en-IN")} ({b.discountPercent}%)
+                          </div>
+                        )}
+                        {b.servicesAmount > 0 && (
+                          <div className="text-[10px] text-blue-700 font-semibold">
+                            Services: +₹{b.servicesAmount.toLocaleString("en-IN")}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        {isSuperAdmin ? (
+                          <select
+                            value={b.status}
+                            onChange={(e) => handleStatusUpdate(b.id, e.target.value)}
+                            className={`text-[11px] font-bold px-2 py-1 rounded-md border ${b.status === "CONFIRMED"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : b.status === "CANCELLED"
+                                ? "bg-rose-50 text-rose-800 border-rose-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                              }`}
+                          >
+                            <option value="CONFIRMED">CONFIRMED</option>
+                            <option value="PENDING_APPROVAL">PENDING</option>
+                            <option value="BLOCKED_BY_TRUST">BLOCKED</option>
+                            <option value="CANCELLED">CANCELLED</option>
+                          </select>
+                        ) : (
+                          <span
+                            className={`inline-block text-[11px] font-bold px-2.5 py-1 rounded-md border ${b.status === "CONFIRMED"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : b.status === "CANCELLED"
+                                ? "bg-rose-50 text-rose-800 border-rose-200"
+                                : "bg-amber-50 text-amber-800 border-amber-200"
+                              }`}
+                          >
+                            {b.status}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap space-x-1.5">
                         <button
-                          onClick={() => handleDeleteClick(b)}
-                          title="Cancel & Delete Booking"
-                          className="p-1 text-slate-400 hover:text-red-600 rounded transition"
+                          onClick={() => setDetailBooking(b)}
+                          title="View Full Booking Details"
+                          className="inline-flex items-center text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border border-slate-300 transition"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Eye className="w-3.5 h-3.5 mr-1" />
+                          Details
                         </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
+
+                        <Link
+                          href={`/admin/bookings/${b.id}/receipt`}
+                          target="_blank"
+                          title="Print Official Slip"
+                          className="inline-flex items-center text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2 py-1 rounded border border-slate-300 transition"
+                        >
+                          <Printer className="w-3.5 h-3.5 mr-1" />
+                          Slip
+                        </Link>
+
+                        {isSuperAdmin && (
+                          <button
+                            onClick={() => handleDeleteClick(b)}
+                            title="Cancel & Delete Booking"
+                            className="p-1 text-slate-400 hover:text-red-600 rounded transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -1830,9 +1823,8 @@ function BookingsManagementContent() {
               return (
                 <div
                   key={b.id}
-                  className={`p-3.5 sm:p-4 space-y-3 transition ${
-                    isSelected ? "bg-red-50/80 border-l-4 border-l-red-600" : "bg-white hover:bg-slate-50/70"
-                  }`}
+                  className={`p-3.5 sm:p-4 space-y-3 transition ${isSelected ? "bg-red-50/80 border-l-4 border-l-red-600" : "bg-white hover:bg-slate-50/70"
+                    }`}
                 >
                   {/* Card Header: Booking # & Status */}
                   <div className="flex items-center justify-between">
@@ -1853,97 +1845,96 @@ function BookingsManagementContent() {
                       </button>
                     </div>
                     <span
-                      className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${
-                        b.status === "CONFIRMED"
-                          ? "bg-emerald-50 text-emerald-800 border-emerald-200"
-                          : b.status === "CANCELLED"
+                      className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border ${b.status === "CONFIRMED"
+                        ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        : b.status === "CANCELLED"
                           ? "bg-rose-50 text-rose-800 border-rose-200"
                           : "bg-amber-50 text-amber-800 border-amber-200"
-                      }`}
+                        }`}
                     >
                       {b.status}
                     </span>
                   </div>
 
-                {/* Applicant Name, Event & Quick Call Link */}
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-extrabold text-sm text-slate-900 leading-snug">{b.customerName}</div>
-                    <div className="text-xs text-slate-600 font-semibold mt-0.5">{b.eventType}</div>
-                  </div>
-                  {b.customerPhone && (
-                    <a
-                      href={`tel:${b.customerPhone}`}
-                      className="text-xs font-bold text-red-800 bg-red-50 hover:bg-red-100 active:bg-red-200 px-3 py-1.5 rounded-xl border border-red-200 flex items-center flex-shrink-0 min-h-[36px]"
-                    >
-                      <Phone className="w-3.5 h-3.5 mr-1.5 text-red-700" />
-                      Call
-                    </a>
-                  )}
-                </div>
-
-                {/* Facility, Event Date & Tariff Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Facility</span>
-                    <span className="font-bold text-slate-800 truncate block mt-0.5">{b.facility?.name}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Date & Slot</span>
-                    <span className="font-bold text-slate-800 block mt-0.5">
-                      {new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} • {b.slot}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Tariff</span>
-                    <span className="font-black text-slate-900 block mt-0.5">₹{b.totalAmount.toLocaleString("en-IN")}</span>
-                  </div>
-                  {b.discountPercent > 0 ? (
+                  {/* Applicant Name, Event & Quick Call Link */}
+                  <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Discount</span>
-                      <span className="font-bold text-emerald-700 block mt-0.5">
-                        -₹{b.discountAmount.toLocaleString("en-IN")} ({b.discountPercent}%)
+                      <div className="font-extrabold text-sm text-slate-900 leading-snug">{b.customerName}</div>
+                      <div className="text-xs text-slate-600 font-semibold mt-0.5">{b.eventType}</div>
+                    </div>
+                    {b.customerPhone && (
+                      <a
+                        href={`tel:${b.customerPhone}`}
+                        className="text-xs font-bold text-red-800 bg-red-50 hover:bg-red-100 active:bg-red-200 px-3 py-1.5 rounded-xl border border-red-200 flex items-center flex-shrink-0 min-h-[36px]"
+                      >
+                        <Phone className="w-3.5 h-3.5 mr-1.5 text-red-700" />
+                        Call
+                      </a>
+                    )}
+                  </div>
+
+                  {/* Facility, Event Date & Tariff Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Facility</span>
+                      <span className="font-bold text-slate-800 truncate block mt-0.5">{b.facility?.name}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Date & Slot</span>
+                      <span className="font-bold text-slate-800 block mt-0.5">
+                        {new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })} • {b.slot}
                       </span>
                     </div>
-                  ) : (
                     <div>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Payment</span>
-                      <span className="font-bold text-slate-600 block mt-0.5">{b.paymentStatus || "Cash at Office"}</span>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Tariff</span>
+                      <span className="font-black text-slate-900 block mt-0.5">₹{b.totalAmount.toLocaleString("en-IN")}</span>
                     </div>
-                  )}
-                </div>
+                    {b.discountPercent > 0 ? (
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Discount</span>
+                        <span className="font-bold text-emerald-700 block mt-0.5">
+                          -₹{b.discountAmount.toLocaleString("en-IN")} ({b.discountPercent}%)
+                        </span>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Payment</span>
+                        <span className="font-bold text-slate-600 block mt-0.5">{b.paymentStatus || "Cash at Office"}</span>
+                      </div>
+                    )}
+                  </div>
 
-                {/* Mobile Tap-Friendly Actions */}
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    onClick={() => setDetailBooking(b)}
-                    className="flex-1 py-2 px-3 text-xs font-bold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 rounded-xl border border-slate-300 transition flex items-center justify-center min-h-[40px]"
-                  >
-                    <Eye className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
-                    Details
-                  </button>
-                  <Link
-                    href={`/admin/bookings/${b.id}/receipt`}
-                    target="_blank"
-                    className="flex-1 py-2 px-3 text-xs font-bold bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 rounded-xl transition flex items-center justify-center min-h-[40px] shadow-xs"
-                  >
-                    <Printer className="w-3.5 h-3.5 mr-1.5" />
-                    Print Slip
-                  </Link>
-                  {isSuperAdmin && (
+                  {/* Mobile Tap-Friendly Actions */}
+                  <div className="flex items-center gap-2 pt-1">
                     <button
-                      onClick={() => handleDeleteClick(b)}
-                      className="p-2 text-slate-400 hover:text-rose-600 active:text-rose-700 rounded-xl border border-slate-200 min-h-[40px] min-w-[40px] flex items-center justify-center"
-                      title="Delete Booking"
+                      onClick={() => setDetailBooking(b)}
+                      className="flex-1 py-2 px-3 text-xs font-bold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-800 rounded-xl border border-slate-300 transition flex items-center justify-center min-h-[40px]"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Eye className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                      Details
                     </button>
-                  )}
+                    <Link
+                      href={`/admin/bookings/${b.id}/receipt`}
+                      target="_blank"
+                      className="flex-1 py-2 px-3 text-xs font-bold bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 rounded-xl transition flex items-center justify-center min-h-[40px] shadow-xs"
+                    >
+                      <Printer className="w-3.5 h-3.5 mr-1.5" />
+                      Print Slip
+                    </Link>
+                    {isSuperAdmin && (
+                      <button
+                        onClick={() => handleDeleteClick(b)}
+                        className="p-2 text-slate-400 hover:text-rose-600 active:text-rose-700 rounded-xl border border-slate-200 min-h-[40px] min-w-[40px] flex items-center justify-center"
+                        title="Delete Booking"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            );
-          })
-        )}
+              );
+            })
+          )}
         </div>
 
         {/* Pagination Controls (Fast 25/50/100/All Records Slicing) */}
@@ -2007,13 +1998,12 @@ function BookingsManagementContent() {
                 <h3 className="text-lg font-bold text-white flex items-center space-x-2 mt-0.5">
                   <span>{detailBooking.bookingNumber}</span>
                   <span
-                    className={`text-xs px-2 py-0.5 rounded font-bold ${
-                      detailBooking.status === "CONFIRMED"
-                        ? "bg-emerald-600 text-white"
-                        : detailBooking.status === "CANCELLED"
+                    className={`text-xs px-2 py-0.5 rounded font-bold ${detailBooking.status === "CONFIRMED"
+                      ? "bg-emerald-600 text-white"
+                      : detailBooking.status === "CANCELLED"
                         ? "bg-rose-600 text-white"
                         : "bg-amber-600 text-white"
-                    }`}
+                      }`}
                   >
                     {detailBooking.status}
                   </span>
@@ -2236,11 +2226,10 @@ function BookingsManagementContent() {
                                 setSelectedDates([selectedDates[0]]);
                               }
                             }}
-                            className={`px-2 py-0.5 rounded transition cursor-pointer ${
-                              dateSelectionMode === "SINGLE"
-                                ? "bg-red-800 text-white shadow-2xs"
-                                : "text-slate-600 hover:text-slate-900"
-                            }`}
+                            className={`px-2 py-0.5 rounded transition cursor-pointer ${dateSelectionMode === "SINGLE"
+                              ? "bg-red-800 text-white shadow-2xs"
+                              : "text-slate-600 hover:text-slate-900"
+                              }`}
                             title="એક તારીખ પસંદગી મોડ (Single Date Mode)"
                           >
                             ૧ તારીખ
@@ -2248,11 +2237,10 @@ function BookingsManagementContent() {
                           <button
                             type="button"
                             onClick={() => setDateSelectionMode("MULTIPLE")}
-                            className={`px-2 py-0.5 rounded transition cursor-pointer ${
-                              dateSelectionMode === "MULTIPLE"
-                                ? "bg-red-800 text-white shadow-2xs"
-                                : "text-slate-600 hover:text-slate-900"
-                            }`}
+                            className={`px-2 py-0.5 rounded transition cursor-pointer ${dateSelectionMode === "MULTIPLE"
+                              ? "bg-red-800 text-white shadow-2xs"
+                              : "text-slate-600 hover:text-slate-900"
+                              }`}
                             title="બહુવિધ તારીખો પસંદગી મોડ (Multi-Date Mode)"
                           >
                             મલ્ટી-તારીખ
@@ -2333,13 +2321,12 @@ function BookingsManagementContent() {
                                 key={dayStr}
                                 type="button"
                                 onClick={() => handleCalendarDayClick(dayStr)}
-                                className={`h-8 sm:h-9 rounded-lg flex flex-col items-center justify-center relative transition cursor-pointer select-none ${
-                                  isSelected
-                                    ? "bg-red-800 text-white font-black shadow-xs ring-2 ring-red-400 scale-[1.04]"
-                                    : isToday
+                                className={`h-8 sm:h-9 rounded-lg flex flex-col items-center justify-center relative transition cursor-pointer select-none ${isSelected
+                                  ? "bg-red-800 text-white font-black shadow-xs ring-2 ring-red-400 scale-[1.04]"
+                                  : isToday
                                     ? "border border-blue-500 bg-blue-50/70 font-black text-blue-900 hover:bg-red-50"
                                     : "hover:bg-slate-100 font-bold text-slate-800 text-xs"
-                                }`}
+                                  }`}
                               >
                                 <span className="text-[11px] sm:text-xs leading-none">{dayNum}</span>
                                 <div className="flex items-center gap-0.5 mt-0.5">
@@ -2347,11 +2334,10 @@ function BookingsManagementContent() {
                                     <span className="w-1.5 h-1.5 rounded-full bg-white" />
                                   ) : bookedCount > 0 ? (
                                     <span
-                                      className={`w-1.5 h-1.5 rounded-full ${
-                                        bookedCount >= (facilities.length || 8)
-                                          ? "bg-rose-500"
-                                          : "bg-amber-500"
-                                      }`}
+                                      className={`w-1.5 h-1.5 rounded-full ${bookedCount >= (facilities.length || 8)
+                                        ? "bg-rose-500"
+                                        : "bg-amber-500"
+                                        }`}
                                       title={`${bookedCount} સુવિધા બુક થયેલ`}
                                     />
                                   ) : (
@@ -2426,21 +2412,19 @@ function BookingsManagementContent() {
                                 <div
                                   key={dStr}
                                   onClick={() => setActiveDate(dStr)}
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-extrabold shadow-2xs transition cursor-pointer ${
-                                    isCurrentActive
-                                      ? "bg-red-800 text-white border-red-950 ring-2 ring-amber-400"
-                                      : "bg-white text-slate-700 border-slate-300 hover:border-red-400 hover:bg-red-50"
-                                  }`}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-extrabold shadow-2xs transition cursor-pointer ${isCurrentActive
+                                    ? "bg-red-800 text-white border-red-950 ring-2 ring-amber-400"
+                                    : "bg-white text-slate-700 border-slate-300 hover:border-red-400 hover:bg-red-50"
+                                    }`}
                                 >
                                   <span>{formatDateGu(dStr)}</span>
                                   <span
-                                    className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
-                                      isCurrentActive
-                                        ? "bg-amber-300 text-red-950"
-                                        : facCount > 0
+                                    className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${isCurrentActive
+                                      ? "bg-amber-300 text-red-950"
+                                      : facCount > 0
                                         ? "bg-emerald-100 text-emerald-800"
                                         : "bg-amber-100 text-amber-800"
-                                    }`}
+                                      }`}
                                   >
                                     {facCount} સુવિધા
                                   </span>
@@ -2450,9 +2434,8 @@ function BookingsManagementContent() {
                                       e.stopPropagation();
                                       removeDate(dStr);
                                     }}
-                                    className={`hover:opacity-75 font-black text-xs ml-0.5 cursor-pointer ${
-                                      isCurrentActive ? "text-amber-200" : "text-slate-400 hover:text-red-700"
-                                    }`}
+                                    className={`hover:opacity-75 font-black text-xs ml-0.5 cursor-pointer ${isCurrentActive ? "text-amber-200" : "text-slate-400 hover:text-red-700"
+                                      }`}
                                     title="કાઢી નાખો (Remove)"
                                   >
                                     ✕
@@ -2513,11 +2496,10 @@ function BookingsManagementContent() {
                               return (
                                 <div
                                   key={`summary-box-${dStr}`}
-                                  className={`p-2 rounded-xl border transition ${
-                                    isCurrentActive
-                                      ? "border-red-500 bg-red-50/40 ring-1 ring-red-400"
-                                      : "border-slate-200 bg-white"
-                                  }`}
+                                  className={`p-2 rounded-xl border transition ${isCurrentActive
+                                    ? "border-red-500 bg-red-50/40 ring-1 ring-red-400"
+                                    : "border-slate-200 bg-white"
+                                    }`}
                                 >
                                   <div
                                     onClick={() => setActiveDate(dStr)}
@@ -2545,11 +2527,10 @@ function BookingsManagementContent() {
                                       {itemsForDate.map((item, idx) => (
                                         <div
                                           key={`${item.facilityId}-${item.slot}-${idx}`}
-                                          className={`p-2 rounded-lg flex items-center justify-between gap-2 text-xs transition ${
-                                            item.conflict.isConflict
-                                              ? "bg-rose-100/90 text-rose-950 font-bold border border-rose-300"
-                                              : "bg-slate-50 text-slate-800"
-                                          }`}
+                                          className={`p-2 rounded-lg flex items-center justify-between gap-2 text-xs transition ${item.conflict.isConflict
+                                            ? "bg-rose-100/90 text-rose-950 font-bold border border-rose-300"
+                                            : "bg-slate-50 text-slate-800"
+                                            }`}
                                         >
                                           <div className="min-w-0">
                                             <div className="font-extrabold truncate text-xs">{item.facilityName}</div>
@@ -2598,890 +2579,947 @@ function BookingsManagementContent() {
                         <span className="text-[11px] font-bold text-red-800">* ફરજિયાત માહિતી</span>
                       </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      અરજદારનું પૂરું નામ (Applicant Full Name) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="દા.ત. રમેશભાઈ પટેલ"
-                      value={formData.customerName}
-                      onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none"
-                    />
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            અરજદારનું પૂરું નામ (Applicant Full Name) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="દા.ત. રમેશભાઈ પટેલ"
+                            value={formData.customerName}
+                            onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none"
+                          />
+                        </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      મોબાઇલ નંબર (10-Digit Mobile Number) *
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      placeholder="10-digit mobile number"
-                      value={formData.customerPhone}
-                      onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none font-mono"
-                    />
-                  </div>
-                </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            મોબાઇલ નંબર (10-Digit Mobile Number) *
+                          </label>
+                          <input
+                            type="tel"
+                            required
+                            placeholder="10-digit mobile number"
+                            value={formData.customerPhone}
+                            onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none font-mono"
+                          />
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      પ્રસંગનો પ્રકાર (Function Type) *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Wedding, Sagai, Birthday..."
-                      value={formData.eventType}
-                      onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none"
-                    />
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            પ્રસંગનો પ્રકાર (Function Type) *
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Wedding, Sagai, Birthday..."
+                            value={formData.eventType}
+                            onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none"
+                          />
+                        </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      આધાર નંબર (Aadhar / ID Optional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="12-digit Aadhar"
-                      value={formData.customerAadhar}
-                      onChange={(e) => setFormData({ ...formData, customerAadhar: e.target.value })}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
-                    />
-                  </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            આધાર નંબર (Aadhar / ID Optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="12-digit Aadhar"
+                            value={formData.customerAadhar}
+                            onChange={(e) => setFormData({ ...formData, customerAadhar: e.target.value })}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
+                          />
+                        </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      સરનામું / મૂળ ગામ (Native Village)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Nikol / Amreli"
-                      value={formData.customerAddress}
-                      onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
-                      className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* ============================================================== */}
-              {/* SECTION 2: DATE-WISE FACILITY & TIMING CARDS (One Per Date)    */}
-              {/* ============================================================== */}
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-1">
-                  <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                    <Calendar className="w-4 h-4 text-red-800" />
-                    ૨. તારીખ મુજબ સુવિધાઓ અને સમય પસંદ કરો ({selectedDates.length} તારીખ)
-                  </span>
-                  {dateCopySuccess && (
-                    <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in">
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
-                      સુવિધાઓ બાકીની તારીખોમાં કોપી થઈ ગઈ!
-                    </span>
-                  )}
-                </div>
-
-                {selectedDates.length === 0 ? (
-                  <div className="bg-amber-50 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center space-y-2">
-                    <Calendar className="w-8 h-8 text-amber-700 mx-auto" />
-                    <div className="text-sm font-bold text-amber-950">ડાબી બાજુ કેલેન્ડરમાંથી તારીખ પસંદ કરો</div>
-                    <div className="text-xs text-amber-800">
-                      તમે કેલેન્ડરમાંથી જેટલી તારીખો પસંદ કરશો તે દરેક તારીખ માટે અલગ-અલગ સુવિધા અને સમય અહીં દેખાશે.
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            સરનામું / મૂળ ગામ (Native Village)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. Nikol / Amreli"
+                            value={formData.customerAddress}
+                            onChange={(e) => setFormData({ ...formData, customerAddress: e.target.value })}
+                            className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  selectedDates.map((dateStr, dateIdx) => {
-                    const facIds = dateFacilityMap[dateStr] || [];
-                    const dtTimings = getDateTimings(dateStr);
-                    const dtScope = getDateTimingScope(dateStr);
-                    const dtPlotPurpose = getDatePlotPurpose(dateStr);
 
-                    return (
-                      <div
-                        key={`date-card-${dateStr}`}
-                        className="bg-white rounded-2xl border-2 border-slate-300 hover:border-slate-400 p-4 sm:p-5 shadow-xs space-y-3.5 transition"
-                      >
-                        {/* Date Card Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-slate-100">
-                          <div className="flex items-center gap-2.5">
-                            <span className="w-8 h-8 rounded-xl bg-red-800 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
-                              {dateIdx + 1}
-                            </span>
-                            <div>
-                              <div className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-1.5">
-                                <Calendar className="w-4 h-4 text-red-800" />
-                                <span>{formatDateGu(dateStr)}</span>
+                    {/* ============================================================== */}
+                    {/* SECTION 2: DATE-WISE FACILITY & TIMING CARDS (One Per Date)    */}
+                    {/* ============================================================== */}
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-1">
+                        <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-red-800" />
+                          ૨. તારીખ મુજબ સુવિધાઓ અને સમય પસંદ કરો ({selectedDates.length} તારીખ)
+                        </span>
+                        {dateCopySuccess && (
+                          <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-700" />
+                            સુવિધાઓ બાકીની તારીખોમાં કોપી થઈ ગઈ!
+                          </span>
+                        )}
+                      </div>
+
+                      {selectedDates.length === 0 ? (
+                        <div className="bg-amber-50 border-2 border-dashed border-amber-300 rounded-2xl p-6 text-center space-y-2">
+                          <Calendar className="w-8 h-8 text-amber-700 mx-auto" />
+                          <div className="text-sm font-bold text-amber-950">ડાબી બાજુ કેલેન્ડરમાંથી તારીખ પસંદ કરો</div>
+                          <div className="text-xs text-amber-800">
+                            તમે કેલેન્ડરમાંથી જેટલી તારીખો પસંદ કરશો તે દરેક તારીખ માટે અલગ-અલગ સુવિધા અને સમય અહીં દેખાશે.
+                          </div>
+                        </div>
+                      ) : (
+                        selectedDates.map((dateStr, dateIdx) => {
+                          const facIds = dateFacilityMap[dateStr] || [];
+                          const dtTimings = getDateTimings(dateStr);
+                          const dtScope = getDateTimingScope(dateStr);
+                          const dtPlotPurpose = getDatePlotPurpose(dateStr);
+
+                          return (
+                            <div
+                              key={`date-card-${dateStr}`}
+                              className="bg-white rounded-2xl border-2 border-slate-300 hover:border-slate-400 p-4 sm:p-5 shadow-xs space-y-3.5 transition"
+                            >
+                              {/* Date Card Header */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b-2 border-slate-100">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="w-8 h-8 rounded-xl bg-red-800 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-xs">
+                                    {dateIdx + 1}
+                                  </span>
+                                  <div>
+                                    <div className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-1.5">
+                                      <Calendar className="w-4 h-4 text-red-800" />
+                                      <span>{formatDateGu(dateStr)}</span>
+                                    </div>
+                                    <div className="text-[11px] font-bold mt-0.5">
+                                      {facIds.length > 0 ? (
+                                        <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                                          ✓ {facIds.length} સુવિધા પસંદ કરેલ છે
+                                        </span>
+                                      ) : (
+                                        <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                                          ⚠️ આ તારીખ માટે સુવિધા પસંદ કરવાની બાકી છે
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Quick Actions for this Date */}
+                                <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
+                                  <button
+                                    type="button"
+                                    onClick={() => selectAllRoomsForDate(dateStr)}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200"
+                                  >
+                                    ✓ બધા રૂમ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => selectAllHallsForDate(dateStr)}
+                                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200"
+                                  >
+                                    ✓ બંને હોલ
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => selectAllFacilitiesForDate(dateStr)}
+                                    className="px-2 py-1 rounded-lg bg-red-800 text-white hover:bg-red-700 transition cursor-pointer"
+                                  >
+                                    બધું (All)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => clearAllFacilitiesForDate(dateStr)}
+                                    className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition cursor-pointer"
+                                  >
+                                    સાફ
+                                  </button>
+                                  {selectedDates.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => copyDateToAllOthers(dateStr)}
+                                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition cursor-pointer shadow-2xs"
+                                      title="આ તારીખની સુવિધાઓ અને સમય બાકીની બધી તારીખોમાં કોપી કરો"
+                                    >
+                                      📋 આ બાકીમાં કોપી કરો
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                              <div className="text-[11px] font-bold mt-0.5">
-                                {facIds.length > 0 ? (
-                                  <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                                    ✓ {facIds.length} સુવિધા પસંદ કરેલ છે
-                                  </span>
+
+                              {/* ૮ સુવિધાઓ (8 Facilities) */}
+                              <div className="space-y-3">
+                                {/* 1. Outside Party Plot */}
+                                {facilities.filter((f) => f.type === "PLOT").length > 0 && (
+                                  <div className="space-y-1.5">
+                                    <div className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                                      <span>🌿 આઉટસાઇડ પાર્ટી પ્લોટ (Outside Party Plot)</span>
+                                    </div>
+                                    {facilities
+                                      .filter((f) => f.type === "PLOT")
+                                      .map((fac) => {
+                                        const isChecked = facIds.includes(fac.id);
+                                        const currentRent =
+                                          dtPlotPurpose === "WEDDING"
+                                            ? fac.weddingRent || fac.baseRent || 0
+                                            : fac.familyRent || fac.baseRent || 0;
+                                        return (
+                                          <div
+                                            key={`${dateStr}-${fac.id}`}
+                                            className={`p-3 rounded-xl border-2 transition ${isChecked
+                                              ? "border-red-600 bg-red-50/50 shadow-xs"
+                                              : "border-slate-200 bg-white hover:border-slate-300"
+                                              }`}
+                                          >
+                                            <label className="flex items-start justify-between gap-3 cursor-pointer">
+                                              <div className="flex items-start gap-3">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isChecked}
+                                                  onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                                  className="w-5 h-5 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                                />
+                                                <div>
+                                                  <div className="font-extrabold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
+                                                    <span>{fac.name}</span>
+                                                    <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">
+                                                      {fac.code}
+                                                    </span>
+                                                  </div>
+                                                  <div className="text-[11px] text-slate-500 mt-0.5">
+                                                    ક્ષમતા: {fac.capacity} Persons • ડિપોઝિટ: ₹{(fac.cautionDeposit || 0).toLocaleString("en-IN")}
+                                                  </div>
+                                                </div>
+                                              </div>
+
+                                              <div className="text-right shrink-0">
+                                                <span className="text-xs sm:text-sm font-black text-red-800 block">
+                                                  {currentRent > 0 ? `₹${currentRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                                </span>
+                                                <span className="text-[10px] font-bold text-slate-500">
+                                                  {dtPlotPurpose === "WEDDING" ? "Wedding Tariff" : "Family Tariff"}
+                                                </span>
+                                              </div>
+                                            </label>
+
+                                            {/* Outside Party Plot Purpose Selector for this Date */}
+                                            {isChecked && (
+                                              <div className="mt-2.5 pt-2.5 border-t border-red-200/60 bg-white/80 p-2 rounded-lg space-y-1.5">
+                                                <span className="text-[10px] font-bold text-amber-950 block">
+                                                  આ તારીખ માટે પાર્ટી પ્લોટ ઉપયોગનો પ્રકાર:
+                                                </span>
+                                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setDatePlotPurpose(dateStr, "WEDDING")}
+                                                    className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${dtPlotPurpose === "WEDDING"
+                                                      ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                                      : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
+                                                      }`}
+                                                  >
+                                                    <div className="font-bold text-[11px]">💍 Wedding Function (લગ્ન)</div>
+                                                    <div className="text-[10px] opacity-90">
+                                                      ₹{(fac.weddingRent || fac.baseRent || 0).toLocaleString("en-IN")}
+                                                    </div>
+                                                  </button>
+
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => setDatePlotPurpose(dateStr, "FAMILY")}
+                                                    className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${dtPlotPurpose === "FAMILY"
+                                                      ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                                      : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
+                                                      }`}
+                                                  >
+                                                    <div className="font-bold text-[11px]">👨‍👩‍👧‍👦 Family Function (પારિવારિક)</div>
+                                                    <div className="text-[10px] opacity-90">
+                                                      ₹{(fac.familyRent || fac.baseRent || 0).toLocaleString("en-IN")}
+                                                    </div>
+                                                  </button>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                )}
+
+                                {/* 2. Community Halls */}
+                                {facilities.filter((f) => f.type === "HALL").length > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                                      🏛️ કોમ્યુનિટી હોલ (Community Halls)
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {facilities
+                                        .filter((f) => f.type === "HALL")
+                                        .map((fac) => {
+                                          const isChecked = facIds.includes(fac.id);
+                                          return (
+                                            <label
+                                              key={`${dateStr}-${fac.id}`}
+                                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${isChecked
+                                                ? "border-red-600 bg-red-50/50 shadow-xs"
+                                                : "border-slate-200 bg-white hover:border-slate-300"
+                                                }`}
+                                            >
+                                              <div className="flex items-center gap-2.5 min-w-0">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isChecked}
+                                                  onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                                />
+                                                <div className="min-w-0">
+                                                  <div className="font-extrabold text-xs text-slate-900 truncate">
+                                                    {fac.name}
+                                                  </div>
+                                                  <div className="text-[10px] text-slate-500">
+                                                    {fac.capacity} Persons
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="text-right shrink-0">
+                                                <span className="text-xs font-black text-slate-800 block">
+                                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                                </span>
+                                              </div>
+                                            </label>
+                                          );
+                                        })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* 3. Dormitories */}
+                                {facilities.filter((f) => f.type === "DORMITORY").length > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
+                                      🛏️ ડોર્મિટરી (Dormitories)
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {facilities
+                                        .filter((f) => f.type === "DORMITORY")
+                                        .map((fac) => {
+                                          const isChecked = facIds.includes(fac.id);
+                                          return (
+                                            <label
+                                              key={`${dateStr}-${fac.id}`}
+                                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${isChecked
+                                                ? "border-red-600 bg-red-50/50 shadow-xs"
+                                                : "border-slate-200 bg-white hover:border-slate-300"
+                                                }`}
+                                            >
+                                              <div className="flex items-center gap-2.5 min-w-0">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isChecked}
+                                                  onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                                />
+                                                <div className="min-w-0">
+                                                  <div className="font-extrabold text-xs text-slate-900 truncate">
+                                                    {fac.name}
+                                                  </div>
+                                                  <div className="text-[10px] text-slate-500">
+                                                    {fac.capacity} Beds
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="text-right shrink-0">
+                                                <span className="text-xs font-black text-slate-800 block">
+                                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                                </span>
+                                              </div>
+                                            </label>
+                                          );
+                                        })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* 4. AC Guest Rooms */}
+                                {facilities.filter((f) => f.type === "ROOM").length > 0 && (
+                                  <div className="space-y-1">
+                                    <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+                                      <span>🚪 એસી ગેસ્ટ રૂમ (AC Guest Rooms)</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                      {facilities
+                                        .filter((f) => f.type === "ROOM")
+                                        .map((fac) => {
+                                          const isChecked = facIds.includes(fac.id);
+                                          return (
+                                            <label
+                                              key={`${dateStr}-${fac.id}`}
+                                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${isChecked
+                                                ? "border-red-600 bg-red-50/50 shadow-xs"
+                                                : "border-slate-200 bg-white hover:border-slate-300"
+                                                }`}
+                                            >
+                                              <div className="flex items-center gap-2 min-w-0">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isChecked}
+                                                  onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                                />
+                                                <div className="min-w-0">
+                                                  <div className="font-extrabold text-xs text-slate-900 truncate">
+                                                    {fac.name}
+                                                  </div>
+                                                  <div className="text-[10px] text-slate-500">
+                                                    {fac.capacity} Beds
+                                                  </div>
+                                                </div>
+                                              </div>
+                                              <div className="text-right shrink-0">
+                                                <span className="text-[11px] font-black text-slate-800 block">
+                                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                                </span>
+                                              </div>
+                                            </label>
+                                          );
+                                        })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* સમય સ્લોટ્સ (Time Slots for this date) */}
+                              <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-slate-200">
+                                  <div className="flex items-center gap-1.5">
+                                    <Clock className="w-3.5 h-3.5 text-red-800" />
+                                    <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                                      સમય સ્લોટ્સ (Time Slots for {dateStr}):
+                                    </span>
+                                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
+                                      {dtTimings.length} સ્લોટ પસંદ
+                                    </span>
+                                  </div>
+
+                                  <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-300 text-[10px] font-bold">
+                                    <button
+                                      type="button"
+                                      onClick={() => setDateTimingScope(dateStr, "SAME_ALL")}
+                                      className={`px-2 py-0.5 rounded transition cursor-pointer ${dtScope === "SAME_ALL"
+                                        ? "bg-red-800 text-white shadow-2xs"
+                                        : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                    >
+                                      બધી સુવિધાઓ માટે સરખો સમય
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setDateTimingScope(dateStr, "CUSTOM_PER_FACILITY")}
+                                      className={`px-2 py-0.5 rounded transition cursor-pointer ${dtScope === "CUSTOM_PER_FACILITY"
+                                        ? "bg-red-800 text-white shadow-2xs"
+                                        : "text-slate-600 hover:text-slate-900"
+                                        }`}
+                                    >
+                                      સુવિધા મુજબ અલગ સમય
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {dtScope === "SAME_ALL" ? (
+                                  <div className="space-y-2">
+                                    {/* Option 1: Whole Day */}
+                                    <label
+                                      className={`p-2.5 rounded-xl border-2 flex items-start gap-2.5 transition cursor-pointer ${dtTimings.includes(WHOLE_DAY_SLOT_LABEL)
+                                        ? "border-red-600 bg-red-50/50 shadow-2xs"
+                                        : "border-slate-200 bg-white hover:border-slate-300"
+                                        }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={dtTimings.includes(WHOLE_DAY_SLOT_LABEL)}
+                                        onChange={() => toggleDateTimingSlot(dateStr, WHOLE_DAY_SLOT_LABEL)}
+                                        className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                      />
+                                      <div className="min-w-0">
+                                        <div className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
+                                          <span>૧. આખો દિવસ / 24 Hours (Whole Day)</span>
+                                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800 border border-red-200">
+                                            09:00 AM થી બીજા દિવસે 08:00 AM
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
+                                          ચેક-ઇન સવારે 09:00 AM → ચેક-આઉટ બીજા દિવસે સવારે 08:00 AM (24 કલાક સંપૂર્ણ સાઇકલ)
+                                        </div>
+                                      </div>
+                                    </label>
+
+                                    {/* Option 2: Custom Hourly Timing */}
+                                    <div className="p-2.5 rounded-xl border border-blue-200 bg-white space-y-2">
+                                      <div className="flex flex-wrap items-center justify-between gap-1">
+                                        <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
+                                          <Clock className="w-3 h-3 text-blue-700" />
+                                          ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો:
+                                        </span>
+                                        {/* Presets */}
+                                        <div className="flex flex-wrap items-center gap-1">
+                                          <span className="text-[10px] font-bold text-slate-500 uppercase">ઝડપી સ્લોટ:</span>
+                                          {TIMING_PRESETS.map((preset) => {
+                                            const presetStr = `${preset.from} - ${preset.to}`;
+                                            const isChecked = dtTimings.includes(presetStr);
+                                            return (
+                                              <button
+                                                key={`${dateStr}-${preset.label}`}
+                                                type="button"
+                                                onClick={() => toggleDateTimingSlot(dateStr, presetStr)}
+                                                className={`text-[10px] font-bold px-2 py-0.5 rounded border transition cursor-pointer ${isChecked
+                                                  ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                                                  : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
+                                                  }`}
+                                              >
+                                                {isChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+
+                                      {/* From / To dropdowns */}
+                                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-[10px] font-bold text-slate-600">શરૂ:</span>
+                                          <select
+                                            id={`dt-st-${dateStr}`}
+                                            defaultValue="12:00 PM"
+                                            className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
+                                          >
+                                            {STANDARD_HOURS.map((hr) => (
+                                              <option key={`st-${dateStr}-${hr}`} value={hr}>{hr}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-[10px] font-bold text-slate-600">અંત:</span>
+                                          <select
+                                            id={`dt-en-${dateStr}`}
+                                            defaultValue="02:00 PM"
+                                            className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
+                                          >
+                                            {STANDARD_HOURS.map((hr) => (
+                                              <option key={`en-${dateStr}-${hr}`} value={hr}>{hr}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const stEl = document.getElementById(`dt-st-${dateStr}`) as HTMLSelectElement;
+                                            const enEl = document.getElementById(`dt-en-${dateStr}`) as HTMLSelectElement;
+                                            if (stEl && enEl) {
+                                              addDateCustomSlot(dateStr, stEl.value, enEl.value);
+                                            }
+                                          }}
+                                          className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                        >
+                                          <Plus className="w-3 h-3" />
+                                          <span>ઉમેરો</span>
+                                        </button>
+
+                                        {/* Display custom slots pills */}
+                                        {dtTimings.filter((s) => s !== WHOLE_DAY_SLOT_LABEL).map((slotStr) => (
+                                          <span
+                                            key={`${dateStr}-${slotStr}`}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 border border-blue-300 text-blue-950 font-bold text-[10px]"
+                                          >
+                                            <span>{slotStr}</span>
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleDateTimingSlot(dateStr, slotStr)}
+                                              className="text-blue-500 hover:text-red-700 font-bold cursor-pointer"
+                                            >
+                                              ✕
+                                            </button>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
                                 ) : (
-                                  <span className="text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                                    ⚠️ આ તારીખ માટે સુવિધા પસંદ કરવાની બાકી છે
-                                  </span>
+                                  /* Per Facility timing on this date */
+                                  <div className="space-y-2">
+                                    {facIds.length === 0 ? (
+                                      <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-center text-xs font-bold text-amber-900">
+                                        ⚠️ ઉપરથી પહેલા સુવિધાઓ પસંદ કરો, જેથી તેનો સમય નક્કી કરી શકાય.
+                                      </div>
+                                    ) : (
+                                      facIds.map((facId) => {
+                                        const fac = facilities.find((f) => f.id === facId);
+                                        if (!fac) return null;
+                                        const currentSlots = getDateFacilitySlots(dateStr, facId);
+                                        const isWholeDay = currentSlots.includes(WHOLE_DAY_SLOT_LABEL);
+
+                                        return (
+                                          <div key={`fac-time-${dateStr}-${fac.id}`} className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                                            <div className="flex items-center justify-between font-bold text-xs text-slate-900">
+                                              <span className="flex items-center gap-1">
+                                                <Building className="w-3 h-3 text-red-800" />
+                                                {fac.name} ({fac.code})
+                                              </span>
+                                              <span className="text-[10px] font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                                                {currentSlots.length} સ્લોટ
+                                              </span>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
+                                              <label className="flex items-center gap-1.5 cursor-pointer">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isWholeDay}
+                                                  onChange={() => toggleFacilityCustomTimingForDate(dateStr, fac.id, WHOLE_DAY_SLOT_LABEL)}
+                                                  className="w-3.5 h-3.5 rounded text-red-800"
+                                                />
+                                                <span className="font-bold text-[11px]">આખો દિવસ (09 AM થી 08 AM)</span>
+                                              </label>
+
+                                              {TIMING_PRESETS.map((preset) => {
+                                                const pStr = `${preset.from} - ${preset.to}`;
+                                                const isPChecked = currentSlots.includes(pStr);
+                                                return (
+                                                  <button
+                                                    key={`fac-p-${dateStr}-${fac.id}-${preset.label}`}
+                                                    type="button"
+                                                    onClick={() => toggleFacilityCustomTimingForDate(dateStr, fac.id, pStr)}
+                                                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition cursor-pointer ${isPChecked
+                                                      ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                                                      : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
+                                                      }`}
+                                                  >
+                                                    {isPChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
+                                                  </button>
+                                                );
+                                              })}
+                                            </div>
+
+                                            {/* Custom Timing Dropdowns for this Facility */}
+                                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
+                                              <span className="text-[10px] font-bold text-blue-950 flex items-center gap-1">
+                                                <Clock className="w-3 h-3 text-blue-700" />
+                                                ચોક્કસ સમય:
+                                              </span>
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-slate-500 font-bold">શરૂ:</span>
+                                                <select
+                                                  id={`fac-st-${dateStr}-${fac.id}`}
+                                                  defaultValue="12:00 PM"
+                                                  className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none text-xs text-slate-800"
+                                                >
+                                                  {STANDARD_HOURS.map((hr) => (
+                                                    <option key={`st-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                                  ))}
+                                                </select>
+                                              </div>
+                                              <div className="flex items-center gap-1">
+                                                <span className="text-[10px] text-slate-500 font-bold">અંત:</span>
+                                                <select
+                                                  id={`fac-en-${dateStr}-${fac.id}`}
+                                                  defaultValue="02:00 PM"
+                                                  className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none text-xs text-slate-800"
+                                                >
+                                                  {STANDARD_HOURS.map((hr) => (
+                                                    <option key={`en-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                                  ))}
+                                                </select>
+                                              </div>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const stEl = document.getElementById(`fac-st-${dateStr}-${fac.id}`) as HTMLSelectElement;
+                                                  const enEl = document.getElementById(`fac-en-${dateStr}-${fac.id}`) as HTMLSelectElement;
+                                                  if (stEl && enEl) {
+                                                    addFacilityCustomTimingSlotForDate(dateStr, fac.id, stEl.value, enEl.value);
+                                                  }
+                                                }}
+                                                className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 active:scale-95 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                              >
+                                                <Plus className="w-3 h-3" />
+                                                <span>+ ઉમેરો</span>
+                                              </button>
+                                            </div>
+
+                                            {/* Selected Custom Slots for this Facility */}
+                                            {currentSlots.filter((s) => s !== WHOLE_DAY_SLOT_LABEL).length > 0 && (
+                                              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-blue-100">
+                                                <span className="text-[10px] font-bold text-blue-900">પસંદ કરેલ સ્લોટ્સ:</span>
+                                                {currentSlots.filter((s) => s !== WHOLE_DAY_SLOT_LABEL).map((slotStr) => (
+                                                  <span
+                                                    key={`fac-slot-${dateStr}-${fac.id}-${slotStr}`}
+                                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-blue-100 border border-blue-300 text-blue-950 text-[10px] font-bold shadow-2xs"
+                                                  >
+                                                    <span>{slotStr}</span>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => toggleFacilityCustomTimingForDate(dateStr, fac.id, slotStr)}
+                                                      className="text-blue-500 hover:text-red-700 ml-0.5 font-bold cursor-pointer"
+                                                      title="કાઢી નાખો (Remove)"
+                                                    >
+                                                      ✕
+                                                    </button>
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             </div>
-                          </div>
+                          );
+                        })
+                      )}
+                    </div>
 
-                          {/* Quick Actions for this Date */}
-                          <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-bold">
-                            <button
-                              type="button"
-                              onClick={() => selectAllRoomsForDate(dateStr)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200"
-                            >
-                              ✓ બધા રૂમ
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => selectAllHallsForDate(dateStr)}
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer border border-slate-200"
-                            >
-                              ✓ બંને હોલ
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => selectAllFacilitiesForDate(dateStr)}
-                              className="px-2 py-1 rounded-lg bg-red-800 text-white hover:bg-red-700 transition cursor-pointer"
-                            >
-                              બધું (All)
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => clearAllFacilitiesForDate(dateStr)}
-                              className="px-2 py-1 rounded-lg bg-slate-200 text-slate-700 hover:bg-slate-300 transition cursor-pointer"
-                            >
-                              સાફ
-                            </button>
-                            {selectedDates.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => copyDateToAllOthers(dateStr)}
-                                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white transition cursor-pointer shadow-2xs"
-                                title="આ તારીખની સુવિધાઓ અને સમય બાકીની બધી તારીખોમાં કોપી કરો"
-                              >
-                                📋 આ બાકીમાં કોપી કરો
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* ૮ સુવિધાઓ (8 Facilities) */}
-                        <div className="space-y-3">
-                          {/* 1. Outside Party Plot */}
-                          {facilities.filter((f) => f.type === "PLOT").length > 0 && (
-                            <div className="space-y-1.5">
-                              <div className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider flex items-center gap-1">
-                                <span>🌿 આઉટસાઇડ પાર્ટી પ્લોટ (Outside Party Plot)</span>
-                              </div>
-                              {facilities
-                                .filter((f) => f.type === "PLOT")
-                                .map((fac) => {
-                                  const isChecked = facIds.includes(fac.id);
-                                  const currentRent =
-                                    dtPlotPurpose === "WEDDING"
-                                      ? fac.weddingRent || fac.baseRent || 0
-                                      : fac.familyRent || fac.baseRent || 0;
-                                  return (
-                                    <div
-                                      key={`${dateStr}-${fac.id}`}
-                                      className={`p-3 rounded-xl border-2 transition ${
-                                        isChecked
-                                          ? "border-red-600 bg-red-50/50 shadow-xs"
-                                          : "border-slate-200 bg-white hover:border-slate-300"
-                                      }`}
-                                    >
-                                      <label className="flex items-start justify-between gap-3 cursor-pointer">
-                                        <div className="flex items-start gap-3">
-                                          <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
-                                            className="w-5 h-5 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                          />
-                                          <div>
-                                            <div className="font-extrabold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
-                                              <span>{fac.name}</span>
-                                              <span className="text-[10px] font-mono px-1.5 py-0.5 bg-slate-100 rounded text-slate-600">
-                                                {fac.code}
-                                              </span>
-                                            </div>
-                                            <div className="text-[11px] text-slate-500 mt-0.5">
-                                              ક્ષમતા: {fac.capacity} Persons • ડિપોઝિટ: ₹{(fac.cautionDeposit || 0).toLocaleString("en-IN")}
-                                            </div>
-                                          </div>
-                                        </div>
-
-                                        <div className="text-right shrink-0">
-                                          <span className="text-xs sm:text-sm font-black text-red-800 block">
-                                            {currentRent > 0 ? `₹${currentRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                          </span>
-                                          <span className="text-[10px] font-bold text-slate-500">
-                                            {dtPlotPurpose === "WEDDING" ? "Wedding Tariff" : "Family Tariff"}
-                                          </span>
-                                        </div>
-                                      </label>
-
-                                      {/* Outside Party Plot Purpose Selector for this Date */}
-                                      {isChecked && (
-                                        <div className="mt-2.5 pt-2.5 border-t border-red-200/60 bg-white/80 p-2 rounded-lg space-y-1.5">
-                                          <span className="text-[10px] font-bold text-amber-950 block">
-                                            આ તારીખ માટે પાર્ટી પ્લોટ ઉપયોગનો પ્રકાર:
-                                          </span>
-                                          <div className="grid grid-cols-2 gap-2 text-xs">
-                                            <button
-                                              type="button"
-                                              onClick={() => setDatePlotPurpose(dateStr, "WEDDING")}
-                                              className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${
-                                                dtPlotPurpose === "WEDDING"
-                                                  ? "bg-red-800 text-white border-red-900 shadow-xs"
-                                                  : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
-                                              }`}
-                                            >
-                                              <div className="font-bold text-[11px]">💍 Wedding Function (લગ્ન)</div>
-                                              <div className="text-[10px] opacity-90">
-                                                ₹{(fac.weddingRent || fac.baseRent || 0).toLocaleString("en-IN")}
-                                              </div>
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              onClick={() => setDatePlotPurpose(dateStr, "FAMILY")}
-                                              className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${
-                                                dtPlotPurpose === "FAMILY"
-                                                  ? "bg-red-800 text-white border-red-900 shadow-xs"
-                                                  : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
-                                              }`}
-                                            >
-                                              <div className="font-bold text-[11px]">👨‍👩‍👧‍👦 Family Function (પારિવારિક)</div>
-                                              <div className="text-[10px] opacity-90">
-                                                ₹{(fac.familyRent || fac.baseRent || 0).toLocaleString("en-IN")}
-                                              </div>
-                                            </button>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                          )}
-
-                          {/* 2. Community Halls */}
-                          {facilities.filter((f) => f.type === "HALL").length > 0 && (
-                            <div className="space-y-1">
-                              <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-                                🏛️ કોમ્યુનિટી હોલ (Community Halls)
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {facilities
-                                  .filter((f) => f.type === "HALL")
-                                  .map((fac) => {
-                                    const isChecked = facIds.includes(fac.id);
-                                    return (
-                                      <label
-                                        key={`${dateStr}-${fac.id}`}
-                                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
-                                          isChecked
-                                            ? "border-red-600 bg-red-50/50 shadow-xs"
-                                            : "border-slate-200 bg-white hover:border-slate-300"
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                          <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
-                                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                          />
-                                          <div className="min-w-0">
-                                            <div className="font-extrabold text-xs text-slate-900 truncate">
-                                              {fac.name}
-                                            </div>
-                                            <div className="text-[10px] text-slate-500">
-                                              {fac.capacity} Persons
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                          <span className="text-xs font-black text-slate-800 block">
-                                            {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                          </span>
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* 3. Dormitories */}
-                          {facilities.filter((f) => f.type === "DORMITORY").length > 0 && (
-                            <div className="space-y-1">
-                              <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-                                🛏️ ડોર્મિટરી (Dormitories)
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                {facilities
-                                  .filter((f) => f.type === "DORMITORY")
-                                  .map((fac) => {
-                                    const isChecked = facIds.includes(fac.id);
-                                    return (
-                                      <label
-                                        key={`${dateStr}-${fac.id}`}
-                                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
-                                          isChecked
-                                            ? "border-red-600 bg-red-50/50 shadow-xs"
-                                            : "border-slate-200 bg-white hover:border-slate-300"
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-2.5 min-w-0">
-                                          <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
-                                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                          />
-                                          <div className="min-w-0">
-                                            <div className="font-extrabold text-xs text-slate-900 truncate">
-                                              {fac.name}
-                                            </div>
-                                            <div className="text-[10px] text-slate-500">
-                                              {fac.capacity} Beds
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                          <span className="text-xs font-black text-slate-800 block">
-                                            {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                          </span>
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* 4. AC Guest Rooms */}
-                          {facilities.filter((f) => f.type === "ROOM").length > 0 && (
-                            <div className="space-y-1">
-                              <div className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
-                                <span>🚪 એસી ગેસ્ટ રૂમ (AC Guest Rooms)</span>
-                              </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                {facilities
-                                  .filter((f) => f.type === "ROOM")
-                                  .map((fac) => {
-                                    const isChecked = facIds.includes(fac.id);
-                                    return (
-                                      <label
-                                        key={`${dateStr}-${fac.id}`}
-                                        className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${
-                                          isChecked
-                                            ? "border-red-600 bg-red-50/50 shadow-xs"
-                                            : "border-slate-200 bg-white hover:border-slate-300"
-                                        }`}
-                                      >
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => toggleFacilityForDate(dateStr, fac.id)}
-                                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                          />
-                                          <div className="min-w-0">
-                                            <div className="font-extrabold text-xs text-slate-900 truncate">
-                                              {fac.name}
-                                            </div>
-                                            <div className="text-[10px] text-slate-500">
-                                              {fac.capacity} Beds
-                                            </div>
-                                          </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                          <span className="text-[11px] font-black text-slate-800 block">
-                                            {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                          </span>
-                                        </div>
-                                      </label>
-                                    );
-                                  })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* સમય સ્લોટ્સ (Time Slots for this date) */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 pb-2 border-b border-slate-200">
-                            <div className="flex items-center gap-1.5">
-                              <Clock className="w-3.5 h-3.5 text-red-800" />
-                              <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                                સમય સ્લોટ્સ (Time Slots for {dateStr}):
-                              </span>
-                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-red-100 text-red-800 border border-red-300">
-                                {dtTimings.length} સ્લોટ પસંદ
-                              </span>
-                            </div>
-
-                            <div className="flex items-center bg-white p-0.5 rounded-lg border border-slate-300 text-[10px] font-bold">
-                              <button
-                                type="button"
-                                onClick={() => setDateTimingScope(dateStr, "SAME_ALL")}
-                                className={`px-2 py-0.5 rounded transition cursor-pointer ${
-                                  dtScope === "SAME_ALL"
-                                    ? "bg-red-800 text-white shadow-2xs"
-                                    : "text-slate-600 hover:text-slate-900"
+                    {/* SECTION 4: Add-on Services: Cleaning & Waste Collection */}
+                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+                      <span className="text-xs font-bold text-slate-800 flex items-center">
+                        <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                        ૪. વધારાની સેવાઓ (Optional Add-on Trust Services):
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {services.map((srv) => {
+                          const isChecked = formData.selectedServices.includes(srv.code);
+                          return (
+                            <label
+                              key={srv.id}
+                              className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition ${isChecked
+                                ? "bg-amber-100/60 border-amber-300 font-bold text-amber-950"
+                                : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100/50"
                                 }`}
-                              >
-                                બધી સુવિધાઓ માટે સરખો સમય
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setDateTimingScope(dateStr, "CUSTOM_PER_FACILITY")}
-                                className={`px-2 py-0.5 rounded transition cursor-pointer ${
-                                  dtScope === "CUSTOM_PER_FACILITY"
-                                    ? "bg-red-800 text-white shadow-2xs"
-                                    : "text-slate-600 hover:text-slate-900"
-                                }`}
-                              >
-                                સુવિધા મુજબ અલગ સમય
-                              </button>
-                            </div>
-                          </div>
-
-                          {dtScope === "SAME_ALL" ? (
-                            <div className="space-y-2">
-                              {/* Option 1: Whole Day */}
-                              <label
-                                className={`p-2.5 rounded-xl border-2 flex items-start gap-2.5 transition cursor-pointer ${
-                                  dtTimings.includes(WHOLE_DAY_SLOT_LABEL)
-                                    ? "border-red-600 bg-red-50/50 shadow-2xs"
-                                    : "border-slate-200 bg-white hover:border-slate-300"
-                                }`}
-                              >
+                            >
+                              <div className="flex items-center space-x-2">
                                 <input
                                   type="checkbox"
-                                  checked={dtTimings.includes(WHOLE_DAY_SLOT_LABEL)}
-                                  onChange={() => toggleDateTimingSlot(dateStr, WHOLE_DAY_SLOT_LABEL)}
-                                  className="w-4 h-4 mt-0.5 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                  checked={isChecked}
+                                  onChange={() => handleServiceToggle(srv.code)}
+                                  className="rounded text-red-800 focus:ring-red-700 cursor-pointer"
                                 />
-                                <div className="min-w-0">
-                                  <div className="font-extrabold text-xs text-slate-900 flex items-center gap-1.5">
-                                    <span>૧. આખો દિવસ / 24 Hours (Whole Day)</span>
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-800 border border-red-200">
-                                      09:00 AM થી બીજા દિવસે 08:00 AM
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-slate-500 mt-0.5 font-medium">
-                                    ચેક-ઇન સવારે 09:00 AM → ચેક-આઉટ બીજા દિવસે સવારે 08:00 AM (24 કલાક સંપૂર્ણ સાઇકલ)
-                                  </div>
-                                </div>
-                              </label>
-
-                              {/* Option 2: Custom Hourly Timing */}
-                              <div className="p-2.5 rounded-xl border border-blue-200 bg-white space-y-2">
-                                <div className="flex flex-wrap items-center justify-between gap-1">
-                                  <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
-                                    <Clock className="w-3 h-3 text-blue-700" />
-                                    ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો:
-                                  </span>
-                                  {/* Presets */}
-                                  <div className="flex flex-wrap items-center gap-1">
-                                    <span className="text-[10px] font-bold text-slate-500 uppercase">ઝડપી સ્લોટ:</span>
-                                    {TIMING_PRESETS.map((preset) => {
-                                      const presetStr = `${preset.from} - ${preset.to}`;
-                                      const isChecked = dtTimings.includes(presetStr);
-                                      return (
-                                        <button
-                                          key={`${dateStr}-${preset.label}`}
-                                          type="button"
-                                          onClick={() => toggleDateTimingSlot(dateStr, presetStr)}
-                                          className={`text-[10px] font-bold px-2 py-0.5 rounded border transition cursor-pointer ${
-                                            isChecked
-                                              ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
-                                              : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
-                                          }`}
-                                        >
-                                          {isChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-
-                                {/* From / To dropdowns */}
-                                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-bold text-slate-600">શરૂ:</span>
-                                    <select
-                                      id={`dt-st-${dateStr}`}
-                                      defaultValue="12:00 PM"
-                                      className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
-                                    >
-                                      {STANDARD_HOURS.map((hr) => (
-                                        <option key={`st-${dateStr}-${hr}`} value={hr}>{hr}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-[10px] font-bold text-slate-600">અંત:</span>
-                                    <select
-                                      id={`dt-en-${dateStr}`}
-                                      defaultValue="02:00 PM"
-                                      className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
-                                    >
-                                      {STANDARD_HOURS.map((hr) => (
-                                        <option key={`en-${dateStr}-${hr}`} value={hr}>{hr}</option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const stEl = document.getElementById(`dt-st-${dateStr}`) as HTMLSelectElement;
-                                      const enEl = document.getElementById(`dt-en-${dateStr}`) as HTMLSelectElement;
-                                      if (stEl && enEl) {
-                                        addDateCustomSlot(dateStr, stEl.value, enEl.value);
-                                      }
-                                    }}
-                                    className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                    <span>ઉમેરો</span>
-                                  </button>
-
-                                  {/* Display custom slots pills */}
-                                  {dtTimings.filter((s) => s !== WHOLE_DAY_SLOT_LABEL).map((slotStr) => (
-                                    <span
-                                      key={`${dateStr}-${slotStr}`}
-                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-100 border border-blue-300 text-blue-950 font-bold text-[10px]"
-                                    >
-                                      <span>{slotStr}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleDateTimingSlot(dateStr, slotStr)}
-                                        className="text-blue-500 hover:text-red-700 font-bold cursor-pointer"
-                                      >
-                                        ✕
-                                      </button>
-                                    </span>
-                                  ))}
-                                </div>
+                                <span>{srv.name}</span>
                               </div>
+                              <span className="text-slate-900 font-extrabold">
+                                + ₹{srv.price.toLocaleString("en-IN")}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* SECTION 5: Non-Stackable Discount Rules */}
+                    <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-amber-950 flex items-center">
+                          <Percent className="w-3.5 h-3.5 mr-1 text-red-800" />
+                          ૫. ટ્રસ્ટી અને દાતા ડિસ્કાઉન્ટ (Trustee & Room Donor Discount Policy):
+                        </span>
+                        <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded">
+                          Non-Stackable
+                        </span>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            ડિસ્કાઉન્ટ કેટેગરી પસંદ કરો (Select Discount Category):
+                          </label>
+                          <select
+                            value={formData.discountCode}
+                            onChange={(e) => handleDiscountChange(e.target.value)}
+                            className="w-full text-xs bg-white border border-amber-300 rounded-xl p-2.5 text-slate-800 font-semibold outline-none"
+                          >
+                            <option value="NONE">No Discount (Standard Community Member Rate)</option>
+                            {discounts.map((d) => (
+                              <option key={d.code} value={d.code}>
+                                {d.name} ({d.percentage}% Off)
+                              </option>
+                            ))}
+                            <option value="MANUAL_OVERRIDE">Authorized Admin Override (Custom %)</option>
+                          </select>
+                        </div>
+
+                        {formData.discountCode === "MANUAL_OVERRIDE" && (
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                              Override Percentage & Audit Reason:
+                            </label>
+                            <div className="flex space-x-2">
+                              <input
+                                type="number"
+                                placeholder="%"
+                                min="0"
+                                max="100"
+                                value={formData.discountPercent}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    discountPercent: Number(e.target.value),
+                                  })
+                                }
+                                className="w-20 text-xs bg-white border border-amber-300 rounded-xl p-2 font-bold outline-none"
+                              />
+                              <input
+                                type="text"
+                                required
+                                placeholder="Mandatory Audit Reason"
+                                value={formData.discountOverrideReason}
+                                onChange={(e) =>
+                                  setFormData({ ...formData, discountOverrideReason: e.target.value })
+                                }
+                                className="flex-1 text-xs bg-white border border-amber-300 rounded-xl p-2 text-slate-800 outline-none"
+                              />
                             </div>
-                          ) : (
-                            /* Per Facility timing on this date */
-                            <div className="space-y-2">
-                              {facIds.length === 0 ? (
-                                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-center text-xs font-bold text-amber-900">
-                                  ⚠️ ઉપરથી પહેલા સુવિધાઓ પસંદ કરો, જેથી તેનો સમય નક્કી કરી શકાય.
-                                </div>
-                              ) : (
-                                facIds.map((facId) => {
-                                  const fac = facilities.find((f) => f.id === facId);
-                                  if (!fac) return null;
-                                  const currentSlots = getDateFacilitySlots(dateStr, facId);
-                                  const isWholeDay = currentSlots.includes(WHOLE_DAY_SLOT_LABEL);
+                          </div>
+                        )}
+                      </div>
 
-                                  return (
-                                    <div key={`fac-time-${dateStr}-${fac.id}`} className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
-                                      <div className="flex items-center justify-between font-bold text-xs text-slate-900">
-                                        <span className="flex items-center gap-1">
-                                          <Building className="w-3 h-3 text-red-800" />
-                                          {fac.name} ({fac.code})
-                                        </span>
-                                        <span className="text-[10px] font-bold text-red-800 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
-                                          {currentSlots.length} સ્લોટ
-                                        </span>
-                                      </div>
+                      {/* Financial Breakdown Preview */}
+                      <div className="bg-white p-3.5 rounded-xl border border-amber-200 text-xs space-y-1.5 mt-2">
+                        <div className="flex justify-between text-slate-600">
+                          <span>કુલ મૂળ સુવિધા ભાડું (Total Base Rent - {bookingItems.length} Bookings):</span>
+                          <span className="font-semibold text-slate-800">
+                            ₹{totalFacilityRent.toLocaleString("en-IN")}
+                          </span>
+                        </div>
 
-                                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
-                                        <label className="flex items-center gap-1.5 cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            checked={isWholeDay}
-                                            onChange={() => toggleFacilityCustomTimingForDate(dateStr, fac.id, WHOLE_DAY_SLOT_LABEL)}
-                                            className="w-3.5 h-3.5 rounded text-red-800"
-                                          />
-                                          <span className="font-bold text-[11px]">આખો દિવસ (09 AM થી 08 AM)</span>
-                                        </label>
+                        {totalDiscountAmount > 0 && (
+                          <div className="flex justify-between text-emerald-700 font-semibold">
+                            <span>ડિસ્કાઉન્ટ (Discount {currentDiscountPercent}%):</span>
+                            <span>- ₹{totalDiscountAmount.toLocaleString("en-IN")}</span>
+                          </div>
+                        )}
 
-                                        {TIMING_PRESETS.map((preset) => {
-                                          const pStr = `${preset.from} - ${preset.to}`;
-                                          const isPChecked = currentSlots.includes(pStr);
-                                          return (
-                                            <button
-                                              key={`fac-p-${dateStr}-${fac.id}-${preset.label}`}
-                                              type="button"
-                                              onClick={() => toggleFacilityCustomTimingForDate(dateStr, fac.id, pStr)}
-                                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded border transition cursor-pointer ${
-                                                isPChecked
-                                                  ? "bg-blue-600 text-white border-blue-700"
-                                                  : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
-                                              }`}
-                                            >
-                                              {isPChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  );
-                                })
-                              )}
-                            </div>
-                          )}
+                        {totalServicesAmount > 0 && (
+                          <div className="flex justify-between text-blue-700 font-semibold">
+                            <span>વધારાની સેવાઓ (Add-on Services Total):</span>
+                            <span>+ ₹{totalServicesAmount.toLocaleString("en-IN")}</span>
+                          </div>
+                        )}
+
+                        <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-200">
+                          <span>કુલ ચૂકવવાપાત્ર રકમ (Final Payable Amount):</span>
+                          <span className="text-red-900 text-base">
+                            ₹{finalTotalAmount.toLocaleString("en-IN")}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
+                          <span>પરત મળવાપાત્ર ડિપોઝિટ (Refundable Caution Deposit):</span>
+                          <span>₹{totalDepositAmount.toLocaleString("en-IN")}</span>
                         </div>
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                    </div>
 
-              {/* SECTION 4: Add-on Services: Cleaning & Waste Collection */}
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                <span className="text-xs font-bold text-slate-800 flex items-center">
-                  <Sparkles className="w-3.5 h-3.5 mr-1 text-amber-600" />
-                  ૪. વધારાની સેવાઓ (Optional Add-on Trust Services):
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  {services.map((srv) => {
-                    const isChecked = formData.selectedServices.includes(srv.code);
-                    return (
-                      <label
-                        key={srv.id}
-                        className={`flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition ${
-                          isChecked
-                            ? "bg-amber-100/60 border-amber-300 font-bold text-amber-950"
-                            : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100/50"
-                        }`}
-                      >
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleServiceToggle(srv.code)}
-                            className="rounded text-red-800 focus:ring-red-700 cursor-pointer"
-                          />
-                          <span>{srv.name}</span>
-                        </div>
-                        <span className="text-slate-900 font-extrabold">
-                          + ₹{srv.price.toLocaleString("en-IN")}
-                        </span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
+                    {/* SECTION 6: Payment Method */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          ચૂકવણી પદ્ધતિ (Payment Method)
+                        </label>
+                        <select
+                          value={formData.paymentMethod}
+                          onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800 font-bold outline-none"
+                        >
+                          <option value="CASH_AT_OFFICE">Cash at Office (રોકડ)</option>
+                          <option value="CHEQUE">Cheque (ચેક)</option>
+                          <option value="OFFLINE_UPI">Offline UPI / QR</option>
+                          <option value="NEFT_RTGS">NEFT / Bank Transfer</option>
+                        </select>
+                      </div>
 
-              {/* SECTION 5: Non-Stackable Discount Rules */}
-              <div className="bg-amber-50/70 p-4 rounded-2xl border border-amber-200 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-950 flex items-center">
-                    <Percent className="w-3.5 h-3.5 mr-1 text-red-800" />
-                    ૫. ટ્રસ્ટી અને દાતા ડિસ્કાઉન્ટ (Trustee & Room Donor Discount Policy):
-                  </span>
-                  <span className="text-[10px] text-amber-800 font-semibold bg-amber-100 px-2 py-0.5 rounded">
-                    Non-Stackable
-                  </span>
-                </div>
-
-                <div className="space-y-2">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      ડિસ્કાઉન્ટ કેટેગરી પસંદ કરો (Select Discount Category):
-                    </label>
-                    <select
-                      value={formData.discountCode}
-                      onChange={(e) => handleDiscountChange(e.target.value)}
-                      className="w-full text-xs bg-white border border-amber-300 rounded-xl p-2.5 text-slate-800 font-semibold outline-none"
-                    >
-                      <option value="NONE">No Discount (Standard Community Member Rate)</option>
-                      {discounts.map((d) => (
-                        <option key={d.code} value={d.code}>
-                          {d.name} ({d.percentage}% Off)
-                        </option>
-                      ))}
-                      <option value="MANUAL_OVERRIDE">Authorized Admin Override (Custom %)</option>
-                    </select>
-                  </div>
-
-                  {formData.discountCode === "MANUAL_OVERRIDE" && (
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Override Percentage & Audit Reason:
-                      </label>
-                      <div className="flex space-x-2">
-                        <input
-                          type="number"
-                          placeholder="%"
-                          min="0"
-                          max="100"
-                          value={formData.discountPercent}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              discountPercent: Number(e.target.value),
-                            })
-                          }
-                          className="w-20 text-xs bg-white border border-amber-300 rounded-xl p-2 font-bold outline-none"
-                        />
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          રસીદ / ચેક / UTR રેફરન્સ (Receipt Reference)
+                        </label>
                         <input
                           type="text"
-                          required
-                          placeholder="Mandatory Audit Reason"
-                          value={formData.discountOverrideReason}
-                          onChange={(e) =>
-                            setFormData({ ...formData, discountOverrideReason: e.target.value })
-                          }
-                          className="flex-1 text-xs bg-white border border-amber-300 rounded-xl p-2 text-slate-800 outline-none"
+                          placeholder="દા.ત. REC-2026-001 અથવા Cheque No."
+                          value={formData.paymentRefNo}
+                          onChange={(e) => setFormData({ ...formData, paymentRefNo: e.target.value })}
+                          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
                         />
                       </div>
                     </div>
-                  )}
-                </div>
-
-                {/* Financial Breakdown Preview */}
-                <div className="bg-white p-3.5 rounded-xl border border-amber-200 text-xs space-y-1.5 mt-2">
-                  <div className="flex justify-between text-slate-600">
-                    <span>કુલ મૂળ સુવિધા ભાડું (Total Base Rent - {bookingItems.length} Bookings):</span>
-                    <span className="font-semibold text-slate-800">
-                      ₹{totalFacilityRent.toLocaleString("en-IN")}
-                    </span>
                   </div>
+                  {/* End of Right Column (lg:col-span-7) */}
 
-                  {totalDiscountAmount > 0 && (
-                    <div className="flex justify-between text-emerald-700 font-semibold">
-                      <span>ડિસ્કાઉન્ટ (Discount {currentDiscountPercent}%):</span>
-                      <span>- ₹{totalDiscountAmount.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-
-                  {totalServicesAmount > 0 && (
-                    <div className="flex justify-between text-blue-700 font-semibold">
-                      <span>વધારાની સેવાઓ (Add-on Services Total):</span>
-                      <span>+ ₹{totalServicesAmount.toLocaleString("en-IN")}</span>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-200">
-                    <span>કુલ ચૂકવવાપાત્ર રકમ (Final Payable Amount):</span>
-                    <span className="text-red-900 text-base">
-                      ₹{finalTotalAmount.toLocaleString("en-IN")}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
-                    <span>પરત મળવાપાત્ર ડિપોઝિટ (Refundable Caution Deposit):</span>
-                    <span>₹{totalDepositAmount.toLocaleString("en-IN")}</span>
-                  </div>
                 </div>
               </div>
+              {/* End of Scrollable 2-Column Body */}
 
-              {/* SECTION 6: Payment Method */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    ચૂકવણી પદ્ધતિ (Payment Method)
-                  </label>
-                  <select
-                    value={formData.paymentMethod}
-                    onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800 font-bold outline-none"
-                  >
-                    <option value="CASH_AT_OFFICE">Cash at Office (રોકડ)</option>
-                    <option value="CHEQUE">Cheque (ચેક)</option>
-                    <option value="OFFLINE_UPI">Offline UPI / QR</option>
-                    <option value="NEFT_RTGS">NEFT / Bank Transfer</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    રસીદ / ચેક / UTR રેફરન્સ (Receipt Reference)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="દા.ત. REC-2026-001 અથવા Cheque No."
-                    value={formData.paymentRefNo}
-                    onChange={(e) => setFormData({ ...formData, paymentRefNo: e.target.value })}
-                    className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800 outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-            {/* End of Right Column (lg:col-span-7) */}
-
-          </div>
-        </div>
-        {/* End of Scrollable 2-Column Body */}
-
-        {/* Modal Sticky Footer */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:px-6 bg-slate-50 border-t border-slate-200 shrink-0 shadow-lg">
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="font-extrabold px-2.5 py-1 rounded-lg bg-red-100 text-red-900 border border-red-200">
-              📅 {selectedDates.length} તારીખ
-            </span>
-            <span className="font-extrabold px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800">
-              🏢 {Array.from(new Set(bookingItems.map((it) => it.facilityId))).length} સુવિધા
-            </span>
-            <span className="font-extrabold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">
-              ⏱️ {bookingItems.length} બુકિંગ
-            </span>
-            <span className="font-black text-slate-900 text-sm ml-1">
-              કુલ રકમ: ₹{finalTotalAmount.toLocaleString("en-IN")}
-            </span>
-          </div>
-
-          <div className="flex items-center space-x-2 shrink-0">
-            <button
-              type="button"
-              onClick={closeCreateModal}
-              className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
-            >
-              Cancel (રદ કરો)
-            </button>
-            <button
-              type="submit"
-              disabled={
-                creating ||
-                hasAnyConflict ||
-                bookingItems.length === 0 ||
-                selectedDates.length === 0
-              }
-              className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
-            >
-              {creating ? (
-                "બુકિંગ સેવ થઈ રહ્યું છે..."
-              ) : (
-                <>
-                  <Check className="w-4 h-4" />
-                  <span>
-                    {bookingItems.length > 1
-                      ? `તમામ ${bookingItems.length} બુકિંગ કન્ફર્મ કરો (Confirm & Book ${bookingItems.length} Entries)`
-                      : "બુકિંગ કન્ફર્મ કરો (Confirm & Save Booking)"}
+              {/* Modal Sticky Footer */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:px-6 bg-slate-50 border-t border-slate-200 shrink-0 shadow-lg">
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-extrabold px-2.5 py-1 rounded-lg bg-red-100 text-red-900 border border-red-200">
+                    📅 {selectedDates.length} તારીખ
                   </span>
-                </>
-              )}
-            </button>
+                  <span className="font-extrabold px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800">
+                    🏢 {Array.from(new Set(bookingItems.map((it) => it.facilityId))).length} સુવિધા
+                  </span>
+                  <span className="font-extrabold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">
+                    ⏱️ {bookingItems.length} બુકિંગ
+                  </span>
+                  <span className="font-black text-slate-900 text-sm ml-1">
+                    કુલ રકમ: ₹{finalTotalAmount.toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={closeCreateModal}
+                    className="text-xs font-semibold px-4 py-2.5 text-slate-600 hover:bg-slate-200 rounded-xl transition cursor-pointer"
+                  >
+                    Cancel (રદ કરો)
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={
+                      creating ||
+                      hasAnyConflict ||
+                      bookingItems.length === 0 ||
+                      selectedDates.length === 0
+                    }
+                    className="bg-red-800 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold px-6 py-2.5 rounded-xl shadow transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    {creating ? (
+                      "બુકિંગ સેવ થઈ રહ્યું છે..."
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>
+                          {bookingItems.length > 1
+                            ? `તમામ ${bookingItems.length} બુકિંગ કન્ફર્મ કરો (Confirm & Book ${bookingItems.length} Entries)`
+                            : "બુકિંગ કન્ફર્મ કરો (Confirm & Save Booking)"}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
-      </form>
-    </div>
-  </div>
-)}
+      )}
       {/* Senior-Friendly Delete Confirmation Modal */}
       {bookingToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
