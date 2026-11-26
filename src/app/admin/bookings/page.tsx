@@ -81,7 +81,7 @@ function BookingsManagementContent() {
 
   // Create Booking Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [formData, setFormData] = useState({
+  const initialBookingFormData = {
     facilityId: "",
     customerName: "",
     customerPhone: "",
@@ -103,11 +103,12 @@ function BookingsManagementContent() {
     servicesAmount: 0,
     totalAmount: 0,
     depositAmount: 0,
-    paymentStatus: "PAID_CASH",
+    paymentStatus: "PENDING",
     paymentMethod: "CASH_AT_OFFICE",
     paymentRefNo: "",
     notes: "",
-  });
+  };
+  const [formData, setFormData] = useState(initialBookingFormData);
 
   // Multi-Facility, Multi-Date, Multi-Timing Checkbox States
   const defaultTodayDateStr = new Date().toISOString().split("T")[0];
@@ -183,11 +184,11 @@ function BookingsManagementContent() {
     const dStr = dateParam || new Date().toISOString().split("T")[0];
     setSelectedDates([dStr]);
     setActiveDate(dStr);
-    setFormData((prev) => ({
-      ...prev,
+    setFormData({
+      ...initialBookingFormData,
       startDate: dStr,
       endDate: dStr,
-    }));
+    });
     if (facParam) {
       setDateFacilityMap({ [dStr]: [facParam] });
       setDateTimeTimingMap({ [dStr]: { [facParam]: [WHOLE_DAY_SLOT_LABEL] } });
@@ -200,6 +201,7 @@ function BookingsManagementContent() {
   const closeCreateModal = () => {
     setShowCreateModal(false);
     setDateCopySuccess(false);
+    setFormData(initialBookingFormData);
     if (typeof window !== "undefined" && window.location.search.includes("new=true")) {
       const url = new URL(window.location.href);
       url.searchParams.delete("new");
@@ -3465,8 +3467,24 @@ function BookingsManagementContent() {
                       </div>
                     </div>
 
-                    {/* SECTION 6: Payment Method */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* SECTION 6: Payment Details */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          ચૂકવણી સ્થિતિ (Payment Status)
+                        </label>
+                        <select
+                          value={formData.paymentStatus}
+                          onChange={(e) => setFormData({ ...formData, paymentStatus: e.target.value })}
+                          className="w-full text-xs bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-800 font-bold outline-none"
+                        >
+                          <option value="PENDING">🟡 ચૂકવણી બાકી (Pending / Unpaid)</option>
+                          <option value="PAID_CASH">🟢 પૂર્ણ રોકડ ચુકવણી (Paid Cash)</option>
+                          <option value="PAID_ONLINE">🟢 પૂર્ણ ઓનલાઇન ચુકવણી (Paid Online)</option>
+                          <option value="PARTIAL">🟡 આંશિક ચુકવણી (Partial)</option>
+                        </select>
+                      </div>
+
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           ચૂકવણી પદ્ધતિ (Payment Method)
