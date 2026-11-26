@@ -587,7 +587,7 @@ export default function AdminCalendarPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Calendar Grid (2 Cols on Desktop, Full Width on Mobile) */}
           <div className="lg:col-span-2 bg-white rounded-3xl border-2 border-slate-200 shadow-sm p-3.5 sm:p-6">
-            <div className="grid grid-cols-7 gap-1 text-center text-[10px] sm:text-sm font-black text-slate-700 pb-2 sm:pb-3 border-b-2 border-slate-200 mb-2 sm:mb-3">
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] sm:text-xs font-black text-slate-500 pb-2 border-b border-slate-100 mb-2">
               <span className="text-red-700 font-black"><span className="sm:hidden">રવિ</span><span className="hidden sm:inline">રવિ (Sun)</span></span>
               <span><span className="sm:hidden">સોમ</span><span className="hidden sm:inline">સોમ (Mon)</span></span>
               <span><span className="sm:hidden">મંગળ</span><span className="hidden sm:inline">મંગળ (Tue)</span></span>
@@ -597,26 +597,49 @@ export default function AdminCalendarPage() {
               <span><span className="sm:hidden">શનિ</span><span className="hidden sm:inline">શનિ (Sat)</span></span>
             </div>
 
-            <div className="mb-2 flex items-center justify-end gap-3 text-[10px] font-bold text-slate-600 sm:mb-3 sm:text-xs" aria-label="Calendar availability legend">
-              <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-emerald-500" />
-                Available (ખાલી)
-              </span>
-              {isSuper && (
-                <span className="inline-flex items-center gap-1.5">
-                  <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-amber-500" />
-                  Partial (આંશિક સમય)
+            {/* COLOR SCHEME & FACILITY LEGEND */}
+            <div className="mb-3 p-3 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-700 shadow-2xs">
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1.5">
+                <span className="text-[11px] font-black uppercase text-slate-400">સ્થિતિ:</span>
+                <div className="flex items-center space-x-1">
+                  <span className="w-3 h-3 rounded-full border border-slate-300 bg-white" />
+                  <span className="text-slate-500 font-semibold">ઉપલબ્ધ (ખાલી)</span>
+                </div>
+                {isSuper && (
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80">
+                      🟡 આંશિક સ્લોટ બુક
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80">
+                    🔴 સંપૂર્ણ બુક
+                  </span>
+                </div>
+              </div>
+
+              {/* Facility Dots Legend */}
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1 text-[11px] text-slate-600">
+                <span className="text-[11px] font-black uppercase text-slate-400">સુવિધાઓ:</span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" /> 🌳 પ્લોટ
                 </span>
-              )}
-              <span className="inline-flex items-center gap-1.5">
-                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-sm bg-rose-500" />
-                Booked (બુકિંગ)
-              </span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-blue-600" /> 🏛️ હોલ
+                </span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-purple-600" /> 🛏️ ડોર્મિટરી
+                </span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" /> 🚪 રૂમ
+                </span>
+              </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
               {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div key={`blank-${i}`} className="min-h-[54px] sm:min-h-[76px] md:min-h-[88px] bg-slate-50/60 rounded-xl border border-dashed border-slate-200/80"></div>
+                <div key={`blank-${i}`} className="min-h-[58px] sm:min-h-[78px] md:min-h-[92px] bg-slate-50/50 rounded-xl sm:rounded-2xl border border-dashed border-slate-200/70"></div>
               ))}
 
               {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -624,33 +647,57 @@ export default function AdminCalendarPage() {
                 const dayDate = new Date(year, month, dayNum);
                 const dayBookings = getBookingsForDay(dayNum);
                 const isBooked = dayBookings.length > 0;
+                const todayObj = new Date();
+                const isToday =
+                  todayObj.getDate() === dayNum &&
+                  todayObj.getMonth() === month &&
+                  todayObj.getFullYear() === year;
                 const isSelected = selectedDate && selectedDate.getDate() === dayNum && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
                 const dayFacs = getFacilityAvailabilityForDate(dayDate);
                 const dayAvail = dayFacs.filter((f) => f.isAvailable).length;
                 const dayIsFullyBooked = dayFacs.length > 0 && dayFacs.every((f) => f.isFullyBooked);
 
-                let cellTheme = "bg-emerald-200 border-emerald-400 text-emerald-950";
-                let hoverTheme = "hover:bg-emerald-300 hover:border-emerald-500";
-                let labelText = "ખાલી";
+                // Booked facility types for dots
+                const bookedFacTypes = Array.from(
+                  new Set(
+                    dayBookings.map((b) => {
+                      const fac = facilities.find((f) => f.id === b.facilityId) || b.facility;
+                      return fac?.type || "";
+                    }).filter(Boolean)
+                  )
+                );
+
+                // Card and badge themes with soft glassmorphism
+                let cardTheme = "bg-white/90 border border-slate-200/90 text-slate-800 hover:border-slate-300 hover:bg-slate-50/90";
+                let badge = null;
 
                 if (!isSuper) {
-                  // View-Only Admin: Strictly Green or Red
+                  // View-Only Admin: Strictly Available (clean) or Booked (rose)
                   if (isBooked) {
-                    cellTheme = "bg-rose-200 border-rose-400 text-rose-950";
-                    hoverTheme = "hover:bg-rose-300 hover:border-rose-500";
-                    labelText = "બુકિંગ";
+                    cardTheme = "bg-rose-50/80 border-rose-200/90 text-rose-950 hover:bg-rose-100/80 hover:border-rose-300";
+                    badge = (
+                      <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs truncate block max-w-full">
+                        🔴 બુકિંગ
+                      </span>
+                    );
                   }
                 } else {
-                  // Super Admin: Green, Yellow (partial slots or partial facilities available), Red (fully booked)
+                  // Super Admin: Clean Available, Amber for partial slots/facilities, Rose for fully booked
                   if (isBooked) {
                     if (dayIsFullyBooked) {
-                      cellTheme = "bg-rose-200 border-rose-400 text-rose-950";
-                      hoverTheme = "hover:bg-rose-300 hover:border-rose-500";
-                      labelText = "પૂર્ણ બુક";
+                      cardTheme = "bg-rose-50/80 border-rose-200/90 text-rose-950 hover:bg-rose-100/80 hover:border-rose-300";
+                      badge = (
+                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs truncate block max-w-full">
+                          🔴 સંપૂર્ણ બુક
+                        </span>
+                      );
                     } else {
-                      cellTheme = "bg-amber-200 border-amber-400 text-amber-950";
-                      hoverTheme = "hover:bg-amber-300 hover:border-amber-500";
-                      labelText = dayAvail > 0 ? `${dayAvail} ખાલી` : "સમય બુક";
+                      cardTheme = "bg-amber-50/80 border-amber-200/90 text-amber-950 hover:bg-amber-100/80 hover:border-amber-300";
+                      badge = (
+                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs truncate block max-w-full">
+                          🟡 {dayAvail > 0 ? `${dayAvail} બાકી` : "સમય બુક"}
+                        </span>
+                      );
                     }
                   }
                 }
@@ -670,14 +717,47 @@ export default function AdminCalendarPage() {
                         }
                       }
                     }}
-                    className={`min-w-0 min-h-[56px] sm:min-h-[76px] md:min-h-[92px] p-1 sm:p-2 rounded-xl sm:rounded-2xl border-2 transition cursor-pointer flex flex-col items-center justify-center active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 ${cellTheme} ${
-                      isSelected ? "ring-4 ring-amber-400/70 border-amber-500 shadow-md" : hoverTheme
+                    className={`min-w-0 min-h-[58px] sm:min-h-[78px] md:min-h-[92px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 text-center ${cardTheme} ${
+                      isSelected
+                        ? "ring-2 ring-[#0066cc] border-[#0066cc] shadow-md -translate-y-0.5 bg-blue-50/30 scale-[1.02]"
+                        : isToday
+                        ? "ring-2 ring-blue-500/70 shadow-xs shadow-blue-500/20"
+                        : ""
                     }`}
                   >
-                    <span className="text-sm font-black leading-none sm:text-lg md:text-xl">{dayNum}</span>
-                    <span className="mt-1 text-[9px] sm:text-[10px] font-bold opacity-80 truncate max-w-full">
-                      {labelText}
-                    </span>
+                    <div className="flex items-center justify-between w-full">
+                      <span className={`text-xs sm:text-base font-black leading-none ${isToday ? "text-[#0066cc]" : ""}`}>
+                        {dayNum}
+                      </span>
+                      {isToday && (
+                        <span className="text-[8px] sm:text-[9px] font-extrabold px-1 py-0.2 rounded bg-blue-100 text-[#0066cc] uppercase tracking-wider">
+                          આજે
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Badge */}
+                    <div className="w-full my-auto">
+                      {badge}
+                    </div>
+
+                    {/* Facility Dots */}
+                    {bookedFacTypes.length > 0 && (
+                      <div className="flex items-center gap-1 pt-0.5 shrink-0">
+                        {bookedFacTypes.includes("PLOT") && (
+                          <span title="પાર્ટી પ્લોટ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 shadow-2xs" />
+                        )}
+                        {bookedFacTypes.includes("HALL") && (
+                          <span title="કોમ્યુનિટી હોલ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-600 ring-1 ring-blue-300 shadow-2xs" />
+                        )}
+                        {bookedFacTypes.includes("DORMITORY") && (
+                          <span title="ડોર્મિટરી" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-600 ring-1 ring-purple-300 shadow-2xs" />
+                        )}
+                        {bookedFacTypes.includes("ROOM") && (
+                          <span title="એસી ગેસ્ટ રૂમ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 shadow-2xs" />
+                        )}
+                      </div>
+                    )}
                   </button>
                 );
               })}

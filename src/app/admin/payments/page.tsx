@@ -658,32 +658,46 @@ export default function AdminPaymentStatusPage() {
               </div>
             </div>
 
-            {/* COLOR SCHEME LEGEND */}
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-700">
-              <div className="flex items-center space-x-1.5">
-                <span className="text-[11px] font-black uppercase text-slate-500">પેમેન્ટ કલર નિયમ:</span>
+            {/* COLOR SCHEME & FACILITY LEGEND */}
+            <div className="p-3 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-700 shadow-2xs">
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1.5">
+                <span className="text-[11px] font-black uppercase text-slate-400">પેમેન્ટ સ્થિતિ:</span>
+                <div className="flex items-center space-x-1">
+                  <span className="w-3 h-3 rounded-full border border-slate-300 bg-white" />
+                  <span className="text-slate-500 font-semibold">ખાલી દિવસ</span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                    🟢 પૂર્ણ ચુકવણી (Full Paid)
+                  </span>
+                </div>
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80">
+                    🟡 ચુકવણી બાકી (Pending)
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center space-x-4 flex-wrap gap-y-1">
-                {/* Blank Day */}
-                <div className="flex items-center space-x-1.5">
-                  <span className="w-3.5 h-3.5 rounded border-2 border-slate-300 bg-white shadow-2xs"></span>
-                  <span className="text-slate-600">⚪ ખાલી દિવસ (કોઈ બુકિંગ નથી)</span>
-                </div>
-                {/* Full Payment */}
-                <div className="flex items-center space-x-1.5">
-                  <span className="w-3.5 h-3.5 rounded border-2 border-emerald-400 bg-emerald-200 shadow-2xs"></span>
-                  <span className="text-emerald-950 font-black">🟢 પૂર્ણ ચુકવણી (Full Paid)</span>
-                </div>
-                {/* Pending Payment */}
-                <div className="flex items-center space-x-1.5">
-                  <span className="w-3.5 h-3.5 rounded border-2 border-amber-400 bg-amber-200 shadow-2xs"></span>
-                  <span className="text-amber-950 font-black">🟡 ચુકવણી બાકી (Pending)</span>
-                </div>
+
+              {/* Facility Dots Legend */}
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1 text-[11px] text-slate-600">
+                <span className="text-[11px] font-black uppercase text-slate-400">સુવિધાઓ:</span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" /> 🌳 પ્લોટ
+                </span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-blue-600" /> 🏛️ હોલ
+                </span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-purple-600" /> 🛏️ ડોર્મિટરી
+                </span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" /> 🚪 રૂમ
+                </span>
               </div>
             </div>
 
             {/* Days of week header */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-500 py-1 border-b border-slate-100">
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-500 py-1.5 border-b border-slate-100">
               <span className="text-red-700 font-black">રવિ (Sun)</span>
               <span>સોમ (Mon)</span>
               <span>મંગળ (Tue)</span>
@@ -694,12 +708,12 @@ export default function AdminPaymentStatusPage() {
             </div>
 
             {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
               {/* Blanks before day 1 */}
               {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                 <div
                   key={`blank-${i}`}
-                  className="min-h-[64px] sm:min-h-[82px] bg-slate-50/60 rounded-xl border border-dashed border-slate-200/80"
+                  className="min-h-[66px] sm:min-h-[86px] bg-slate-50/50 rounded-xl sm:rounded-2xl border border-dashed border-slate-200/70"
                 />
               ))}
 
@@ -708,34 +722,46 @@ export default function AdminPaymentStatusPage() {
                 const dayNum = i + 1;
                 const dayDate = new Date(year, month, dayNum);
                 const evalResult = getDayPaymentEvaluation(dayNum);
+                const todayObj = new Date();
+                const isToday =
+                  todayObj.getDate() === dayNum &&
+                  todayObj.getMonth() === month &&
+                  todayObj.getFullYear() === year;
                 const isSelected =
                   selectedDate &&
                   selectedDate.getDate() === dayNum &&
                   selectedDate.getMonth() === month &&
                   selectedDate.getFullYear() === year;
 
-                // Color classes strictly respecting:
-                // - White for blank day
-                // - Green for full payment
-                // - Yellow for pending payment
-                let cellClasses = "";
-                let badgeText = "";
+                // Color-coded booked facility types for dots
+                const dayBookings = getBookingsForDay(dayNum);
+                const bookedFacTypes = Array.from(
+                  new Set(
+                    dayBookings.map((b) => {
+                      const fac = facilities.find((f) => f.id === b.facilityId) || b.facility;
+                      return fac?.type || "";
+                    }).filter(Boolean)
+                  )
+                );
 
-                if (evalResult.type === "BLANK") {
-                  // White for blank day - a day without booking
-                  cellClasses =
-                    "bg-white border-2 border-slate-200 text-slate-800 hover:bg-slate-50 hover:border-slate-300";
-                  badgeText = "ખાલી";
-                } else if (evalResult.type === "FULL_PAID") {
-                  // Green for full payment
-                  cellClasses =
-                    "bg-emerald-100 border-2 border-emerald-400 text-emerald-950 hover:bg-emerald-200 hover:border-emerald-500";
-                  badgeText = `🟢 ₹${evalResult.totalAmount.toLocaleString("en-IN")}`;
-                } else {
-                  // Yellow for pending payment
-                  cellClasses =
-                    "bg-amber-100 border-2 border-amber-400 text-amber-950 hover:bg-amber-200 hover:border-amber-500";
-                  badgeText = `🟡 ₹${evalResult.pendingAmount.toLocaleString("en-IN")} બાકી`;
+                // Card and badge themes with soft glassmorphism
+                let cardTheme = "bg-white/90 border border-slate-200/90 text-slate-800 hover:border-slate-300 hover:bg-slate-50/90";
+                let badge = null;
+
+                if (evalResult.type === "FULL_PAID") {
+                  cardTheme = "bg-emerald-50/70 border-emerald-200/90 text-emerald-950 hover:bg-emerald-100/70 hover:border-emerald-300";
+                  badge = (
+                    <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs truncate block max-w-full">
+                      🟢 ₹{evalResult.totalAmount.toLocaleString("en-IN")}
+                    </span>
+                  );
+                } else if (evalResult.type === "PENDING") {
+                  cardTheme = "bg-amber-50/70 border-amber-200/90 text-amber-950 hover:bg-amber-100/70 hover:border-amber-300";
+                  badge = (
+                    <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs truncate block max-w-full">
+                      🟡 ₹{evalResult.pendingAmount.toLocaleString("en-IN")} બાકી
+                    </span>
+                  );
                 }
 
                 return (
@@ -743,28 +769,47 @@ export default function AdminPaymentStatusPage() {
                     key={`day-${dayNum}`}
                     type="button"
                     onClick={() => setSelectedDate(dayDate)}
-                    className={`min-h-[64px] sm:min-h-[84px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition cursor-pointer flex flex-col items-center justify-between active:scale-95 text-center ${cellClasses} ${
+                    className={`min-h-[66px] sm:min-h-[86px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 text-center ${cardTheme} ${
                       isSelected
-                        ? "ring-4 ring-amber-400/80 border-amber-500 shadow-md scale-[1.02]"
-                        : "shadow-2xs"
+                        ? "ring-2 ring-[#0066cc] border-[#0066cc] shadow-md -translate-y-0.5 bg-blue-50/30 scale-[1.02]"
+                        : isToday
+                        ? "ring-2 ring-blue-500/70 shadow-xs shadow-blue-500/20"
+                        : ""
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className="text-sm sm:text-base font-black leading-none">{dayNum}</span>
-                      {evalResult.type !== "BLANK" && (
-                        <span
-                          className={`w-2 h-2 rounded-full shrink-0 ${
-                            evalResult.type === "FULL_PAID" ? "bg-emerald-600" : "bg-amber-600"
-                          }`}
-                        />
+                      <span className={`text-xs sm:text-sm font-black leading-none ${isToday ? "text-[#0066cc]" : ""}`}>
+                        {dayNum}
+                      </span>
+                      {isToday && (
+                        <span className="text-[8px] sm:text-[9px] font-extrabold px-1 py-0.2 rounded bg-blue-100 text-[#0066cc] uppercase tracking-wider">
+                          આજે
+                        </span>
                       )}
                     </div>
 
-                    <div className="w-full mt-1">
-                      <span className="text-[9px] sm:text-[10px] font-extrabold truncate block px-1 py-0.5 rounded bg-white/70">
-                        {badgeText}
-                      </span>
+                    {/* Badge */}
+                    <div className="w-full my-auto">
+                      {badge}
                     </div>
+
+                    {/* Facility Dots */}
+                    {bookedFacTypes.length > 0 && (
+                      <div className="flex items-center gap-1 pt-0.5 shrink-0">
+                        {bookedFacTypes.includes("PLOT") && (
+                          <span title="પાર્ટી પ્લોટ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 shadow-2xs" />
+                        )}
+                        {bookedFacTypes.includes("HALL") && (
+                          <span title="કોમ્યુનિટી હોલ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-600 ring-1 ring-blue-300 shadow-2xs" />
+                        )}
+                        {bookedFacTypes.includes("DORMITORY") && (
+                          <span title="ડોર્મિટરી" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-600 ring-1 ring-purple-300 shadow-2xs" />
+                        )}
+                        {bookedFacTypes.includes("ROOM") && (
+                          <span title="એસી ગેસ્ટ રૂમ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 shadow-2xs" />
+                        )}
+                      </div>
+                    )}
                   </button>
                 );
               })}
