@@ -60,9 +60,20 @@ function getPrismaClient(): PrismaClient {
   // Optimize PostgreSQL / Neon connection for serverless:
   // When using connection pooler, pgbouncer=true prevents prepared statement stalls.
   let optimizedUrl = rawDbUrl;
-  if (optimizedUrl.includes("-pooler") && !optimizedUrl.includes("pgbouncer=true")) {
-    const separator = optimizedUrl.includes("?") ? "&" : "?";
-    optimizedUrl = `${optimizedUrl}${separator}pgbouncer=true&connect_timeout=15&connection_limit=5`;
+  if (optimizedUrl.includes("-pooler")) {
+    try {
+      const parsed = new URL(optimizedUrl);
+      if (!parsed.searchParams.has("pgbouncer")) {
+        parsed.searchParams.set("pgbouncer", "true");
+      }
+      parsed.searchParams.set("connect_timeout", "30");
+      parsed.searchParams.set("pool_timeout", "30");
+      parsed.searchParams.set("connection_limit", "10");
+      optimizedUrl = parsed.toString();
+    } catch {
+      const separator = optimizedUrl.includes("?") ? "&" : "?";
+      optimizedUrl = `${optimizedUrl}${separator}pgbouncer=true&connect_timeout=30&pool_timeout=30&connection_limit=10`;
+    }
   }
 
   return new PrismaClient({
@@ -80,4 +91,34 @@ export const prisma = globalForPrisma.prisma ?? getPrismaClient();
 // In serverless / Next.js, reuse client across warm invocations
 if (!globalForPrisma.prisma) {
   globalForPrisma.prisma = prisma;
+}
+
+/**
+ * Automatically retry database operations on transient connection drops or Neon cold-start wakeups.
+ */
+export async function withDbRetry<T>(fn: () => Promise<T>, maxRetries = 2): Promise<T> {
+  let lastError: any;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      const msg = err?.message || "";
+      const isTransient =
+        msg.includes("connection") ||
+        msg.includes("timeout") ||
+        msg.includes("Can't reach database") ||
+        msg.includes("Connection closed") ||
+        msg.includes("Engine not started") ||
+        err?.code === "P1001" ||
+        err?.code === "P1002" ||
+        err?.code === "P1008" ||
+        err?.code === "P1017";
+      if (!isTransient || attempt === maxRetries) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+    }
+  }
+  throw lastError;
 }

@@ -26,9 +26,8 @@ export function clearAdminClientCache(): void {
 
 export async function fetchAdminJson<T>(
   url: string,
-  options?: { forceRefresh?: boolean; ttlMs?: number }
+  options?: { forceRefresh?: boolean; ttlMs?: number; retries?: number }
 ): Promise<T> {
-  // If not forcing refresh, check if valid unexpired cache exists for static routes
   const isStatic =
     url.includes("/api/facilities") ||
     url.includes("/api/discounts") ||
@@ -38,6 +37,7 @@ export async function fetchAdminJson<T>(
 
   const effectiveTtl = options?.ttlMs ?? (isStatic ? STATIC_TTL_MS : 0);
 
+  // Return unexpired cache if available and not forcing refresh
   if (!options?.forceRefresh && effectiveTtl > 0) {
     const cached = adminClientCache.get(url);
     if (cached && Date.now() - cached.timestamp < effectiveTtl) {
@@ -51,18 +51,56 @@ export async function fetchAdminJson<T>(
   }
 
   const fetchPromise = (async () => {
-    try {
-      const response = await fetch(url, { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data?.error || `Request failed (${response.status})`);
+    let lastError: any = null;
+    const maxAttempts = options?.retries ?? 2;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(url, { cache: "no-store" });
+        const contentType = response.headers.get("content-type") || "";
+
+        let data: any = null;
+        if (contentType.includes("application/json")) {
+          data = await response.json();
+        } else {
+          // If server returned HTML (e.g. 504 / 500 Vercel error page), avoid SyntaxError
+          const text = await response.text();
+          if (!response.ok) {
+            throw new Error(`Server returned status ${response.status}`);
+          }
+          try {
+            data = JSON.parse(text);
+          } catch {
+            throw new Error(`Invalid response format from server (${response.status})`);
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error(data?.error || `Request failed (${response.status})`);
+        }
+
+        setAdminCachedData(url, data);
+        return data as T;
+      } catch (err: any) {
+        lastError = err;
+        if (attempt < maxAttempts) {
+          // Wait briefly before retry to ride out transient cold-start or connection blip
+          await new Promise((r) => setTimeout(r, 400 * attempt));
+        }
       }
-      setAdminCachedData(url, data);
-      return data as T;
-    } finally {
-      inFlightRequests.delete(url);
     }
-  })();
+
+    // Fallback gracefully to stale cached data if all attempts fail so UI never goes blank
+    const fallbackCached = adminClientCache.get(url);
+    if (fallbackCached?.data) {
+      console.warn(`[admin-client-cache] Falling back to cached data for ${url} after error:`, lastError);
+      return fallbackCached.data as T;
+    }
+
+    throw lastError;
+  })().finally(() => {
+    inFlightRequests.delete(url);
+  });
 
   inFlightRequests.set(url, fetchPromise);
   return fetchPromise;

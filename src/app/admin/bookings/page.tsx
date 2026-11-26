@@ -283,27 +283,31 @@ function BookingsManagementContent() {
   const fetchInitialData = async () => {
     try {
       if (!getAdminCachedData("/api/bookings")) setLoading(true);
-      const [userRes, bookData, facData, discData, servData] = await Promise.all([
-        fetch("/api/auth/me", { cache: "no-store" }),
+      const [userRes, bookRes, facRes, discRes, servRes] = await Promise.allSettled([
+        fetchAdminJson<any>("/api/auth/me"),
         fetchAdminJson<any>("/api/bookings"),
         fetchAdminJson<any>("/api/facilities"),
         fetchAdminJson<any>("/api/discounts"),
         fetchAdminJson<any>("/api/services"),
       ]);
-      const uData = userRes.ok ? await userRes.json() : { user: null };
 
-      if (uData?.user) {
-        setCurrentUser(uData.user);
+      if (userRes.status === "fulfilled" && userRes.value?.user) {
+        setCurrentUser(userRes.value.user);
       }
-
-      if (bookData?.bookings) setBookings(bookData.bookings);
-      if (facData?.facilities) {
-        setFacilities(facData.facilities);
+      if (bookRes.status === "fulfilled" && bookRes.value?.bookings) {
+        setBookings(bookRes.value.bookings);
       }
-      if (discData?.discounts) setDiscounts(discData.discounts);
-      if (servData?.services) setServices(servData.services);
+      if (facRes.status === "fulfilled" && facRes.value?.facilities) {
+        setFacilities(facRes.value.facilities);
+      }
+      if (discRes.status === "fulfilled" && discRes.value?.discounts) {
+        setDiscounts(discRes.value.discounts);
+      }
+      if (servRes.status === "fulfilled" && servRes.value?.services) {
+        setServices(servRes.value.services);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Bookings fetchInitialData error:", err);
     } finally {
       setLoading(false);
     }

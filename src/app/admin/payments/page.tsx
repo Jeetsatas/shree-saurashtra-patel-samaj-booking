@@ -108,6 +108,7 @@ export default function AdminPaymentStatusPage() {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
   const [saveErrorMsg, setSaveErrorMsg] = useState<string>("");
 
+  const isMounted = useRef(false);
   const bookingsRefresh = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
@@ -149,8 +150,12 @@ export default function AdminPaymentStatusPage() {
     };
   }, []);
 
-  // When calendar month changes, load scoped bookings for that month
+  // When calendar month changes, load scoped bookings for that month (skipping redundant mount double fetch)
   useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
     const y = currentDate.getFullYear();
     const m = currentDate.getMonth() + 1;
     const url = `/api/bookings?month=${m}&year=${y}`;
@@ -169,15 +174,21 @@ export default function AdminPaymentStatusPage() {
       if (!getAdminCachedData(url) && !getAdminCachedData("/api/bookings")) {
         setLoading(true);
       }
-      const [facData, bookData, userData] = await Promise.all([
+      const [facRes, bookRes, userRes] = await Promise.allSettled([
         fetchAdminJson<any>("/api/facilities"),
         fetchAdminJson<any>(url),
         fetchAdminJson<any>("/api/auth/me"),
       ]);
 
-      if (facData?.facilities) setFacilities(facData.facilities);
-      if (bookData?.bookings) setBookings(bookData.bookings);
-      if (userData?.user) setCurrentUser(userData.user);
+      if (facRes.status === "fulfilled" && facRes.value?.facilities) {
+        setFacilities(facRes.value.facilities);
+      }
+      if (bookRes.status === "fulfilled" && bookRes.value?.bookings) {
+        setBookings(bookRes.value.bookings);
+      }
+      if (userRes.status === "fulfilled" && userRes.value?.user) {
+        setCurrentUser(userRes.value.user);
+      }
     } catch (err) {
       console.error("Payment status load error:", err);
     } finally {
@@ -463,18 +474,9 @@ export default function AdminPaymentStatusPage() {
     }
   };
 
-  // While user authentication is being verified, never flash "Restricted Access"!
-  if (authLoading || (currentUser === null && loading)) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 space-y-4">
-        <div className="w-10 h-10 border-3 border-red-800 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-bold text-slate-500">પેમેન્ટ સ્થિતિ લોડ થઈ રહી છે...</p>
-      </div>
-    );
-  }
-
-  // Access Control: Only Super Admin Can View (and ONLY if auth has finished loading and currentUser is definitely not Super Admin)
-  if (!authLoading && currentUser && currentUser.role !== "SUPER_ADMIN") {
+  // Access Control: Only View-Only Admins are restricted.
+  // Super Admin (Trustee) must NEVER see this restricted screen!
+  if (!authLoading && currentUser && currentUser.role === "VIEW_ONLY_ADMIN") {
     return (
       <div className="max-w-2xl mx-auto my-12 bg-white rounded-3xl border border-rose-200 p-8 shadow-sm text-center space-y-4">
         <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
@@ -495,6 +497,16 @@ export default function AdminPaymentStatusPage() {
             કેલેન્ડર પર પાછા જાઓ
           </Link>
         </div>
+      </div>
+    );
+  }
+
+  // While user authentication is being verified, never flash "Restricted Access"!
+  if (authLoading || !currentUser) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 space-y-4">
+        <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs font-bold text-slate-500">પેમેન્ટ સ્થિતિ લોડ થઈ રહી છે...</p>
       </div>
     );
   }

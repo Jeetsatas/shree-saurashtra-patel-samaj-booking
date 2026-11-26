@@ -40,6 +40,7 @@ export default function AdminCalendarPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [viewMode, setViewMode] = useState<"MONTH" | "WEEK" | "DAY">("MONTH");
   const [loading, setLoading] = useState(true);
+  const isMounted = useRef(false);
   const bookingsRefresh = useRef<Promise<void> | null>(null);
   const facilitiesRefresh = useRef<Promise<void> | null>(null);
 
@@ -80,8 +81,12 @@ export default function AdminCalendarPage() {
     };
   }, []);
 
-  // When calendar month changes, load scoped bookings for that month
+  // When calendar month changes, load scoped bookings for that month (skipping redundant double mount fetch)
   useEffect(() => {
+    if (!isMounted.current) {
+      isMounted.current = true;
+      return;
+    }
     const y = currentDate.getFullYear();
     const m = currentDate.getMonth() + 1;
     const url = `/api/bookings?month=${m}&year=${y}`;
@@ -131,18 +136,23 @@ export default function AdminCalendarPage() {
       if (!getAdminCachedData("/api/facilities") && !getAdminCachedData(url)) {
         setLoading(true);
       }
-      const [facData, bookData, userRes] = await Promise.all([
+      const [facRes, bookRes, userRes] = await Promise.allSettled([
         fetchAdminJson<any>("/api/facilities"),
         fetchAdminJson<any>(url),
-        fetch("/api/auth/me", { cache: "no-store" }),
+        fetchAdminJson<any>("/api/auth/me"),
       ]);
-      const userData = userRes.ok ? await userRes.json() : { user: null };
 
-      if (facData?.facilities) setFacilities(facData.facilities);
-      if (bookData?.bookings) setBookings(bookData.bookings);
-      if (userData?.user) setCurrentUser(userData.user);
+      if (facRes.status === "fulfilled" && facRes.value?.facilities) {
+        setFacilities(facRes.value.facilities);
+      }
+      if (bookRes.status === "fulfilled" && bookRes.value?.bookings) {
+        setBookings(bookRes.value.bookings);
+      }
+      if (userRes.status === "fulfilled" && userRes.value?.user) {
+        setCurrentUser(userRes.value.user);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Calendar fetchData error:", err);
     } finally {
       setLoading(false);
     }

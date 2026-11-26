@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import {
   doSlotsOverlap,
@@ -66,8 +66,7 @@ export async function GET(req: NextRequest) {
     const take = limit ? Math.min(Math.max(1, parseInt(limit, 10)), 500) : undefined;
     const skip = offset ? Math.max(0, parseInt(offset, 10)) : undefined;
 
-    const [totalCount, bookings] = await Promise.all([
-      prisma.booking.count({ where }),
+    const bookings = await withDbRetry(() =>
       prisma.booking.findMany({
         where,
         take,
@@ -84,8 +83,8 @@ export async function GET(req: NextRequest) {
             },
           },
         },
-      }),
-    ]);
+      })
+    );
 
     const adminBookings = bookings.map((b) => ({
       ...b,

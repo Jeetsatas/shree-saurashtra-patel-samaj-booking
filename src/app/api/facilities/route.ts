@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -17,10 +17,12 @@ export async function GET(req: NextRequest) {
       where.type = type;
     }
 
-    const facilities = await prisma.facility.findMany({
-      where,
-      orderBy: { order: "asc" },
-    });
+    const facilities = await withDbRetry(() =>
+      prisma.facility.findMany({
+        where,
+        orderBy: { order: "asc" },
+      })
+    );
 
     return NextResponse.json(
       { facilities },
