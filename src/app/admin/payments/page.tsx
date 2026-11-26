@@ -722,11 +722,6 @@ export default function AdminPaymentStatusPage() {
                 const dayNum = i + 1;
                 const dayDate = new Date(year, month, dayNum);
                 const evalResult = getDayPaymentEvaluation(dayNum);
-                const todayObj = new Date();
-                const isToday =
-                  todayObj.getDate() === dayNum &&
-                  todayObj.getMonth() === month &&
-                  todayObj.getFullYear() === year;
                 const isSelected =
                   selectedDate &&
                   selectedDate.getDate() === dayNum &&
@@ -771,21 +766,14 @@ export default function AdminPaymentStatusPage() {
                     onClick={() => setSelectedDate(dayDate)}
                     className={`min-h-[66px] sm:min-h-[86px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 text-center ${cardTheme} ${
                       isSelected
-                        ? "ring-2 ring-[#0066cc] border-[#0066cc] shadow-md -translate-y-0.5 bg-blue-50/30 scale-[1.02]"
-                        : isToday
-                        ? "ring-2 ring-blue-500/70 shadow-xs shadow-blue-500/20"
+                        ? "ring-4 ring-amber-400 border-amber-500 shadow-md scale-[1.03] z-10"
                         : ""
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className={`text-xs sm:text-sm font-black leading-none ${isToday ? "text-[#0066cc]" : ""}`}>
+                      <span className="text-xs sm:text-sm font-black leading-none text-slate-900">
                         {dayNum}
                       </span>
-                      {isToday && (
-                        <span className="text-[8px] sm:text-[9px] font-extrabold px-1 py-0.2 rounded bg-blue-100 text-[#0066cc] uppercase tracking-wider">
-                          આજે
-                        </span>
-                      )}
                     </div>
 
                     {/* Badge */}

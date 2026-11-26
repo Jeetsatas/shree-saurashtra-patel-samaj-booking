@@ -601,19 +601,20 @@ export default function AdminCalendarPage() {
             <div className="mb-3 p-3 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-700 shadow-2xs">
               <div className="flex items-center space-x-3 flex-wrap gap-y-1.5">
                 <span className="text-[11px] font-black uppercase text-slate-400">સ્થિતિ:</span>
-                <div className="flex items-center space-x-1">
-                  <span className="w-3 h-3 rounded-full border border-slate-300 bg-white" />
-                  <span className="text-slate-500 font-semibold">ઉપલબ્ધ (ખાલી)</span>
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                    🟢 ઉપલબ્ધ (ખાલી)
+                  </span>
                 </div>
                 {isSuper && (
                   <div className="flex items-center space-x-1.5">
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
                       🟡 આંશિક સ્લોટ બુક
                     </span>
                   </div>
                 )}
                 <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80">
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300">
                     🔴 સંપૂર્ણ બુક
                   </span>
                 </div>
@@ -647,11 +648,6 @@ export default function AdminCalendarPage() {
                 const dayDate = new Date(year, month, dayNum);
                 const dayBookings = getBookingsForDay(dayNum);
                 const isBooked = dayBookings.length > 0;
-                const todayObj = new Date();
-                const isToday =
-                  todayObj.getDate() === dayNum &&
-                  todayObj.getMonth() === month &&
-                  todayObj.getFullYear() === year;
                 const isSelected = selectedDate && selectedDate.getDate() === dayNum && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
                 const dayFacs = getFacilityAvailabilityForDate(dayDate);
                 const dayAvail = dayFacs.filter((f) => f.isAvailable).length;
@@ -667,35 +663,39 @@ export default function AdminCalendarPage() {
                   )
                 );
 
-                // Card and badge themes with soft glassmorphism
-                let cardTheme = "bg-white/90 border border-slate-200/90 text-slate-800 hover:border-slate-300 hover:bg-slate-50/90";
-                let badge = null;
+                // Green by default for available days (as requested: "i want green color as available not white")
+                let cardTheme = "bg-emerald-50/80 border-2 border-emerald-200 text-emerald-950 hover:bg-emerald-100 hover:border-emerald-300";
+                let badge = (
+                  <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100/90 text-emerald-900 border border-emerald-300/80 shadow-2xs truncate block max-w-full">
+                    🟢 ખાલી
+                  </span>
+                );
 
                 if (!isSuper) {
-                  // View-Only Admin: Strictly Available (clean) or Booked (rose)
+                  // View-Only Admin: Strictly Available (green) or Booked (rose)
                   if (isBooked) {
-                    cardTheme = "bg-rose-50/80 border-rose-200/90 text-rose-950 hover:bg-rose-100/80 hover:border-rose-300";
+                    cardTheme = "bg-rose-50/80 border-2 border-rose-200 text-rose-950 hover:bg-rose-100 hover:border-rose-300";
                     badge = (
-                      <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs truncate block max-w-full">
+                      <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300/80 shadow-2xs truncate block max-w-full">
                         🔴 બુકિંગ
                       </span>
                     );
                   }
                 } else {
-                  // Super Admin: Clean Available, Amber for partial slots/facilities, Rose for fully booked
+                  // Super Admin: Green for available, Amber for partial slots/facilities, Rose for fully booked
                   if (isBooked) {
                     if (dayIsFullyBooked) {
-                      cardTheme = "bg-rose-50/80 border-rose-200/90 text-rose-950 hover:bg-rose-100/80 hover:border-rose-300";
+                      cardTheme = "bg-rose-50/80 border-2 border-rose-200 text-rose-950 hover:bg-rose-100 hover:border-rose-300";
                       badge = (
-                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200/80 shadow-2xs truncate block max-w-full">
+                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300/80 shadow-2xs truncate block max-w-full">
                           🔴 સંપૂર્ણ બુક
                         </span>
                       );
                     } else {
-                      cardTheme = "bg-amber-50/80 border-amber-200/90 text-amber-950 hover:bg-amber-100/80 hover:border-amber-300";
+                      cardTheme = "bg-amber-50/80 border-2 border-amber-200 text-amber-950 hover:bg-amber-100 hover:border-amber-300";
                       badge = (
-                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs truncate block max-w-full">
-                          🟡 {dayAvail > 0 ? `${dayAvail} બાકી` : "સમય બુક"}
+                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300/80 shadow-2xs truncate block max-w-full">
+                          🟡 {dayAvail > 0 ? `${dayAvail} ખાલી` : "સમય બુક"}
                         </span>
                       );
                     }
@@ -719,21 +719,14 @@ export default function AdminCalendarPage() {
                     }}
                     className={`min-w-0 min-h-[58px] sm:min-h-[78px] md:min-h-[92px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 text-center ${cardTheme} ${
                       isSelected
-                        ? "ring-2 ring-[#0066cc] border-[#0066cc] shadow-md -translate-y-0.5 bg-blue-50/30 scale-[1.02]"
-                        : isToday
-                        ? "ring-2 ring-blue-500/70 shadow-xs shadow-blue-500/20"
+                        ? "ring-4 ring-amber-400 border-amber-500 shadow-md scale-[1.03] z-10"
                         : ""
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className={`text-xs sm:text-base font-black leading-none ${isToday ? "text-[#0066cc]" : ""}`}>
+                      <span className="text-xs sm:text-base font-black leading-none text-slate-900">
                         {dayNum}
                       </span>
-                      {isToday && (
-                        <span className="text-[8px] sm:text-[9px] font-extrabold px-1 py-0.2 rounded bg-blue-100 text-[#0066cc] uppercase tracking-wider">
-                          આજે
-                        </span>
-                      )}
                     </div>
 
                     {/* Badge */}

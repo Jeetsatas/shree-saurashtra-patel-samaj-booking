@@ -206,8 +206,6 @@ body {
 .admin-shell main a[class~="text-red-800"],
 .admin-shell main a[class~="text-red-700"],
 .admin-shell main a[class*="text-amber-"],
-.admin-shell main button[class*="bg-blue-"],
-.admin-shell main a[class*="bg-blue-"],
 .admin-shell main button[class*="bg-slate-900"],
 .admin-shell main a[class*="bg-slate-900"],
 .admin-shell main button[class~="bg-amber-500"],
