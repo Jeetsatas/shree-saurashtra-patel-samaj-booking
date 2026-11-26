@@ -1716,10 +1716,10 @@ function BookingsManagementContent() {
                           />
                         </td>
                       )}
-                      <td className="py-3 px-4 font-extrabold text-red-900 whitespace-nowrap">
+                      <td className="py-3 px-4 font-mono font-bold tabular-nums text-slate-900 whitespace-nowrap">
                         <button
                           onClick={() => setDetailBooking(b)}
-                          className="hover:underline flex items-center"
+                          className="hover:underline flex items-center font-mono font-bold tabular-nums text-blue-700 hover:text-blue-900"
                           title="Click to view full reservation details"
                         >
                           {b.bookingNumber}
@@ -1727,7 +1727,7 @@ function BookingsManagementContent() {
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-800">
                         <div>{b.facility?.name}</div>
-                        <span className="text-[10px] text-amber-800 font-normal">
+                        <span className="text-[10px] text-amber-800 font-mono font-normal">
                           {b.facility?.code}
                         </span>
                       </td>
@@ -1735,7 +1735,7 @@ function BookingsManagementContent() {
                         <div className="font-bold text-slate-900">{b.customerName}</div>
                         <div className="text-[11px] text-slate-500 flex items-center">
                           <Phone className="w-3 h-3 mr-1 text-slate-400" />
-                          {b.customerPhone}
+                          <span className="font-mono tabular-nums tracking-wide">{b.customerPhone}</span>
                         </div>
                       </td>
                       <td className="py-3 px-4">
@@ -1743,7 +1743,7 @@ function BookingsManagementContent() {
                         <div className="text-[10px] text-slate-500 font-bold">{b.slot}</div>
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <div className="font-semibold text-slate-800">
+                        <div className="font-semibold text-slate-800 tabular-nums">
                           {new Date(b.startDate).toLocaleDateString("en-IN", {
                             day: "numeric",
                             month: "short",
@@ -1752,16 +1752,16 @@ function BookingsManagementContent() {
                         </div>
                       </td>
                       <td className="py-3 px-4 whitespace-nowrap">
-                        <div className="font-bold text-slate-900">
+                        <div className="font-mono font-bold tabular-nums text-slate-900">
                           ₹{b.totalAmount.toLocaleString("en-IN")}
                         </div>
                         {b.discountPercent > 0 && (
-                          <div className="text-[10px] text-emerald-700 font-semibold">
+                          <div className="text-[10px] text-emerald-700 font-mono font-semibold tabular-nums">
                             Discount: -₹{b.discountAmount.toLocaleString("en-IN")} ({b.discountPercent}%)
                           </div>
                         )}
                         {b.servicesAmount > 0 && (
-                          <div className="text-[10px] text-blue-700 font-semibold">
+                          <div className="text-[10px] text-blue-700 font-mono font-semibold tabular-nums">
                             Services: +₹{b.servicesAmount.toLocaleString("en-IN")}
                           </div>
                         )}

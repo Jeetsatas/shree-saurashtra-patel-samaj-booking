@@ -732,7 +732,7 @@ export default function AdminCalendarPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className="text-xs sm:text-base font-black leading-none text-slate-900">
+                      <span className="text-xs sm:text-base font-black leading-none text-slate-900 font-mono tabular-nums">
                         {dayNum}
                       </span>
                     </div>

@@ -771,7 +771,7 @@ export default function AdminPaymentStatusPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between w-full">
-                      <span className="text-xs sm:text-sm font-black leading-none text-slate-900">
+                      <span className="text-xs sm:text-sm font-black leading-none text-slate-900 font-mono tabular-nums">
                         {dayNum}
                       </span>
                     </div>
