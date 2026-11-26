@@ -7,6 +7,7 @@ import {
   doBookingsConflict,
   isFullDaySlot,
   WHOLE_DAY_SLOT_LABEL,
+  isGroundFloorHall,
 } from "@/lib/slotUtils";
 import {
   getNextAvailableBookingNumbers,
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
       paymentMethod,
       paymentRefNo,
       notes,
+      groundHallOption,
     } = body;
 
     if (!customerName || !customerPhone) {
@@ -324,43 +326,71 @@ export async function POST(req: NextRequest) {
           servicesAmount: itemServCost,
           depositAmount: itemDeposit,
           totalAmount: itemTotal,
+          groundHallOption: it.groundHallOption,
         });
       }
 
       // 4. Create all bookings in a single ultra-fast bulk insert with collision-proof sequence allocation
       const createdBookings = await executeWithBookingNumberRetry(
         async (bookingNumbers) => {
-          const insertData = preparedItems.map((item, idx) => ({
-            bookingNumber: bookingNumbers[idx],
-            facilityId: item.facilityId,
-            customerName,
-            customerPhone,
-            customerEmail: customerEmail || null,
-            customerAddress: customerAddress || null,
-            customerAadhar: customerAadhar || null,
-            eventType: eventType || "General Function",
-            startDate: item.startDate,
-            endDate: item.endDate,
-            slot: item.slot,
-            status: status || "CONFIRMED",
-            facilityAmount: item.facilityAmount,
-            discountCode: discountCode || null,
-            discountPercent: discPct,
-            discountAmount: item.discountAmount,
-            discountOverridden: !!discountOverridden,
-            discountOverrideReason: discountOverrideReason || null,
-            selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
-            servicesAmount: item.servicesAmount,
-            totalAmount: item.totalAmount,
-            depositAmount: item.depositAmount,
-            paymentStatus: paymentStatus || "PENDING",
-            paymentMethod: paymentMethod || "OFFLINE_CASH",
-            paymentRefNo: paymentRefNo || null,
-            notes: notes || null,
-            bookedByUserId: user.id,
-            createdByName: user.name,
-            lastUpdatedByName: user.name,
-          }));
+          const insertData = preparedItems.map((item, idx) => {
+            const fac = facMap.get(item.facilityId);
+            const isGround = isGroundFloorHall(fac);
+            let itemNotes = notes || "";
+            let itemServices: any[] = [];
+            try {
+              if (selectedServices) {
+                itemServices = typeof selectedServices === "string" ? JSON.parse(selectedServices) : [...selectedServices];
+              }
+            } catch {
+              itemServices = [];
+            }
+
+            if (isGround) {
+              const opt = item.groundHallOption === "AC" ? "AC" : "Non-AC";
+              const tag = `[Ground Floor Hall: ${opt}]`;
+              if (!itemNotes.includes(tag)) {
+                itemNotes = itemNotes ? `${tag} ${itemNotes}` : tag;
+              }
+              const sCode = opt === "AC" ? "HALL_OPTION_AC" : "HALL_OPTION_NON_AC";
+              const sName = opt === "AC" ? "Ground Floor Hall (AC)" : "Ground Floor Hall (Non-AC)";
+              if (!itemServices.some((s: any) => s.code === sCode)) {
+                itemServices.push({ code: sCode, name: sName, price: 0 });
+              }
+            }
+
+            return {
+              bookingNumber: bookingNumbers[idx],
+              facilityId: item.facilityId,
+              customerName,
+              customerPhone,
+              customerEmail: customerEmail || null,
+              customerAddress: customerAddress || null,
+              customerAadhar: customerAadhar || null,
+              eventType: eventType || "General Function",
+              startDate: item.startDate,
+              endDate: item.endDate,
+              slot: item.slot,
+              status: status || "CONFIRMED",
+              facilityAmount: item.facilityAmount,
+              discountCode: discountCode || null,
+              discountPercent: discPct,
+              discountAmount: item.discountAmount,
+              discountOverridden: !!discountOverridden,
+              discountOverrideReason: discountOverrideReason || null,
+              selectedServices: itemServices.length > 0 ? JSON.stringify(itemServices) : null,
+              servicesAmount: item.servicesAmount,
+              totalAmount: item.totalAmount,
+              depositAmount: item.depositAmount,
+              paymentStatus: paymentStatus || "PENDING",
+              paymentMethod: paymentMethod || "OFFLINE_CASH",
+              paymentRefNo: paymentRefNo || null,
+              notes: itemNotes || null,
+              bookedByUserId: user.id,
+              createdByName: user.name,
+              lastUpdatedByName: user.name,
+            };
+          });
 
           try {
             // PostgreSQL native single-query bulk insert returning all created rows (1 network round-trip)
@@ -517,6 +547,30 @@ export async function POST(req: NextRequest) {
 
     // Generate unique booking number using collision-proof allocator with automatic retry
     const currentYear = new Date().getFullYear();
+    const isGroundSingle = isGroundFloorHall(targetFacility);
+    let singleNotes = notes || "";
+    let singleServices: any[] = [];
+    try {
+      if (selectedServices) {
+        singleServices = typeof selectedServices === "string" ? JSON.parse(selectedServices) : [...selectedServices];
+      }
+    } catch {
+      singleServices = [];
+    }
+
+    if (isGroundSingle) {
+      const opt = body.groundHallOption === "AC" ? "AC" : "Non-AC";
+      const tag = `[Ground Floor Hall: ${opt}]`;
+      if (!singleNotes.includes(tag)) {
+        singleNotes = singleNotes ? `${tag} ${singleNotes}` : tag;
+      }
+      const sCode = opt === "AC" ? "HALL_OPTION_AC" : "HALL_OPTION_NON_AC";
+      const sName = opt === "AC" ? "Ground Floor Hall (AC)" : "Ground Floor Hall (Non-AC)";
+      if (!singleServices.some((s: any) => s.code === sCode)) {
+        singleServices.push({ code: sCode, name: sName, price: 0 });
+      }
+    }
+
     const newBooking = await executeWithBookingNumberRetry(
       async ([bookingNumber]) => {
         return await prisma.booking.create({
@@ -539,14 +593,14 @@ export async function POST(req: NextRequest) {
             discountAmount: finalDiscountAmount,
             discountOverridden: !!discountOverridden,
             discountOverrideReason: discountOverrideReason || null,
-            selectedServices: selectedServices ? JSON.stringify(selectedServices) : null,
+            selectedServices: singleServices.length > 0 ? JSON.stringify(singleServices) : null,
             servicesAmount: finalServicesCost,
             totalAmount: finalTotalAmount,
             depositAmount: Number(depositAmount ?? targetFacility.cautionDeposit) || 0,
             paymentStatus: paymentStatus || "PENDING",
             paymentMethod: paymentMethod || "OFFLINE_CASH",
             paymentRefNo: paymentRefNo || null,
-            notes: notes || null,
+            notes: singleNotes || null,
             bookedByUserId: user.id,
             createdByName: user.name,
             lastUpdatedByName: user.name,
@@ -623,6 +677,7 @@ export async function PUT(req: NextRequest) {
       paymentMethod,
       paymentRefNo,
       notes,
+      groundHallOption,
     } = body;
 
     let targetIds: string[] = [];
@@ -695,6 +750,49 @@ export async function PUT(req: NextRequest) {
       if (servicesAmount !== undefined) updateData.servicesAmount = Number(servicesAmount);
       if (totalAmount !== undefined) updateData.totalAmount = Number(totalAmount);
       if (depositAmount !== undefined) updateData.depositAmount = Number(depositAmount);
+    }
+
+    // If groundHallOption is provided, update notes and selectedServices for Ground Floor Hall bookings
+    if (groundHallOption === "AC" || groundHallOption === "NON_AC") {
+      const optLabel = groundHallOption === "AC" ? "AC" : "Non-AC";
+      const newTag = `[Ground Floor Hall: ${optLabel}]`;
+      const sCode = groundHallOption === "AC" ? "HALL_OPTION_AC" : "HALL_OPTION_NON_AC";
+      const sName = groundHallOption === "AC" ? "Ground Floor Hall (AC)" : "Ground Floor Hall (Non-AC)";
+
+      const targetBookings = await prisma.booking.findMany({
+        where: { id: { in: targetIds } },
+        include: { facility: true },
+      });
+
+      for (const tb of targetBookings) {
+        if (isGroundFloorHall(tb.facility)) {
+          let bNotes = (notes !== undefined ? (notes?.trim() || "") : (tb.notes || ""))
+            .replace(/\[Ground Floor Hall: (AC|Non-AC)\]/g, "")
+            .trim();
+          bNotes = bNotes ? `${newTag} ${bNotes}` : newTag;
+
+          let bServices: any[] = [];
+          try {
+            if (tb.selectedServices) {
+              bServices = JSON.parse(tb.selectedServices);
+            }
+          } catch {}
+          bServices = bServices.filter((s: any) => s.code !== "HALL_OPTION_AC" && s.code !== "HALL_OPTION_NON_AC");
+          bServices.push({ code: sCode, name: sName, price: 0 });
+
+          await prisma.booking.update({
+            where: { id: tb.id },
+            data: {
+              notes: bNotes,
+              selectedServices: JSON.stringify(bServices),
+            },
+          });
+        }
+      }
+
+      if (updateData.notes !== undefined) {
+        delete updateData.notes;
+      }
     }
 
     // Execute atomic batch update across all target bookings

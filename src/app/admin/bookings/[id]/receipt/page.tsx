@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Printer, ArrowLeft, Building2 } from "lucide-react";
 import Link from "next/link";
-import { formatSlotLabel } from "@/lib/slotUtils";
+import { formatSlotLabel, isGroundFloorHall, getBookingGroundHallOption } from "@/lib/slotUtils";
 
 export default function BookingReceiptPage() {
   const params = useParams();
@@ -159,7 +159,14 @@ export default function BookingReceiptPage() {
             <tbody>
               <tr className="border-b border-slate-300">
                 <td className="p-2.5 font-bold border-r border-slate-300">
-                  {booking.facility?.name}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span>{booking.facility?.name}</span>
+                    {isGroundFloorHall(booking.facility) && (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 print:border-black">
+                        {getBookingGroundHallOption(booking) === "AC" ? "❄️ AC" : "🍃 Non-AC"}
+                      </span>
+                    )}
+                  </div>
                   <span className="block text-[10px] text-slate-500 font-normal">
                     Code: {booking.facility?.code}
                   </span>

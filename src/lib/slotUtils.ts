@@ -354,3 +354,52 @@ export function sortBookingsFromMorningToNight(bookings: any[]): any[] {
   if (!bookings || bookings.length <= 1) return bookings || [];
   return [...bookings].sort((a, b) => getSlotStartMinutes(a.slot) - getSlotStartMinutes(b.slot));
 }
+
+/**
+ * Checks whether a facility represents the Ground Floor Hall.
+ */
+export function isGroundFloorHall(
+  facility?: { code?: string | null; name?: string | null } | null
+): boolean {
+  if (!facility) return false;
+  const code = (facility.code || "").toUpperCase();
+  const name = (facility.name || "").toLowerCase();
+  return (
+    code === "HALL-GROUND-FLOOR" ||
+    code === "RESOURCE_HALL_GROUND" ||
+    name.includes("ground floor") ||
+    name.includes("ગ્રાઉન્ડ ફ્લોર")
+  );
+}
+
+/**
+ * Returns whether a Ground Floor Hall booking has AC or Non-AC selected.
+ * Returns null if the booking is not for the Ground Floor Hall.
+ */
+export function getBookingGroundHallOption(b?: {
+  facility?: { code?: string | null; name?: string | null } | null;
+  facilityCode?: string | null;
+  facilityName?: string | null;
+  notes?: string | null;
+  selectedServices?: string | null;
+} | null): "AC" | "NON_AC" | null {
+  if (!b) return null;
+  const facCode = b.facility?.code || b.facilityCode;
+  const facName = b.facility?.name || b.facilityName;
+  const isGround = isGroundFloorHall({ code: facCode, name: facName });
+  if (!isGround) return null;
+
+  const notes = b.notes || "";
+  const servStr = b.selectedServices || "";
+  if (
+    notes.includes("[Ground Floor Hall: AC]") ||
+    notes.includes("Ground Floor Hall: AC") ||
+    notes.includes("Ground Floor Hall (AC)") ||
+    servStr.includes("HALL_OPTION_AC") ||
+    servStr.includes("Ground Floor Hall (AC)")
+  ) {
+    return "AC";
+  }
+  return "NON_AC";
+}
+

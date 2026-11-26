@@ -14,6 +14,8 @@ import {
   WHOLE_DAY_SLOT_LABEL,
   WHOLE_DAY_SLOT_GUJARATI,
   isFullDaySlot,
+  isGroundFloorHall,
+  getBookingGroundHallOption,
 } from "@/lib/slotUtils";
 import {
   Plus,
@@ -127,6 +129,15 @@ function BookingsManagementContent() {
   const [customEndTime, setCustomEndTime] = useState<string>("02:00 PM");
   const [customSlotsList, setCustomSlotsList] = useState<string[]>([]);
   const [plotPurpose, setPlotPurpose] = useState<"WEDDING" | "FAMILY">("WEDDING");
+  const [groundHallAc, setGroundHallAc] = useState<"AC" | "NON_AC">("NON_AC");
+  const [dateGroundHallAcMap, setDateGroundHallAcMap] = useState<Record<string, "AC" | "NON_AC">>({});
+
+  const getDateGroundHallAc = (dateStr: string): "AC" | "NON_AC" => {
+    return dateGroundHallAcMap[dateStr] || groundHallAc;
+  };
+  const setDateGroundHallAc = (dateStr: string, opt: "AC" | "NON_AC") => {
+    setDateGroundHallAcMap((prev) => ({ ...prev, [dateStr]: opt }));
+  };
 
   const getDatePlotPurpose = (dateStr: string): "WEDDING" | "FAMILY" => {
     return datePlotPurposeMap[dateStr] || plotPurpose;
@@ -180,6 +191,7 @@ function BookingsManagementContent() {
     paymentMethod: "CASH_AT_OFFICE",
     paymentRefNo: "",
     status: "CONFIRMED",
+    groundHallOption: "NON_AC" as "AC" | "NON_AC",
   });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState("");
@@ -205,6 +217,8 @@ function BookingsManagementContent() {
     setCreateError("");
     setShowCreateModal(true);
     setDateCopySuccess(false);
+    setGroundHallAc("NON_AC");
+    setDateGroundHallAcMap({});
     const dStr = dateParam || new Date().toISOString().split("T")[0];
     setSelectedDates([dStr]);
     setActiveDate(dStr);
@@ -493,6 +507,7 @@ function BookingsManagementContent() {
     const sourceTimings = dateTimeTimingMap[sourceDateStr] || {};
     const sourcePurpose = datePlotPurposeMap[sourceDateStr] || plotPurpose;
     const sourceScope = dateTimingScopeMap[sourceDateStr] || "SAME_ALL";
+    const sourceGroundHallAc = dateGroundHallAcMap[sourceDateStr] || groundHallAc;
 
     setDateFacilityMap((prev) => {
       const next = { ...prev };
@@ -512,6 +527,13 @@ function BookingsManagementContent() {
       const next = { ...prev };
       for (const d of selectedDates) {
         if (d !== sourceDateStr) next[d] = sourcePurpose;
+      }
+      return next;
+    });
+    setDateGroundHallAcMap((prev) => {
+      const next = { ...prev };
+      for (const d of selectedDates) {
+        if (d !== sourceDateStr) next[d] = sourceGroundHallAc;
       }
       return next;
     });
@@ -906,6 +928,7 @@ function BookingsManagementContent() {
       baseRent: number;
       cautionDeposit: number;
       conflict: { isConflict: boolean; reason?: string; bookedBy?: string };
+      groundHallOption?: "AC" | "NON_AC";
     }> = [];
 
     for (const dateStr of selectedDates) {
@@ -985,9 +1008,12 @@ function BookingsManagementContent() {
             };
           }
 
+          const isGround = isGroundFloorHall(fac);
+          const hallAcOpt = isGround ? getDateGroundHallAc(dateStr) : undefined;
+
           items.push({
             facilityId: fac.id,
-            facilityName: fac.name,
+            facilityName: isGround ? `${fac.name} (${hallAcOpt === "AC" ? "AC" : "Non-AC"})` : fac.name,
             facilityCode: fac.code,
             facilityType: fac.type,
             resourceGroup: fac.resourceGroup,
@@ -997,6 +1023,7 @@ function BookingsManagementContent() {
             baseRent,
             cautionDeposit,
             conflict: conflictInfo,
+            groundHallOption: hallAcOpt,
           });
         }
       }
@@ -1010,6 +1037,9 @@ function BookingsManagementContent() {
     facilities,
     bookings,
     plotPurpose,
+    datePlotPurposeMap,
+    dateGroundHallAcMap,
+    groundHallAc,
   ]);
 
   const totalFacilityRent = useMemo(() => {
@@ -1121,6 +1151,7 @@ function BookingsManagementContent() {
       slot: item.slot,
       facilityAmount: item.baseRent,
       depositAmount: item.cautionDeposit,
+      groundHallOption: (item as any).groundHallOption,
     }));
 
     try {
@@ -1253,6 +1284,7 @@ function BookingsManagementContent() {
     setIsBulkEditMode(isBulk);
     setTargetBulkIds(isBulk ? bulkIds! : [b.id]);
 
+    const initialGroundHallOpt = getBookingGroundHallOption(b) || "NON_AC";
     setEditFormData({
       customerName: b.customerName || "",
       customerPhone: b.customerPhone || "",
@@ -1265,6 +1297,7 @@ function BookingsManagementContent() {
       paymentMethod: b.paymentMethod || "CASH_AT_OFFICE",
       paymentRefNo: b.paymentRefNo || "",
       status: b.status || "CONFIRMED",
+      groundHallOption: initialGroundHallOpt,
     });
     setEditError("");
     setEditSuccess("");
@@ -1311,6 +1344,7 @@ function BookingsManagementContent() {
           paymentMethod: editFormData.paymentMethod,
           paymentRefNo: editFormData.paymentRefNo.trim(),
           status: editFormData.status,
+          groundHallOption: editFormData.groundHallOption,
         }),
       });
 
@@ -1945,7 +1979,18 @@ function BookingsManagementContent() {
                         </button>
                       </td>
                       <td className="py-3 px-4 font-semibold text-slate-800">
-                        <div>{b.facility?.name}</div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span>{b.facility?.name}</span>
+                          {isGroundFloorHall(b.facility) && (
+                            <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${
+                              getBookingGroundHallOption(b) === "AC"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                            }`}>
+                              {getBookingGroundHallOption(b) === "AC" ? "❄️ AC" : "🍃 Non-AC"}
+                            </span>
+                          )}
+                        </div>
                         <span className="text-[10px] text-amber-800 font-mono font-normal">
                           {b.facility?.code}
                         </span>
@@ -2128,6 +2173,15 @@ function BookingsManagementContent() {
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Facility</span>
                       <span className="font-bold text-slate-800 truncate block mt-0.5">{b.facility?.name}</span>
+                      {isGroundFloorHall(b.facility) && (
+                        <span className={`inline-block mt-0.5 text-[10px] font-extrabold px-1.5 py-0.2 rounded border ${
+                          getBookingGroundHallOption(b) === "AC"
+                            ? "bg-blue-50 text-blue-700 border-blue-200"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        }`}>
+                          {getBookingGroundHallOption(b) === "AC" ? "❄️ AC" : "🍃 Non-AC"}
+                        </span>
+                      )}
                     </div>
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Date & Slot</span>
@@ -2309,7 +2363,18 @@ function BookingsManagementContent() {
                 <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                   <div>
                     <span className="text-[10px] font-bold text-red-800 uppercase">Booked Facility</span>
-                    <div className="font-bold text-slate-900 text-sm">{detailBooking.facility?.name}</div>
+                    <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5 flex-wrap">
+                      <span>{detailBooking.facility?.name}</span>
+                      {isGroundFloorHall(detailBooking.facility) && (
+                        <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${
+                          getBookingGroundHallOption(detailBooking) === "AC"
+                            ? "bg-blue-50 text-blue-800 border-blue-200"
+                            : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                        }`}>
+                          {getBookingGroundHallOption(detailBooking) === "AC" ? "❄️ AC Setup" : "🍃 Non-AC Setup"}
+                        </span>
+                      )}
+                    </div>
                     <span className="text-[10px] text-slate-500">Code: {detailBooking.facility?.code}</span>
                   </div>
                   <div className="text-right">
@@ -2491,7 +2556,18 @@ function BookingsManagementContent() {
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
                 <div>
                   <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">સુવિધા (Facility)</span>
-                  <span className="font-bold text-slate-800 block truncate mt-0.5">{editingBooking.facility?.name || "Facility"}</span>
+                  <span className="font-bold text-slate-800 block truncate mt-0.5 flex items-center gap-1.5 flex-wrap">
+                    <span>{editingBooking.facility?.name || "Facility"}</span>
+                    {isGroundFloorHall(editingBooking.facility) && (
+                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                        editFormData.groundHallOption === "AC"
+                          ? "bg-blue-50 text-blue-800 border-blue-200"
+                          : "bg-emerald-50 text-emerald-800 border-emerald-200"
+                      }`}>
+                        {editFormData.groundHallOption === "AC" ? "❄️ AC" : "🍃 Non-AC"}
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">તારીખ (Date)</span>
@@ -2670,6 +2746,46 @@ function BookingsManagementContent() {
                     />
                   </div>
                 </div>
+
+                {/* Ground Floor Hall AC / Non-AC Selector in Edit Modal */}
+                {isGroundFloorHall(editingBooking.facility) && (
+                  <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                        <span>⚡ ગ્રાઉન્ડ ફ્લોર હોલ વિકલ્પ (Ground Floor Hall Option)</span>
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-blue-900 border border-blue-200">
+                        {editFormData.groundHallOption === "AC" ? "❄️ AC પસંદ કરેલ" : "🍃 Non-AC પસંદ કરેલ"}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setEditFormData({ ...editFormData, groundHallOption: "AC" })}
+                        className={`py-2 px-3 rounded-xl border font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                          editFormData.groundHallOption === "AC"
+                            ? "bg-blue-600 text-white border-blue-700 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span>❄️ AC (એસી)</span>
+                        {editFormData.groundHallOption === "AC" && <span className="text-[10px]">✓</span>}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditFormData({ ...editFormData, groundHallOption: "NON_AC" })}
+                        className={`py-2 px-3 rounded-xl border font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                          editFormData.groundHallOption === "NON_AC"
+                            ? "bg-emerald-600 text-white border-emerald-700 shadow-xs"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                        }`}
+                      >
+                        <span>🍃 Non-AC (નોન-એસી)</span>
+                        {editFormData.groundHallOption === "NON_AC" && <span className="text-[10px]">✓</span>}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Section 2: Status & Payment Information */}
@@ -3504,36 +3620,98 @@ function BookingsManagementContent() {
                                         .filter((f) => f.type === "HALL")
                                         .map((fac) => {
                                           const isChecked = facIds.includes(fac.id);
+                                          const isGroundHall = isGroundFloorHall(fac);
+                                          const dtGroundHallAc = isGroundHall ? getDateGroundHallAc(dateStr) : null;
                                           return (
-                                            <label
+                                            <div
                                               key={`${dateStr}-${fac.id}`}
-                                              className={`p-2.5 rounded-xl border-2 flex items-center justify-between gap-2 transition cursor-pointer ${isChecked
+                                              className={`p-2.5 rounded-xl border-2 transition ${isChecked
                                                 ? "border-red-600 bg-red-50/50 shadow-xs"
                                                 : "border-slate-200 bg-white hover:border-slate-300"
                                                 }`}
                                             >
-                                              <div className="flex items-center gap-2.5 min-w-0">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={isChecked}
-                                                  onChange={() => toggleFacilityForDate(dateStr, fac.id)}
-                                                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
-                                                />
-                                                <div className="min-w-0">
-                                                  <div className="font-extrabold text-xs text-slate-900 truncate">
-                                                    {fac.name}
-                                                  </div>
-                                                  <div className="text-[10px] text-slate-500">
-                                                    {fac.capacity} Persons
+                                              <label className="flex items-center justify-between gap-2 cursor-pointer">
+                                                <div className="flex items-center gap-2.5 min-w-0">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => toggleFacilityForDate(dateStr, fac.id)}
+                                                    className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer shrink-0"
+                                                  />
+                                                  <div className="min-w-0">
+                                                    <div className="font-extrabold text-xs text-slate-900 truncate flex items-center gap-1.5">
+                                                      <span>{fac.name}</span>
+                                                      {isGroundHall && isChecked && (
+                                                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                                                          dtGroundHallAc === "AC"
+                                                            ? "bg-blue-100 text-blue-800 border-blue-200"
+                                                            : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                                                        }`}>
+                                                          {dtGroundHallAc === "AC" ? "❄️ AC" : "🍃 Non-AC"}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-500">
+                                                      {fac.capacity} Persons {isGroundHall ? "• AC / Non-AC" : ""}
+                                                    </div>
                                                   </div>
                                                 </div>
-                                              </div>
-                                              <div className="text-right shrink-0">
-                                                <span className="text-xs font-black text-slate-800 block">
-                                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                                </span>
-                                              </div>
-                                            </label>
+                                                <div className="text-right shrink-0">
+                                                  <span className="text-xs font-black text-slate-800 block">
+                                                    {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                                  </span>
+                                                </div>
+                                              </label>
+
+                                              {/* Ground Floor Hall AC / Non-AC Option Selector */}
+                                              {isGroundHall && isChecked && (
+                                                <div className="mt-2.5 pt-2 border-t border-red-200/70 bg-white/95 p-2 rounded-xl space-y-1.5 shadow-2xs">
+                                                  <div className="flex items-center justify-between">
+                                                    <span className="text-[10px] font-bold text-slate-700">
+                                                      હોલ સુવિધા પ્રકાર (Hall Option):
+                                                    </span>
+                                                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                                      {dtGroundHallAc === "AC" ? "❄️ AC પસંદિત" : "🍃 Non-AC પસંદિત"}
+                                                    </span>
+                                                  </div>
+                                                  <div className="grid grid-cols-2 gap-1.5 text-xs">
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setDateGroundHallAc(dateStr, "AC");
+                                                      }}
+                                                      className={`py-1.5 px-2 rounded-lg border text-center font-bold text-[11px] transition cursor-pointer flex items-center justify-center gap-1 ${
+                                                        dtGroundHallAc === "AC"
+                                                          ? "bg-blue-700 text-white border-blue-800 shadow-xs"
+                                                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                                      }`}
+                                                    >
+                                                      <span>❄️ AC</span>
+                                                      {dtGroundHallAc === "AC" && <span className="text-[9px]">✓</span>}
+                                                    </button>
+
+                                                    <button
+                                                      type="button"
+                                                      onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setDateGroundHallAc(dateStr, "NON_AC");
+                                                      }}
+                                                      className={`py-1.5 px-2 rounded-lg border text-center font-bold text-[11px] transition cursor-pointer flex items-center justify-center gap-1 ${
+                                                        dtGroundHallAc === "NON_AC"
+                                                          ? "bg-emerald-700 text-white border-emerald-800 shadow-xs"
+                                                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                                      }`}
+                                                    >
+                                                      <span>🍃 Non-AC</span>
+                                                      {dtGroundHallAc === "NON_AC" && <span className="text-[9px]">✓</span>}
+                                                    </button>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
                                           );
                                         })}
                                     </div>
