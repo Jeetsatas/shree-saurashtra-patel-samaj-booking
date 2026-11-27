@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { sendFeedbackEmailNotification } from "@/lib/feedbackNotifier";
 
 export const dynamic = "force-dynamic";
 
@@ -151,9 +152,30 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Automatically notify jeetsatasiya993@gmail.com via email
+    let emailResult = { success: false, recipient: "jeetsatasiya993@gmail.com" };
+    try {
+      emailResult = await sendFeedbackEmailNotification({
+        ticketNo,
+        title: detailPayload.title,
+        description: detailPayload.description,
+        category: detailPayload.category,
+        priority: detailPayload.priority,
+        userName: user.name,
+        userEmail: user.email,
+        userRole: user.role,
+        deviceInfo: detailPayload.deviceInfo,
+        createdAt: newLog.createdAt.toISOString(),
+      });
+    } catch (emailErr) {
+      console.error("Email notification dispatch error:", emailErr);
+    }
+
     return NextResponse.json({
       success: true,
       ticketNo,
+      emailNotified: emailResult.success,
+      emailRecipient: emailResult.recipient,
       feedback: {
         id: newLog.id,
         ticketNo,

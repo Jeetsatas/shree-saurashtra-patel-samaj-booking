@@ -25,6 +25,7 @@ import {
   ChevronRight,
   Filter,
   Info,
+  Mail,
 } from "lucide-react";
 import { FeedbackItem } from "@/app/api/feedback/route";
 
@@ -136,6 +137,7 @@ export default function AdminFeedbackPage() {
   const [filterCategory, setFilterCategory] = useState<string>("ALL");
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
   const [successTicket, setSuccessTicket] = useState<string | null>(null);
+  const [submittedEmailNotice, setSubmittedEmailNotice] = useState<string | null>(null);
 
   // Status updating state
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -216,6 +218,7 @@ export default function AdminFeedbackPage() {
       }
 
       setSuccessTicket(data.ticketNo || "સફળતાપૂર્વક નોંધાયું");
+      setSubmittedEmailNotice(data.emailRecipient || "jeetsatasiya993@gmail.com");
       setTitle("");
       setDescription("");
 
@@ -230,6 +233,38 @@ export default function AdminFeedbackPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSendViaEmail = () => {
+    if (!title.trim() || !description.trim()) {
+      alert("મહેરબાની કરીને વિષય અને વર્ણન બંને લખો.");
+      return;
+    }
+    const catObj = CATEGORIES.find((c) => c.id === category);
+    const catName = catObj ? catObj.label : category;
+    const prioLabel = priority === "HIGH" ? "🔴 તાત્કાલિક (Urgent)" : priority === "MEDIUM" ? "🟡 મહત્વનું (Important)" : "🟢 સામાન્ય (Normal)";
+    const trusteeName = currentUser?.name || "ટ્રસ્ટી શ્રી";
+    const trusteeRole = currentUser?.role === "SUPER_ADMIN" ? "Super Admin (ટ્રસ્ટી)" : "Admin (વહીવટકર્તા)";
+
+    const mailSubject = encodeURIComponent(`[SSPS ફીડબેક] ${prioLabel.split(" ")[0]} ${title.trim()}`);
+    const mailBody = encodeURIComponent(
+`🏛️ શ્રી સૌરાષ્ટ્ર પટેલ સમાજ - નવી ફીડબેક / ફીચર વિગત:
+──────────────────────────
+📌 કેટેગરી: ${catName}
+⚡ અગ્રતા: ${prioLabel}
+👤 સૂચનકર્તા: ${trusteeName} (${trusteeRole})
+📧 ઈમેલ: ${currentUser?.email || ""}
+📱 ડિવાઇસ: ${deviceInfo || "Admin Web"}
+
+📝 વિષય:
+${title.trim()}
+
+📋 વિગતવાર વર્ણન:
+${description.trim()}
+──────────────────────────
+`
+    );
+    window.open(`mailto:jeetsatasiya993@gmail.com?subject=${mailSubject}&body=${mailBody}`, "_blank");
   };
 
   const handleSendViaWhatsApp = async () => {
@@ -255,6 +290,7 @@ export default function AdminFeedbackPage() {
         const data = await res.json();
         if (res.ok && data.ticketNo) {
           setSuccessTicket(data.ticketNo);
+          setSubmittedEmailNotice(data.emailRecipient || "jeetsatasiya993@gmail.com");
           // Refresh list
           const feedRes = await fetch("/api/feedback");
           if (feedRes.ok) {
@@ -371,6 +407,19 @@ _શ્રી સૌરાષ્ટ્ર પટેલ સમાજ નિકો
                 {currentUser?.role === "SUPER_ADMIN" ? "Super Admin (ટ્રસ્ટી)" : "Admin"}
               </div>
             </div>
+
+            <div className="bg-emerald-500/20 backdrop-blur-md rounded-2xl p-3 border border-emerald-400/30 text-xs text-white">
+              <div className="text-[10px] text-emerald-200 uppercase font-bold flex items-center gap-1">
+                <Mail className="w-3 h-3 text-emerald-300" />
+                <span>ઓટો ઈમેઇલ નોટિફિકેશન</span>
+              </div>
+              <div className="font-extrabold text-white mt-0.5 truncate max-w-[200px]">
+                jeetsatasiya993@gmail.com
+              </div>
+              <div className="text-[10px] text-emerald-200">
+                નવું સૂચન આવતાં આપોઆપ ઈમેઇલ જશે
+              </div>
+            </div>
           </div>
         </div>
 
@@ -422,8 +471,14 @@ _શ્રી સૌરાષ્ટ્ર પટેલ સમાજ નિકો
                     <p className="text-emerald-700 text-xs mt-1">
                       ટિકિટ નંબર: <strong className="font-mono bg-white px-2 py-0.5 rounded border border-emerald-300">{successTicket}</strong>
                     </p>
-                    <p className="text-emerald-600 text-[11px] mt-1.5">
-                      આ સૂચન ટ્રસ્ટ ડેવલપમેન્ટ ટીમ અને બોર્ડ સમક્ષ રજૂ થશે. તમે નીચેના બટનથી આને સીધા WhatsApp પર પણ મોકલી શકો છો.
+                    <div className="bg-white/80 rounded-xl p-2.5 mt-2 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>
+                        ઓટોમેટિક ઈમેઇલ નોટિફિકેશન: <strong>{submittedEmailNotice || "jeetsatasiya993@gmail.com"}</strong> પર આ સૂચનની સંપૂર્ણ વિગતો મોકલી દેવાઈ છે.
+                      </span>
+                    </div>
+                    <p className="text-emerald-600 text-[11px] mt-2">
+                      આ સૂચન ટ્રસ્ટ ડેવલપમેન્ટ ટીમ સમક્ષ રજૂ થશે. તમે નીચેના બટનથી આને સીધા WhatsApp પર પણ મોકલી શકો છો.
                     </p>
                   </div>
                 </div>
@@ -565,17 +620,17 @@ _શ્રી સૌરાષ્ટ્ર પટેલ સમાજ નિકો
                 </span>
               </div>
 
-              {/* Action Buttons: 2 Smart Options */}
-              <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
-                {/* 1. Save in System */}
+              {/* Action Buttons: 3 Smart Options */}
+              <div className="pt-2 flex flex-col sm:flex-row items-center gap-2.5">
+                {/* 1. Save in System & Auto Notify Email */}
                 <button
                   type="button"
                   onClick={() => handleSubmitSystem()}
                   disabled={submitting || !title.trim() || !description.trim()}
-                  className="w-full sm:flex-1 py-3 px-5 rounded-2xl bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  className="w-full sm:flex-1 py-3 px-4 rounded-2xl bg-blue-700 hover:bg-blue-800 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <Send className="w-4 h-4" />
-                  <span>{submitting ? "નોંધાઈ રહ્યું છે..." : "સિસ્ટમમાં સેવ કરો (Save to System)"}</span>
+                  <span>{submitting ? "સેવ & ઈમેઇલ નોટિફાય થાય છે..." : "સેવ કરો & ઈમેઇલ મોકલો"}</span>
                 </button>
 
                 {/* 2. Direct WhatsApp to Developer */}
@@ -583,10 +638,22 @@ _શ્રી સૌરાષ્ટ્ર પટેલ સમાજ નિકો
                   type="button"
                   onClick={handleSendViaWhatsApp}
                   disabled={!title.trim() || !description.trim()}
-                  className="w-full sm:flex-1 py-3 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  className="w-full sm:flex-1 py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4 text-white" />
-                  <span>વોટ્સએપ દ્વારા ડેવલપરને મોકલો</span>
+                  <span>વોટ્સએપ દ્વારા મોકલો</span>
+                </button>
+
+                {/* 3. Direct Email Client Fallback */}
+                <button
+                  type="button"
+                  onClick={handleSendViaEmail}
+                  disabled={!title.trim() || !description.trim()}
+                  className="w-full sm:w-auto py-3 px-4 rounded-2xl bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white font-extrabold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                  title="Gmail અથવા ડિફોલ્ટ ઈમેઇલ ક્લાયન્ટમાં સીધું ખોલો"
+                >
+                  <Mail className="w-4 h-4 text-white" />
+                  <span>Gmail / Email</span>
                 </button>
               </div>
             </div>
