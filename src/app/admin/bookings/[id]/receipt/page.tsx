@@ -1,16 +1,24 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
-import { Printer, ArrowLeft, Building2, Edit3 } from "lucide-react";
+import { Printer, ArrowLeft, Building2, Edit3, Users, FileText } from "lucide-react";
 import Link from "next/link";
-import { formatSlotLabel, isGroundFloorHall, getBookingGroundHallOption } from "@/lib/slotUtils";
+import {
+  formatSlotLabel,
+  isGroundFloorHall,
+  getBookingGroundHallOption,
+  groupBookingsByParty,
+  PartyBookingGroup,
+} from "@/lib/slotUtils";
 
 export default function BookingReceiptPage() {
   const params = useParams();
   const id = params.id as string;
   const [booking, setBooking] = useState<any>(null);
+  const [allBookings, setAllBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [slipMode, setSlipMode] = useState<"ALL" | "SINGLE">("ALL");
 
   useEffect(() => {
     fetchBooking();
@@ -21,7 +29,8 @@ export default function BookingReceiptPage() {
       setLoading(true);
       const res = await fetch("/api/bookings");
       const data = await res.json();
-      if (data.bookings) {
+      if (data.bookings && Array.isArray(data.bookings)) {
+        setAllBookings(data.bookings);
         const found = data.bookings.find((b: any) => b.id === id);
         if (found) setBooking(found);
       }
@@ -31,6 +40,94 @@ export default function BookingReceiptPage() {
       setLoading(false);
     }
   };
+
+  // Find the party group for this booking
+  const partyGroup = useMemo(() => {
+    if (!allBookings.length || !booking) return null;
+    const groups = groupBookingsByParty(allBookings);
+    return groups.find((g) => g.bookingIds.includes(booking.id)) || null;
+  }, [allBookings, booking]);
+
+  const isMultiBooking = Boolean(partyGroup && partyGroup.bookings.length > 1);
+  const effectiveMode = isMultiBooking ? slipMode : "SINGLE";
+  const displayBookings = effectiveMode === "ALL" && partyGroup ? partyGroup.bookings : booking ? [booking] : [];
+
+  const totalBaseRent = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.total;
+    }
+    return Number(booking?.facilityAmount || booking?.totalAmount || 0);
+  }, [effectiveMode, partyGroup, booking]);
+
+  const effectiveDiscountAmount = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.discountAmount;
+    }
+    return Number(booking?.discountAmount || 0);
+  }, [effectiveMode, partyGroup, booking]);
+
+  const allSelectedServices = useMemo(() => {
+    if (!partyGroup) return [];
+    const list: any[] = [];
+    const targetBookings = effectiveMode === "ALL" ? partyGroup.bookings : booking ? [booking] : [];
+    for (const b of targetBookings) {
+      if (b.selectedServices) {
+        try {
+          const parsed = typeof b.selectedServices === "string" ? JSON.parse(b.selectedServices) : b.selectedServices;
+          if (Array.isArray(parsed)) {
+            for (const s of parsed) {
+              if (!list.some((item) => item.code === s.code || item.name === s.name)) {
+                list.push(s);
+              }
+            }
+          }
+        } catch {}
+      }
+    }
+    return list;
+  }, [partyGroup, effectiveMode, booking]);
+
+  const effectiveServicesAmount = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.bookings.reduce((sum, b) => sum + (Number(b.servicesAmount) || 0), 0);
+    }
+    return Number(booking?.servicesAmount || 0);
+  }, [effectiveMode, partyGroup, booking]);
+
+  const effectiveTotalRent = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.totalWithDiscount;
+    }
+    return Number(booking?.totalAmount || 0);
+  }, [effectiveMode, partyGroup, booking]);
+
+  const effectiveDeposit = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.deposit;
+    }
+    return Number(booking?.depositAmount || 0);
+  }, [effectiveMode, partyGroup, booking]);
+
+  const effectiveNetPayable = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.net;
+    }
+    return Number(booking?.totalAmount || 0) + Number(booking?.depositAmount || 0);
+  }, [effectiveMode, partyGroup, booking]);
+
+  const effectiveTotalJama = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.totalJama;
+    }
+    return 0;
+  }, [effectiveMode, partyGroup]);
+
+  const effectiveNetRemaining = useMemo(() => {
+    if (effectiveMode === "ALL" && partyGroup) {
+      return partyGroup.netRemaining;
+    }
+    return 0;
+  }, [effectiveMode, partyGroup]);
 
   if (loading) {
     return (
@@ -63,10 +160,42 @@ export default function BookingReceiptPage() {
           Back to Bookings
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Multi-booking Consolidated vs Single Slip Mode Switcher */}
+          {isMultiBooking && (
+            <div className="inline-flex items-center bg-slate-300/80 p-0.5 rounded-xl border border-slate-300 text-xs font-bold shadow-inner mr-1">
+              <button
+                type="button"
+                onClick={() => setSlipMode("ALL")}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  effectiveMode === "ALL"
+                    ? "bg-white text-red-900 shadow-sm font-black border border-slate-300"
+                    : "text-slate-700 hover:text-slate-950"
+                }`}
+                title="આ પાર્ટીના તમામ બુકિંગ્સ એક જ સંયુક્ત પહોંચમાં જુઓ"
+              >
+                <Users className="w-3.5 h-3.5 text-red-800" />
+                <span>તમામ {partyGroup?.bookings.length} બુકિંગ્સ (સંયુક્ત પહોંચ)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSlipMode("SINGLE")}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  effectiveMode === "SINGLE"
+                    ? "bg-white text-slate-900 shadow-sm font-black border border-slate-300"
+                    : "text-slate-700 hover:text-slate-950"
+                }`}
+                title="માત્ર આ એક સ્લોટની રસીદ જુઓ"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                <span>માત્ર આ એક સ્લિપ</span>
+              </button>
+            </div>
+          )}
+
           <Link
             href={`/admin/bookings?edit=${booking.id}`}
-            className="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center min-h-[40px]"
+            className="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-bold text-xs px-3.5 py-2 rounded-xl shadow transition flex items-center justify-center min-h-[38px]"
             title="આ બુકિંગની વિગતો સુધારો (Edit Booking)"
           >
             <Edit3 className="w-4 h-4 mr-1.5" />
@@ -75,7 +204,7 @@ export default function BookingReceiptPage() {
 
           <button
             onClick={() => window.print()}
-            className="bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center min-h-[40px]"
+            className="bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs px-4 py-2 rounded-xl shadow transition flex items-center justify-center min-h-[38px] cursor-pointer"
           >
             <Printer className="w-4 h-4 mr-1.5" />
             Print Official Booking Voucher (A4)
@@ -116,7 +245,9 @@ export default function BookingReceiptPage() {
         {/* Voucher Title */}
         <div className="my-5 text-center">
           <span className="inline-block bg-red-100 text-red-900 font-extrabold text-xs px-4 py-1 rounded-full uppercase tracking-wider border border-red-200">
-            OFFICIAL HALL / DORMITORY BOOKING SLIP
+            {isMultiBooking && effectiveMode === "ALL"
+              ? "OFFICIAL HALL / DORMITORY BOOKING SLIP (પાર્ટી સંયુક્ત પહોંચ)"
+              : "OFFICIAL HALL / DORMITORY BOOKING SLIP"}
           </span>
         </div>
 
@@ -124,7 +255,17 @@ export default function BookingReceiptPage() {
         <div className="grid grid-cols-2 gap-4 text-xs mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
           <div>
             <span className="text-slate-500 block text-[11px]">Booking Number:</span>
-            <span className="font-extrabold text-base text-red-900">{booking.bookingNumber}</span>
+            <span className="font-extrabold text-base text-red-900 font-mono">
+              {booking.bookingNumber}
+            </span>
+            {isMultiBooking && effectiveMode === "ALL" && (
+              <span className="text-[10px] text-slate-600 block mt-0.5 font-medium">
+                સંલગ્ન તમામ સ્લિપ ({displayBookings.length}):{" "}
+                <span className="font-mono font-bold text-red-950">
+                  {displayBookings.map((b: any) => b.bookingNumber).join(", ")}
+                </span>
+              </span>
+            )}
           </div>
 
           <div className="text-right">
@@ -140,59 +281,109 @@ export default function BookingReceiptPage() {
 
           <div>
             <span className="text-slate-500 block text-[11px]">Applicant Full Name:</span>
-            <span className="font-bold text-sm text-slate-900">{booking.customerName}</span>
+            <span className="font-bold text-sm text-slate-900">
+              {partyGroup?.customerName || booking.customerName}
+            </span>
           </div>
 
           <div className="text-right">
             <span className="text-slate-500 block text-[11px]">Contact Number:</span>
-            <span className="font-bold text-slate-900">{booking.customerPhone}</span>
+            <span className="font-bold text-slate-900 font-mono">
+              {partyGroup?.customerPhone || booking.customerPhone}
+            </span>
           </div>
 
           <div className="col-span-2">
             <span className="text-slate-500 block text-[11px]">Address & Native Village:</span>
             <span className="font-medium text-slate-800">
-              {booking.customerAddress || "Nikol, Ahmedabad"}
+              {partyGroup?.customerAddress || booking.customerAddress || "Nikol, Ahmedabad"}
             </span>
           </div>
         </div>
 
         {/* Reservation Particulars Table */}
         <div className="mb-6">
+          <div className="flex items-center justify-between mb-1.5">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+              {isMultiBooking && effectiveMode === "ALL"
+                ? `બુક કરેલ તમામ સુવિધાઓની વિગત (Booked Facilities & Slot Particulars - ${displayBookings.length} Bookings)`
+                : "Reservation Particulars"}
+            </h3>
+            {isMultiBooking && effectiveMode === "ALL" && (
+              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded bg-red-100 text-red-900 border border-red-200">
+                સંયુક્ત પાર્ટી પહોંચ (All Bookings)
+              </span>
+            )}
+          </div>
+
           <table className="w-full text-xs text-left border border-slate-300">
             <thead className="bg-slate-100 border-b border-slate-300 text-[11px] font-bold text-slate-700">
               <tr>
+                <th className="p-2.5 border-r border-slate-300 w-8 text-center">#</th>
                 <th className="p-2.5 border-r border-slate-300">Facility / Hall Name</th>
                 <th className="p-2.5 border-r border-slate-300">Reserved Date</th>
                 <th className="p-2.5 border-r border-slate-300">Time Slot</th>
-                <th className="p-2.5">Occasion / Event</th>
+                <th className="p-2.5 border-r border-slate-300">Occasion / Event</th>
+                <th className="p-2.5 text-right">Base Rent</th>
               </tr>
             </thead>
             <tbody>
-              <tr className="border-b border-slate-300">
-                <td className="p-2.5 font-bold border-r border-slate-300">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span>{booking.facility?.name}</span>
-                    {isGroundFloorHall(booking.facility) && (
-                      <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 print:border-black">
-                        {getBookingGroundHallOption(booking) === "AC" ? "❄️ AC" : "🍃 Non-AC"}
+              {displayBookings.map((b: any, idx: number) => (
+                <tr key={b.id || idx} className="border-b border-slate-300">
+                  <td className="p-2.5 text-center font-bold text-slate-500 border-r border-slate-300">
+                    {idx + 1}
+                  </td>
+                  <td className="p-2.5 font-bold border-r border-slate-300">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span>{b.facility?.name}</span>
+                      {isGroundFloorHall(b.facility) && (
+                        <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-300 print:border-black">
+                          {getBookingGroundHallOption(b) === "AC" ? "❄️ AC" : "🍃 Non-AC"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] text-slate-500 font-normal">
+                        Code: {b.facility?.code}
                       </span>
-                    )}
-                  </div>
-                  <span className="block text-[10px] text-slate-500 font-normal">
-                    Code: {booking.facility?.code}
-                  </span>
-                </td>
-                <td className="p-2.5 font-semibold border-r border-slate-300">
-                  {new Date(booking.startDate).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </td>
-                <td className="p-2.5 border-r border-slate-300">{formatSlotLabel(booking.slot)}</td>
-                <td className="p-2.5 font-semibold">{booking.eventType}</td>
-              </tr>
+                      {isMultiBooking && (
+                        <span className="text-[10px] font-mono font-bold text-red-900 bg-red-50 px-1.5 py-0.2 rounded border border-red-200 print:border-black">
+                          {b.bookingNumber}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="p-2.5 font-semibold border-r border-slate-300 whitespace-nowrap">
+                    {new Date(b.startDate).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </td>
+                  <td className="p-2.5 border-r border-slate-300 font-medium">
+                    {formatSlotLabel(b.slot)}
+                  </td>
+                  <td className="p-2.5 font-semibold border-r border-slate-300">
+                    {b.eventType}
+                  </td>
+                  <td className="p-2.5 font-mono font-bold text-right text-slate-900 tabular-nums whitespace-nowrap">
+                    ₹{(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
+                  </td>
+                </tr>
+              ))}
             </tbody>
+            {isMultiBooking && effectiveMode === "ALL" && (
+              <tfoot className="bg-slate-50 font-bold border-t-2 border-slate-300">
+                <tr>
+                  <td colSpan={5} className="p-2.5 text-right text-slate-700 border-r border-slate-300">
+                    કુલ મૂળ સુવિધા ભાડું (Total Base Rent - {displayBookings.length} Facilities):
+                  </td>
+                  <td className="p-2.5 font-mono font-black text-right text-slate-900 tabular-nums">
+                    ₹{totalBaseRent.toLocaleString("en-IN")}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
 
@@ -203,16 +394,20 @@ export default function BookingReceiptPage() {
           </h3>
           <table className="w-full text-xs text-left border border-slate-300">
             <tbody>
+              {/* 1. Base Rent */}
               <tr className="border-b border-slate-200">
                 <td className="p-2 text-slate-600 border-r border-slate-300">
-                  Facility Base Rent:
+                  {effectiveMode === "ALL" && isMultiBooking
+                    ? `કુલ મૂળ સુવિધા ભાડું (Total Base Rent - ${displayBookings.length} Bookings):`
+                    : "Facility Base Rent:"}
                 </td>
-                <td className="p-2 font-bold text-right text-slate-900">
-                  ₹{(booking.facilityAmount || booking.totalAmount).toLocaleString("en-IN")}
+                <td className="p-2 font-bold text-right text-slate-900 tabular-nums font-mono">
+                  ₹{totalBaseRent.toLocaleString("en-IN")}
                 </td>
               </tr>
 
-              {booking.discountAmount > 0 && (
+              {/* 2. Discount */}
+              {effectiveDiscountAmount > 0 && (
                 <tr className="border-b border-slate-200 bg-emerald-50/50 text-emerald-800">
                   <td className="p-2 border-r border-slate-300">
                     Samaj Discount Applied ({booking.discountPercent}% - {booking.discountCode || "Entitlement"}):
@@ -222,68 +417,89 @@ export default function BookingReceiptPage() {
                       </span>
                     )}
                   </td>
-                  <td className="p-2 font-bold text-right text-emerald-800">
-                    - ₹{booking.discountAmount.toLocaleString("en-IN")}
+                  <td className="p-2 font-bold text-right text-emerald-800 tabular-nums font-mono">
+                    - ₹{effectiveDiscountAmount.toLocaleString("en-IN")}
                   </td>
                 </tr>
               )}
 
-              {booking.servicesAmount > 0 && (
+              {/* 3. Add-on Services */}
+              {effectiveServicesAmount > 0 && (
                 <tr className="border-b border-slate-200 bg-blue-50/40 text-blue-900">
                   <td className="p-2 border-r border-slate-300">
                     Optional Add-on Services:
-                    {booking.selectedServices && (
+                    {allSelectedServices.length > 0 && (
                       <span className="block text-[10px] text-slate-500 font-normal">
-                        {(() => {
-                          try {
-                            const parsed = JSON.parse(booking.selectedServices);
-                            return parsed.map((s: any) => `${s.name} (₹${s.price})`).join(", ");
-                          } catch {
-                            return "";
-                          }
-                        })()}
+                        {allSelectedServices.map((s: any) => `${s.name} (₹${s.price})`).join(", ")}
                       </span>
                     )}
                   </td>
-                  <td className="p-2 font-bold text-right text-blue-900">
-                    + ₹{booking.servicesAmount.toLocaleString("en-IN")}
+                  <td className="p-2 font-bold text-right text-blue-900 tabular-nums font-mono">
+                    + ₹{effectiveServicesAmount.toLocaleString("en-IN")}
                   </td>
                 </tr>
               )}
 
+              {/* 4. Net Rent */}
               <tr className="border-b border-slate-200 bg-slate-50 font-semibold">
                 <td className="p-2 text-slate-700 border-r border-slate-300">
-                  Net Booking Amount:
+                  ચોખ્ખું સુવિધા ભાડું (Net Booking Rent Amount):
                 </td>
-                <td className="p-2 font-bold text-right text-slate-900">
-                  ₹{booking.totalAmount.toLocaleString("en-IN")}
-                </td>
-              </tr>
-
-              <tr className="border-b border-slate-200 bg-slate-50/50">
-                <td className="p-2 text-slate-600 border-r border-slate-300">
-                  Refundable Caution Deposit (અનામત):
-                </td>
-                <td className="p-2 font-bold text-right text-slate-900">
-                  ₹{booking.depositAmount.toLocaleString("en-IN")}
+                <td className="p-2 font-bold text-right text-slate-900 tabular-nums font-mono">
+                  ₹{effectiveTotalRent.toLocaleString("en-IN")}
                 </td>
               </tr>
 
-              <tr className="border-b border-slate-300 bg-amber-50/60 font-bold">
+              {/* 5. Caution Deposit (BEFORE NET!) */}
+              <tr className="border-b border-slate-200 bg-amber-50/40">
+                <td className="p-2 text-slate-700 font-semibold border-r border-slate-300">
+                  🛡️ Refundable Caution Deposit (પરત મળવાપાત્ર અનામત ડિપોઝિટ):
+                </td>
+                <td className="p-2 font-bold text-right text-slate-900 tabular-nums font-mono">
+                  ₹{effectiveDeposit.toLocaleString("en-IN")}
+                </td>
+              </tr>
+
+              {/* 6. Total Amount Payable (Rent + Deposit) */}
+              <tr className="border-b border-slate-300 bg-amber-100/70 font-bold">
                 <td className="p-2 text-slate-900 border-r border-slate-300">
-                  Total Amount Received (Rent + Deposit):
+                  કુલ ચૂકવવાપાત્ર રકમ (Total Amount Payable - Rent + Deposit):
                 </td>
-                <td className="p-2 font-extrabold text-base text-right text-red-900">
-                  ₹{(booking.totalAmount + booking.depositAmount).toLocaleString("en-IN")}
+                <td className="p-2 font-extrabold text-base text-right text-red-900 tabular-nums font-mono">
+                  ₹{effectiveNetPayable.toLocaleString("en-IN")}
                 </td>
               </tr>
 
+              {/* 7. Total Jama / Paid (if any entries exist) */}
+              {effectiveTotalJama > 0 && (
+                <>
+                  <tr className="border-b border-slate-200 bg-emerald-50/60 text-emerald-950 font-bold">
+                    <td className="p-2 border-r border-slate-300">
+                      અત્યાર સુધી જમા રકમ (Total Amount Received / Jama):
+                    </td>
+                    <td className="p-2 text-right text-emerald-800 tabular-nums font-mono">
+                      ₹{effectiveTotalJama.toLocaleString("en-IN")}
+                    </td>
+                  </tr>
+                  <tr className="border-b border-slate-200 font-bold">
+                    <td className="p-2 text-slate-700 border-r border-slate-300">
+                      બાકી રહેતી રકમ (Net Remaining Balance):
+                    </td>
+                    <td className={`p-2 text-right tabular-nums font-mono ${effectiveNetRemaining === 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                      ₹{effectiveNetRemaining.toLocaleString("en-IN")} {effectiveNetRemaining === 0 ? "(ચુકતે)" : ""}
+                    </td>
+                  </tr>
+                </>
+              )}
+
+              {/* 8. Payment Mode & Reference */}
               <tr className="text-[11px] text-slate-600">
                 <td className="p-2 border-r border-slate-300">
                   Payment Mode & Reference:
                 </td>
                 <td className="p-2 text-right font-medium">
                   {booking.paymentMethod} {booking.paymentRefNo ? `(${booking.paymentRefNo})` : ""}
+                  {booking.paymentStatus ? ` • ${booking.paymentStatus}` : ""}
                 </td>
               </tr>
             </tbody>
@@ -321,4 +537,3 @@ export default function BookingReceiptPage() {
     </div>
   );
 }
-
