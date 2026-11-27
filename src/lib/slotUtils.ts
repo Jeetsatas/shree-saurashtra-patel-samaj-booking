@@ -403,3 +403,279 @@ export function getBookingGroundHallOption(b?: {
   return "NON_AC";
 }
 
+export interface JamaEntry {
+  id: string;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  method?: string; // CASH_AT_OFFICE | UPI_BANK_TRANSFER | CHEQUE | ONLINE
+  refNo?: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export function parseJamaEntries(notesText?: string | null): JamaEntry[] {
+  if (!notesText) return [];
+  const match = notesText.match(/<!--JAMA_ENTRIES:([\s\S]*?)-->/);
+  if (!match) return [];
+  try {
+    const parsed = JSON.parse(match[1]);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setJamaEntriesInNotes(
+  notesText: string | null | undefined,
+  entries: JamaEntry[]
+): string {
+  const current = (notesText || "").replace(/<!--JAMA_ENTRIES:[\s\S]*?-->/g, "").trim();
+  if (!entries || entries.length === 0) return current;
+  const tag = `<!--JAMA_ENTRIES:${JSON.stringify(entries)}-->`;
+  return current ? `${current}\n${tag}` : tag;
+}
+
+export function getCleanNotesWithoutTags(notesText?: string | null): string {
+  if (!notesText) return "";
+  return notesText
+    .replace(/<!--JAMA_ENTRIES:[\s\S]*?-->/g, "")
+    .replace(/\[Ground Floor Hall: (AC|Non-AC)\]/g, "")
+    .trim();
+}
+
+/**
+ * Standard facility rate calculation matching the Samaj Rate Sheet.
+ */
+export function getStandardFacilityRate(
+  facility: { code?: string | null; baseRent?: number | null; weddingRent?: number | null; familyRent?: number | null } | null | undefined,
+  slot?: string | null,
+  eventType?: string | null
+): number {
+  if (!facility) return 0;
+  const code = facility.code || "";
+  const isFull = isFullDaySlot(slot);
+
+  if (code === "PLOT-OUTSIDE") {
+    const ev = (eventType || "").toLowerCase();
+    const isWed = ev.includes("wedding") || ev.includes("lagna") || ev.includes("reception") || ev.includes("mandap") || ev.includes("wedd");
+    return isWed ? (facility.weddingRent || 51000) : (facility.familyRent || 21000);
+  }
+  if (code === "HALL-MULTIPURPOSE") {
+    return isFull ? 31000 : 21000;
+  }
+  if (code === "HALL-GROUND-FLOOR") {
+    return isFull ? 150000 : 100000;
+  }
+  if (code === "DORM-42-BEDS") return 16000;
+  if (code === "DORM-28-BEDS") return 11000;
+  if (code === "ROOM-8BED-UNIT1") return 3000;
+  if (code === "ROOM-6BED") return 2500;
+  if (code === "ROOM-8BED-UNIT2") return 3000;
+
+  return facility.baseRent || 0;
+}
+
+/**
+ * Calculates standard event deposit. If major facility (Halls, Party Plot, Dormitories)
+ * is booked, event caution deposit is standard ₹25,000.
+ */
+export function calculateEventDeposit(
+  facilitiesList: Array<{ code?: string | null; cautionDeposit?: number | null }>
+): number {
+  const hasMajorFacility = facilitiesList.some((f) => {
+    const c = f?.code || "";
+    return c === "PLOT-OUTSIDE" || c === "HALL-GROUND-FLOOR" || c === "HALL-MULTIPURPOSE" || c.startsWith("DORM");
+  });
+  if (hasMajorFacility) return 25000;
+  return Math.max(0, ...facilitiesList.map((f) => f?.cautionDeposit || 0));
+}
+
+export interface PartyBookingGroup {
+  partyKey: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  customerAddress?: string;
+  customerAadhar?: string;
+  eventType?: string;
+  dateRange: {
+    startDate: string;
+    endDate: string;
+    daysCount: number;
+    label: string;
+  };
+  bookings: any[];
+  bookingIds: string[];
+  total: number;
+  discountAmount: number;
+  totalWithDiscount: number;
+  deposit: number;
+  net: number;
+  jamaEntries: JamaEntry[];
+  totalJama: number;
+  netRemaining: number;
+  paymentStatus: "PAID" | "PARTIAL" | "PENDING";
+  latestJamaDate?: string;
+}
+
+/**
+ * Groups bookings by Party (Customer & Event Dates session) for comprehensive
+ * financial accounting in પેમેન્ટ સ્થિતિ (Payment Status).
+ */
+export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
+  const activeBookings = (allBookings || []).filter((b) => b.status !== "CANCELLED");
+
+  // Helper to normalize phone
+  const cleanPhone = (p?: string | null) => (p || "").replace(/\D/g, "");
+
+  // Sort chronologically
+  const sorted = [...activeBookings].sort(
+    (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+  );
+
+  const groups: PartyBookingGroup[] = [];
+
+  for (const b of sorted) {
+    const phone = cleanPhone(b.customerPhone);
+    const name = (b.customerName || "").trim().toLowerCase();
+    const bStart = new Date(b.startDate).getTime();
+
+    // Find an existing group where phone matches (or name matches if no phone)
+    // and event start is within 10 days of the group's range
+    let targetGroup = groups.find((g) => {
+      const gPhone = cleanPhone(g.customerPhone);
+      const gName = (g.customerName || "").trim().toLowerCase();
+      const phoneMatch = phone && gPhone && phone === gPhone;
+      const nameMatch = !phone && !gPhone && name && gName && name === gName;
+
+      if (!phoneMatch && !nameMatch) return false;
+
+      const groupStart = new Date(g.dateRange.startDate).getTime();
+      const groupEnd = new Date(g.dateRange.endDate).getTime();
+      const diffStart = Math.abs(bStart - groupStart) / (1000 * 60 * 60 * 24);
+      const diffEnd = Math.abs(bStart - groupEnd) / (1000 * 60 * 60 * 24);
+
+      return diffStart <= 12 || diffEnd <= 12;
+    });
+
+    if (!targetGroup) {
+      targetGroup = {
+        partyKey: `${phone || name || b.id}-${b.startDate}`,
+        customerName: b.customerName || "અજ્ઞાત અરજદાર",
+        customerPhone: b.customerPhone || "",
+        customerEmail: b.customerEmail || "",
+        customerAddress: b.customerAddress || "",
+        customerAadhar: b.customerAadhar || "",
+        eventType: b.eventType || "Event",
+        dateRange: {
+          startDate: b.startDate,
+          endDate: b.endDate || b.startDate,
+          daysCount: 1,
+          label: "",
+        },
+        bookings: [],
+        bookingIds: [],
+        total: 0,
+        discountAmount: 0,
+        totalWithDiscount: 0,
+        deposit: 0,
+        net: 0,
+        jamaEntries: [],
+        totalJama: 0,
+        netRemaining: 0,
+        paymentStatus: "PENDING",
+      };
+      groups.push(targetGroup);
+    }
+
+    targetGroup.bookings.push(b);
+    targetGroup.bookingIds.push(b.id);
+
+    // Expand date range if needed
+    if (new Date(b.startDate) < new Date(targetGroup.dateRange.startDate)) {
+      targetGroup.dateRange.startDate = b.startDate;
+    }
+    const bEnd = b.endDate || b.startDate;
+    if (new Date(bEnd) > new Date(targetGroup.dateRange.endDate)) {
+      targetGroup.dateRange.endDate = bEnd;
+    }
+  }
+
+  // Second pass: Calculate financials and format for each group
+  for (const g of groups) {
+    const sDate = new Date(g.dateRange.startDate);
+    const eDate = new Date(g.dateRange.endDate);
+    const dayMs = 1000 * 60 * 60 * 24;
+    const diffDays = Math.max(1, Math.round((eDate.getTime() - sDate.getTime()) / dayMs) + 1);
+    g.dateRange.daysCount = diffDays;
+
+    const sFmt = sDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    const eFmt = eDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+    g.dateRange.label = sFmt === eFmt ? sFmt : `${sFmt} થી ${eFmt} (${diffDays} દિવસ)`;
+
+    // Calculate total base rent & services
+    let sumBase = 0;
+    let sumDiscounts = 0;
+    const facilitiesList: any[] = [];
+
+    for (const b of g.bookings) {
+      const bFacAmt = Number(b.facilityAmount ?? b.totalAmount ?? 0);
+      const bServAmt = Number(b.servicesAmount ?? 0);
+      sumBase += bFacAmt + bServAmt;
+      sumDiscounts += Number(b.discountAmount ?? 0);
+      if (b.facility) facilitiesList.push(b.facility);
+    }
+
+    g.total = sumBase;
+    g.discountAmount = sumDiscounts;
+    g.totalWithDiscount = Math.max(0, g.total - g.discountAmount);
+
+    // Calculate caution deposit
+    g.deposit = calculateEventDeposit(facilitiesList);
+
+    // Net = Total with discount + Deposit
+    g.net = g.totalWithDiscount + g.deposit;
+
+    // Collect all unique Jama entries from notes across party bookings
+    const jamaMap = new Map<string, JamaEntry>();
+    for (const b of g.bookings) {
+      const entries = parseJamaEntries(b.notes);
+      for (const ent of entries) {
+        if (ent && ent.id) {
+          jamaMap.set(ent.id, ent);
+        }
+      }
+    }
+
+    const jamaList = Array.from(jamaMap.values()).sort(
+      (a, b) => new Date(b.date || "").getTime() - new Date(a.date || "").getTime()
+    );
+    g.jamaEntries = jamaList;
+
+    const totalJama = jamaList.reduce((acc, ent) => acc + (Number(ent.amount) || 0), 0);
+    g.totalJama = totalJama;
+
+    // Net Remaining = Net - Total Jama
+    g.netRemaining = Math.max(0, g.net - totalJama);
+
+    if (jamaList.length > 0) {
+      g.latestJamaDate = jamaList[0].date;
+    }
+
+    // Status evaluation
+    if (g.netRemaining <= 0 && g.net > 0) {
+      g.paymentStatus = "PAID";
+    } else if (totalJama > 0) {
+      g.paymentStatus = "PARTIAL";
+    } else {
+      g.paymentStatus = "PENDING";
+    }
+  }
+
+  // Sort groups: newest events first
+  return groups.sort(
+    (a, b) => new Date(b.dateRange.startDate).getTime() - new Date(a.dateRange.startDate).getTime()
+  );
+}
+
+

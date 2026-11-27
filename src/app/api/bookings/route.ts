@@ -8,6 +8,8 @@ import {
   isFullDaySlot,
   WHOLE_DAY_SLOT_LABEL,
   isGroundFloorHall,
+  parseJamaEntries,
+  setJamaEntriesInNotes,
 } from "@/lib/slotUtils";
 import {
   getNextAvailableBookingNumbers,
@@ -92,6 +94,7 @@ export async function GET(req: NextRequest) {
       facilityName: b.facility?.name || "",
       facilityCode: b.facility?.code || "",
       resourceGroup: b.facility?.resourceGroup || "",
+      jamaEntries: parseJamaEntries(b.notes),
     }));
 
     return NextResponse.json(
@@ -146,6 +149,7 @@ export async function POST(req: NextRequest) {
       paymentRefNo,
       notes,
       groundHallOption,
+      jamaEntries,
     } = body;
 
     if (!customerName || !customerPhone) {
@@ -297,22 +301,45 @@ export async function POST(req: NextRequest) {
 
         // Calculate item pricing
         let itemBaseRent = fac.baseRent || 0;
+        const isFull = isFullDaySlot(itSlot);
         if (fac.code === "PLOT-OUTSIDE" || fac.type === "PLOT") {
           const ev = (eventType || "").toLowerCase();
-          if (ev.includes("wedding") || ev.includes("lagna") || ev.includes("wedd")) {
-            itemBaseRent = fac.weddingRent || fac.baseRent || 0;
+          if (ev.includes("wedding") || ev.includes("lagna") || ev.includes("wedd") || ev.includes("marriage")) {
+            itemBaseRent = fac.weddingRent || fac.baseRent || 51000;
           } else {
-            itemBaseRent = fac.familyRent || fac.baseRent || 0;
+            itemBaseRent = fac.familyRent || fac.baseRent || 21000;
           }
+        } else if (fac.code === "HALL-MULTIPURPOSE") {
+          itemBaseRent = isFull ? 31000 : 21000;
+        } else if (fac.code === "HALL-GROUND-FLOOR") {
+          itemBaseRent = isFull ? 150000 : 100000;
+        } else if (fac.code === "DORM-42-BEDS") {
+          itemBaseRent = 16000;
+        } else if (fac.code === "DORM-28-BEDS") {
+          itemBaseRent = 11000;
+        } else if (fac.code === "ROOM-8BED-UNIT1") {
+          itemBaseRent = 3000;
+        } else if (fac.code === "ROOM-6BED") {
+          itemBaseRent = 2500;
+        } else if (fac.code === "ROOM-8BED-UNIT2") {
+          itemBaseRent = 3000;
         }
-        if (it.facilityAmount !== undefined && it.facilityAmount !== null && !isNaN(Number(it.facilityAmount))) {
+
+        if (it.facilityAmount !== undefined && it.facilityAmount !== null && !isNaN(Number(it.facilityAmount)) && Number(it.facilityAmount) > 0) {
           itemBaseRent = Number(it.facilityAmount);
         }
 
         const itemDiscAmt = (itemBaseRent * discPct) / 100;
         const isFirstItem = i === 0;
         const itemServCost = isFirstItem ? Number(servicesAmount) || 0 : 0;
-        const itemDeposit = Number(it.depositAmount ?? fac.cautionDeposit) || 0;
+
+        const hasMajorFac = items.some((itItem: any) => {
+          const f = facMap.get(itItem.facilityId);
+          const c = f?.code || "";
+          return c === "PLOT-OUTSIDE" || c === "HALL-GROUND-FLOOR" || c === "HALL-MULTIPURPOSE" || c.startsWith("DORM");
+        });
+        const eventDeposit = hasMajorFac ? 25000 : (depositAmount !== undefined ? Number(depositAmount) : (fac.cautionDeposit || 0));
+        const itemDeposit = isFirstItem ? eventDeposit : 0;
         const itemTotal = Math.max(0, itemBaseRent - itemDiscAmt) + itemServCost;
 
         preparedItems.push({
@@ -678,6 +705,7 @@ export async function PUT(req: NextRequest) {
       paymentRefNo,
       notes,
       groundHallOption,
+      jamaEntries,
     } = body;
 
     let targetIds: string[] = [];
@@ -792,6 +820,51 @@ export async function PUT(req: NextRequest) {
 
       if (updateData.notes !== undefined) {
         delete updateData.notes;
+      }
+    }
+
+    // Handle Jama Entries (જમા ખાતાવહી) updates across target bookings
+    if (Array.isArray(jamaEntries)) {
+      const targetBookings = await prisma.booking.findMany({
+        where: { id: { in: targetIds } },
+        select: { id: true, notes: true, totalAmount: true, depositAmount: true },
+      });
+
+      const totalJama = jamaEntries.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+
+      for (const tb of targetBookings) {
+        const updatedNotes = setJamaEntriesInNotes(tb.notes, jamaEntries);
+        await prisma.booking.update({
+          where: { id: tb.id },
+          data: {
+            notes: updatedNotes,
+            lastUpdatedByName: user.name,
+          },
+        });
+      }
+
+      if (!paymentStatus) {
+        const isFullyPaid = body.isFullPaid || false;
+        updateData.paymentStatus = isFullyPaid ? "PAID" : totalJama > 0 ? "PARTIAL" : "PENDING";
+        const lastEntry = jamaEntries[jamaEntries.length - 1];
+        if (lastEntry?.method) {
+          updateData.paymentMethod = lastEntry.method;
+        }
+        if (lastEntry?.refNo) {
+          updateData.paymentRefNo = lastEntry.refNo;
+        }
+      }
+
+      delete updateData.notes;
+    } else if (notes !== undefined && targetIds.length > 0) {
+      // If updating plain notes, preserve any existing Jama entries tag
+      const existing = await prisma.booking.findUnique({
+        where: { id: targetIds[0] },
+        select: { notes: true },
+      });
+      const existingJama = parseJamaEntries(existing?.notes);
+      if (existingJama.length > 0) {
+        updateData.notes = setJamaEntriesInNotes(notes, existingJama);
       }
     }
 

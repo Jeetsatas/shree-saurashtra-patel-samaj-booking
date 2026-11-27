@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   CreditCard,
   Calendar as CalendarIcon,
@@ -26,10 +26,28 @@ import {
   Receipt,
   Banknote,
   Wallet,
+  Plus,
+  Trash2,
+  Calendar,
+  Sparkles,
+  User,
+  MapPin,
+  Tag,
+  ArrowUpRight,
+  RefreshCw,
 } from "lucide-react";
 import Link from "next/link";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
-import { isFullDaySlot, formatSlotLabel } from "@/lib/slotUtils";
+import {
+  isFullDaySlot,
+  formatSlotLabel,
+  groupBookingsByParty,
+  PartyBookingGroup,
+  JamaEntry,
+  parseJamaEntries,
+  setJamaEntriesInNotes,
+  calculateEventDeposit,
+} from "@/lib/slotUtils";
 
 // Helper: Check if a booking is considered fully paid
 function isBookingFullyPaid(b: any): boolean {
@@ -56,7 +74,7 @@ function getPaymentBadge(status: string) {
   ) {
     return {
       label: "🟢 પૂર્ણ ચુકવણી (Full Paid)",
-      shortLabel: "પૂર્ણ",
+      shortLabel: "સંપૂર્ણ ચુકતે",
       badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300",
       dotColor: "#10b981",
       isPaid: true,
@@ -65,7 +83,7 @@ function getPaymentBadge(status: string) {
   if (s === "PARTIAL") {
     return {
       label: "🟡 આંશિક ચુકવણી (Partial)",
-      shortLabel: "આંશિક",
+      shortLabel: "આંશિક જમા",
       badgeClass: "bg-amber-100 text-amber-900 border-amber-300",
       dotColor: "#f59e0b",
       isPaid: false,
@@ -73,11 +91,26 @@ function getPaymentBadge(status: string) {
   }
   return {
     label: "🟡 ચુકવણી બાકી (Pending)",
-    shortLabel: "બાકી",
-    badgeClass: "bg-amber-100 text-amber-900 border-amber-300",
-    dotColor: "#f59e0b",
+    shortLabel: "ચુકવણી બાકી",
+    badgeClass: "bg-rose-100 text-rose-900 border-rose-300",
+    dotColor: "#f43f5e",
     isPaid: false,
   };
+}
+
+function formatPaymentMode(mode?: string | null): string {
+  switch (mode) {
+    case "CASH_AT_OFFICE":
+      return "રોકડ (Cash at Office)";
+    case "UPI_BANK_TRANSFER":
+      return "UPI / બેંક ટ્રાન્સફર";
+    case "CHEQUE":
+      return "ચેક (Cheque)";
+    case "ONLINE":
+      return "ઓનલાઈન પોર્ટલ";
+    default:
+      return mode || "રોકડ";
+  }
 }
 
 export default function AdminPaymentStatusPage() {
@@ -91,14 +124,20 @@ export default function AdminPaymentStatusPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Active Tab: PARTY_LEDGER is the primary default view
+  const [activeTab, setActiveTab] = useState<"PARTY_LEDGER" | "CALENDAR" | "PENDING_LIST">("PARTY_LEDGER");
+
+  // Party Ledger State
+  const [partySearchQuery, setPartySearchQuery] = useState("");
+  const [partyStatusFilter, setPartyStatusFilter] = useState<"ALL" | "PENDING" | "PARTIAL" | "PAID">("ALL");
+
   // Calendar State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>("ALL");
-  const [activeTab, setActiveTab] = useState<"CALENDAR" | "PENDING_LIST">("CALENDAR");
   const [pendingSearchQuery, setPendingSearchQuery] = useState("");
 
-  // Edit Payment Modal State
+  // Quick Single Booking Edit Modal
   const [editingBooking, setEditingBooking] = useState<any | null>(null);
   const [editStatus, setEditStatus] = useState<string>("PAID");
   const [editMethod, setEditMethod] = useState<string>("CASH_AT_OFFICE");
@@ -108,14 +147,29 @@ export default function AdminPaymentStatusPage() {
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
   const [saveErrorMsg, setSaveErrorMsg] = useState<string>("");
 
+  // JAMA MODAL (Party-wise Jama Entry Ledger)
+  const [selectedPartyForJama, setSelectedPartyForJama] = useState<PartyBookingGroup | null>(null);
+  const [jamaAmountInput, setJamaAmountInput] = useState<string>("");
+  const [jamaDateInput, setJamaDateInput] = useState<string>(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  });
+  const [jamaMethodInput, setJamaMethodInput] = useState<string>("CASH_AT_OFFICE");
+  const [jamaRefNoInput, setJamaRefNoInput] = useState<string>("");
+  const [jamaNotesInput, setJamaNotesInput] = useState<string>("");
+  const [partyJamaLedger, setPartyJamaLedger] = useState<JamaEntry[]>([]);
+  const [savingJama, setSavingJama] = useState(false);
+  const [jamaError, setJamaError] = useState("");
+  const [jamaSuccess, setJamaSuccess] = useState("");
+
+  // View Party Details Modal
+  const [viewingParty, setViewingParty] = useState<PartyBookingGroup | null>(null);
+
   const isMounted = useRef(false);
   const bookingsRefresh = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
-    const y = currentDate.getFullYear();
-    const m = currentDate.getMonth() + 1;
-    const url = `/api/bookings?month=${m}&year=${y}`;
-    const cachedBookings = getAdminCachedData<any>(url) || getAdminCachedData<any>("/api/bookings");
+    const cachedBookings = getAdminCachedData<any>("/api/bookings");
     const cachedFacilities = getAdminCachedData<any>("/api/facilities");
     const cachedUser = getAdminCachedData<any>("/api/auth/me")?.user;
     if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
@@ -132,14 +186,12 @@ export default function AdminPaymentStatusPage() {
     const refreshWhileVisible = () => {
       if (document.visibilityState === "visible") {
         const now = Date.now();
-        // Smart Focus Revalidation: throttle to at most once every 10 seconds on tab focus
         if (now - lastRefreshTime > 10000) {
           lastRefreshTime = now;
           refreshBookings();
         }
       }
     };
-    // Relax idle background polling to 45s
     const timer = window.setInterval(refreshWhileVisible, 45000);
     window.addEventListener("focus", refreshWhileVisible);
     document.addEventListener("visibilitychange", refreshWhileVisible);
@@ -150,33 +202,14 @@ export default function AdminPaymentStatusPage() {
     };
   }, []);
 
-  // When calendar month changes, load scoped bookings for that month (skipping redundant mount double fetch)
-  useEffect(() => {
-    if (!isMounted.current) {
-      isMounted.current = true;
-      return;
-    }
-    const y = currentDate.getFullYear();
-    const m = currentDate.getMonth() + 1;
-    const url = `/api/bookings?month=${m}&year=${y}`;
-    const cached = getAdminCachedData<any>(url);
-    if (cached?.bookings) {
-      setBookings(cached.bookings);
-    }
-    refreshBookings(y, m);
-  }, [currentDate.getFullYear(), currentDate.getMonth()]);
-
   const fetchInitialData = async () => {
     try {
-      const y = currentDate.getFullYear();
-      const m = currentDate.getMonth() + 1;
-      const url = `/api/bookings?month=${m}&year=${y}`;
-      if (!getAdminCachedData(url) && !getAdminCachedData("/api/bookings")) {
+      if (!getAdminCachedData("/api/bookings")) {
         setLoading(true);
       }
       const [facRes, bookRes, userRes] = await Promise.allSettled([
         fetchAdminJson<any>("/api/facilities"),
-        fetchAdminJson<any>(url),
+        fetchAdminJson<any>("/api/bookings"),
         fetchAdminJson<any>("/api/auth/me"),
       ]);
 
@@ -197,12 +230,11 @@ export default function AdminPaymentStatusPage() {
     }
   };
 
-  const refreshBookings = async (targetYear = currentDate.getFullYear(), targetMonth = currentDate.getMonth() + 1) => {
-    const url = `/api/bookings?month=${targetMonth}&year=${targetYear}`;
+  const refreshBookings = async () => {
     if (bookingsRefresh.current) return bookingsRefresh.current;
     bookingsRefresh.current = (async () => {
       try {
-        const data = await fetchAdminJson<any>(url);
+        const data = await fetchAdminJson<any>("/api/bookings");
         if (data?.bookings) setBookings(data.bookings);
       } catch (err) {
         console.error("Booking refresh error:", err);
@@ -215,18 +247,199 @@ export default function AdminPaymentStatusPage() {
 
   const isSuper = currentUser?.role === "SUPER_ADMIN";
 
-  // Date Navigation
+  // Group all bookings into Parties
+  const partyGroups: PartyBookingGroup[] = useMemo(() => {
+    return groupBookingsByParty(bookings);
+  }, [bookings]);
+
+  // Filtered party groups for the Party Ledger tab
+  const filteredPartyGroups = useMemo(() => {
+    return partyGroups.filter((g) => {
+      // Search Filter
+      if (partySearchQuery.trim()) {
+        const q = partySearchQuery.toLowerCase().trim();
+        const matchesName = g.customerName.toLowerCase().includes(q);
+        const matchesPhone = g.customerPhone.includes(q);
+        const matchesBookings = g.bookings.some(
+          (b) =>
+            b.bookingNumber?.toLowerCase().includes(q) ||
+            b.facility?.name?.toLowerCase().includes(q)
+        );
+        if (!matchesName && !matchesPhone && !matchesBookings) return false;
+      }
+
+      // Status Filter
+      if (partyStatusFilter !== "ALL") {
+        if (g.paymentStatus !== partyStatusFilter) return false;
+      }
+
+      return true;
+    });
+  }, [partyGroups, partySearchQuery, partyStatusFilter]);
+
+  // Overall Party Ledger Financial Statistics
+  const partyStats = useMemo(() => {
+    let totalParties = partyGroups.length;
+    let totalBilled = 0;
+    let totalJamaCollected = 0;
+    let totalNetRemaining = 0;
+    let paidCount = 0;
+    let partialCount = 0;
+    let pendingCount = 0;
+
+    for (const g of partyGroups) {
+      totalBilled += g.net;
+      totalJamaCollected += g.totalJama;
+      totalNetRemaining += g.netRemaining;
+
+      if (g.paymentStatus === "PAID") paidCount++;
+      else if (g.paymentStatus === "PARTIAL") partialCount++;
+      else pendingCount++;
+    }
+
+    return {
+      totalParties,
+      totalBilled,
+      totalJamaCollected,
+      totalNetRemaining,
+      paidCount,
+      partialCount,
+      pendingCount,
+    };
+  }, [partyGroups]);
+
+  // Open Jama Modal for a Party
+  const handleOpenJamaModal = (party: PartyBookingGroup) => {
+    setSelectedPartyForJama(party);
+    setPartyJamaLedger([...party.jamaEntries]);
+    setJamaAmountInput(party.netRemaining > 0 ? String(party.netRemaining) : "");
+    const today = new Date();
+    setJamaDateInput(
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+    );
+    setJamaMethodInput("CASH_AT_OFFICE");
+    setJamaRefNoInput("");
+    setJamaNotesInput("");
+    setJamaError("");
+    setJamaSuccess("");
+  };
+
+  // Add Jama entry to local ledger in modal
+  const handleAddJamaEntryToLedger = () => {
+    const amt = Number(jamaAmountInput);
+    if (!amt || isNaN(amt) || amt <= 0) {
+      setJamaError("કૃપા કરીને માન્ય જમા રકમ દાખલ કરો (Please enter valid jama amount).");
+      return;
+    }
+    if (!jamaDateInput) {
+      setJamaError("કૃપા કરીને જમા તારીખ પસંદ કરો (Please select jama date).");
+      return;
+    }
+
+    const newEntry: JamaEntry = {
+      id: `jama-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      amount: amt,
+      date: jamaDateInput,
+      method: jamaMethodInput,
+      refNo: jamaRefNoInput.trim() || undefined,
+      notes: jamaNotesInput.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    setPartyJamaLedger((prev) => [newEntry, ...prev]);
+    setJamaAmountInput("");
+    setJamaRefNoInput("");
+    setJamaNotesInput("");
+    setJamaError("");
+  };
+
+  // Remove Jama entry from local ledger in modal
+  const handleRemoveJamaEntry = (entryId: string) => {
+    setPartyJamaLedger((prev) => prev.filter((e) => e.id !== entryId));
+  };
+
+  // Save all Jama entries for this Party to DB
+  const handleSavePartyJama = async () => {
+    if (!selectedPartyForJama) return;
+
+    // If user filled in the input but didn't click "Add", include it automatically
+    let finalLedger = [...partyJamaLedger];
+    const pendingAmt = Number(jamaAmountInput);
+    if (pendingAmt > 0 && jamaDateInput) {
+      const quickEntry: JamaEntry = {
+        id: `jama-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        amount: pendingAmt,
+        date: jamaDateInput,
+        method: jamaMethodInput,
+        refNo: jamaRefNoInput.trim() || undefined,
+        notes: jamaNotesInput.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      finalLedger = [quickEntry, ...finalLedger];
+    }
+
+    setSavingJama(true);
+    setJamaError("");
+    setJamaSuccess("");
+
+    const totalJama = finalLedger.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const newNetRemaining = Math.max(0, selectedPartyForJama.net - totalJama);
+    const isFullPaid = newNetRemaining <= 0;
+    const derivedStatus = isFullPaid ? "PAID" : totalJama > 0 ? "PARTIAL" : "PENDING";
+
+    // Optimistic UI update across all party bookings in local state
+    const partyBookingIdSet = new Set(selectedPartyForJama.bookingIds);
+    setBookings((prev) =>
+      prev.map((b) => {
+        if (partyBookingIdSet.has(b.id)) {
+          return {
+            ...b,
+            paymentStatus: derivedStatus,
+            paymentMethod: finalLedger[0]?.method || b.paymentMethod,
+            paymentRefNo: finalLedger[0]?.refNo || b.paymentRefNo,
+            notes: setJamaEntriesInNotes(b.notes, finalLedger),
+          };
+        }
+        return b;
+      })
+    );
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedPartyForJama.bookingIds,
+          jamaEntries: finalLedger,
+          isFullPaid,
+          updateAllRelated: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to save jama entries");
+      }
+
+      setJamaSuccess("જમા રકમ અને ખાતાવહી સફળતાપૂર્વક સાચવવામાં આવી છે!");
+      setTimeout(() => {
+        setSelectedPartyForJama(null);
+        refreshBookings();
+      }, 1000);
+    } catch (err: any) {
+      console.error("Save Jama error:", err);
+      setJamaError(err.message || "Failed to save jama entries");
+    } finally {
+      setSavingJama(false);
+    }
+  };
+
+  // Calendar Date Navigation
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  const prevMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
-  };
-
-  const nextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
-  };
-
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   const goToToday = () => {
     const now = new Date();
     setCurrentDate(now);
@@ -237,28 +450,18 @@ export default function AdminPaymentStatusPage() {
   const firstDayOfWeek = new Date(year, month, 1).getDay();
 
   const monthNames = [
-    "January (જાન્યુઆરી)",
-    "February (ફેબ્રુઆરી)",
-    "March (માર્ચ)",
-    "April (એપ્રિલ)",
-    "May (મે)",
-    "June (જૂન)",
-    "July (જુલાઈ)",
-    "August (ઓગસ્ટ)",
-    "September (સપ્ટેમ્બર)",
-    "October (ઓક્ટોબર)",
-    "November (નવેમ્બર)",
-    "December (ડિસેમ્બર)",
+    "January (જાન્યુઆરી)", "February (ફેબ્રુઆરી)", "March (માર્ચ)",
+    "April (એપ્રિલ)", "May (મે)", "June (જૂન)", "July (જુલાઈ)",
+    "August (ઓગસ્ટ)", "September (સપ્ટેમ્બર)", "October (ઓક્ટોબર)",
+    "November (નવેમ્બર)", "December (ડિસેમ્બર)",
   ];
 
-  // Get active bookings for a specific date
+  // Get active bookings for a specific calendar date
   const getBookingsForDate = (dateObj: Date) => {
     const targetStr = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, "0")}-${String(dateObj.getDate()).padStart(2, "0")}`;
 
     return bookings.filter((b) => {
-      if (selectedFacilityId !== "ALL") {
-        if (b.facilityId !== selectedFacilityId) return false;
-      }
+      if (selectedFacilityId !== "ALL" && b.facilityId !== selectedFacilityId) return false;
       const start = new Date(b.startDate);
       const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
       const end = new Date(b.endDate || b.startDate);
@@ -276,10 +479,6 @@ export default function AdminPaymentStatusPage() {
     return getBookingsForDate(new Date(year, month, dayNum));
   };
 
-  // Day Payment Status Evaluation
-  // White: Blank day (0 bookings)
-  // Green: Full payment (all bookings on this day are paid)
-  // Yellow: Pending payment (at least 1 booking is pending or partial)
   const getDayPaymentEvaluation = (dayNum: number) => {
     const dayBookings = getBookingsForDay(dayNum);
     if (dayBookings.length === 0) {
@@ -330,66 +529,7 @@ export default function AdminPaymentStatusPage() {
     };
   };
 
-  // Selected Day Details
   const selectedDayBookings = selectedDate ? getBookingsForDate(selectedDate) : [];
-  const selectedDayEval = (() => {
-    if (!selectedDate || selectedDayBookings.length === 0) {
-      return { type: "BLANK" as const, total: 0, paid: 0, pending: 0, pendingCount: 0 };
-    }
-    let total = 0;
-    let paid = 0;
-    let pending = 0;
-    let pendingCount = 0;
-    for (const b of selectedDayBookings) {
-      const amt = Number(b.totalAmount || 0);
-      total += amt;
-      if (isBookingFullyPaid(b)) {
-        paid += amt;
-      } else {
-        pending += amt;
-        pendingCount += 1;
-      }
-    }
-    return {
-      type: pendingCount === 0 ? ("FULL_PAID" as const) : ("PENDING" as const),
-      total,
-      paid,
-      pending,
-      pendingCount,
-    };
-  })();
-
-  // Month Overview Stats
-  const monthStats = (() => {
-    let monthTotal = 0;
-    let monthPaid = 0;
-    let monthPending = 0;
-    let totalBookings = 0;
-    let pendingBookings = 0;
-
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dayBookings = getBookingsForDay(d);
-      for (const b of dayBookings) {
-        totalBookings += 1;
-        const amt = Number(b.totalAmount || 0);
-        monthTotal += amt;
-        if (isBookingFullyPaid(b)) {
-          monthPaid += amt;
-        } else {
-          monthPending += amt;
-          pendingBookings += 1;
-        }
-      }
-    }
-
-    return {
-      monthTotal,
-      monthPaid,
-      monthPending,
-      totalBookings,
-      pendingBookings,
-    };
-  })();
 
   // All Pending Bookings across the entire system
   const allPendingBookings = bookings
@@ -406,7 +546,7 @@ export default function AdminPaymentStatusPage() {
     })
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-  // Handle Edit Payment Click
+  // Handle Quick Edit Modal
   const handleOpenEditModal = (b: any) => {
     setEditingBooking(b);
     setEditStatus(isBookingFullyPaid(b) ? "PAID" : b.paymentStatus || "PENDING");
@@ -417,15 +557,12 @@ export default function AdminPaymentStatusPage() {
     setSaveErrorMsg("");
   };
 
-  // Handle Save Payment with Instant Optimistic UI Update
   const handleSavePayment = async () => {
     if (!editingBooking) return;
     setSavingPayment(true);
     setSaveErrorMsg("");
     setSaveSuccessMsg("");
 
-    const previousBookings = [...bookings];
-    // Optimistic instant local update in 0ms:
     setBookings((prev) =>
       prev.map((item) =>
         item.id === editingBooking.id
@@ -450,832 +587,1251 @@ export default function AdminPaymentStatusPage() {
           paymentMethod: editMethod,
           paymentRefNo: editRefNo,
           notes: editNotes,
+          updateAllRelated: true,
         }),
       });
 
-      const data = await res.json();
       if (!res.ok) {
-        // Revert on error
-        setBookings(previousBookings);
-        throw new Error(data.error || "Failed to update payment status");
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update payment");
       }
 
-      setSaveSuccessMsg("✓ પેમેન્ટ સ્થિતિ સફળતાપૂર્વક અપડેટ થઈ ગઈ!");
+      setSaveSuccessMsg("પેમેન્ટ સ્થિતિ સફળતાપૂર્વક અપડેટ થઈ ગઈ!");
       setTimeout(() => {
         setEditingBooking(null);
-        setSaveSuccessMsg("");
-      }, 500);
+        refreshBookings();
+      }, 700);
     } catch (err: any) {
-      setBookings(previousBookings);
-      console.error(err);
+      console.error("Save payment error:", err);
       setSaveErrorMsg(err.message || "Failed to update payment status");
     } finally {
       setSavingPayment(false);
     }
   };
 
-  // Access Control: Only View-Only Admins are restricted.
-  // Super Admin (Trustee) must NEVER see this restricted screen!
-  if (!authLoading && currentUser && currentUser.role === "VIEW_ONLY_ADMIN") {
-    return (
-      <div className="max-w-2xl mx-auto my-12 bg-white rounded-3xl border border-rose-200 p-8 shadow-sm text-center space-y-4">
-        <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
-          <Lock className="w-8 h-8" />
-        </div>
-        <h2 className="text-2xl font-black text-slate-900">
-          પ્રતિબંધિત એક્સેસ (Restricted Access)
-        </h2>
-        <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-          આ પેમેન્ટ સ્થિતિ પેજ ફક્ત ટ્રસ્ટના સુપર એડમિન (ટ્રસ્ટી) માટે જ અધિકૃત છે.
-          વ્યૂ-ઓન્લી એડમિન પેમેન્ટ વિગતો જોઈ કે બદલી શકતા નથી.
-        </p>
-        <div className="pt-2">
-          <Link
-            href="/admin/calendar"
-            className="inline-flex items-center px-6 py-2.5 rounded-full bg-[#0066cc] hover:bg-[#0071e3] text-white font-bold text-sm shadow-xs transition"
-          >
-            કેલેન્ડર પર પાછા જાઓ
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  // While user authentication is being verified, never flash "Restricted Access"!
-  if (authLoading || !currentUser) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] p-8 space-y-4">
-        <div className="w-10 h-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <p className="text-xs font-bold text-slate-500">પેમેન્ટ સ્થિતિ લોડ થઈ રહી છે...</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      {/* Header Banner */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2">
-            <span className="text-[11px] font-black uppercase tracking-wider text-red-800 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-200">
-              સુપર એડમિન કંટ્રોલ (SUPER ADMIN ONLY)
-            </span>
-            <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs font-bold text-slate-500">ટ્રસ્ટ ચુકવણી ખાતાવહી</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-1 flex items-center gap-2.5">
-            <CreditCard className="w-7 h-7 text-[#0066cc]" />
-            <span>પેમેન્ટ સ્થિતિ (Payment Status)</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            તારીખ મુજબ સંપૂર્ણ મળેલ અને બાકી રહેલ ભાડાની ચુકવણીનું મોનિટરિંગ અને એડિટિંગ.
-          </p>
-        </div>
-
-        {/* View Switcher: Calendar vs All Pending List */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs font-bold self-start md:self-auto">
-          <button
-            onClick={() => setActiveTab("CALENDAR")}
-            className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === "CALENDAR"
-                ? "bg-white text-slate-950 font-black shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <CalendarIcon className="w-3.5 h-3.5 text-[#0066cc]" />
-            <span>કેલેન્ડર વ્યૂ (Calendar)</span>
-          </button>
-          <button
-            onClick={() => setActiveTab("PENDING_LIST")}
-            className={`px-3.5 py-2 rounded-xl transition flex items-center space-x-1.5 ${
-              activeTab === "PENDING_LIST"
-                ? "bg-white text-slate-950 font-black shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
-            <span>બાકી પેમેન્ટ્સ લિસ્ટ ({allPendingBookings.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Monthly Metrics Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Month Value */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-            <span>કુલ બુકિંગ રકમ</span>
-            <Banknote className="w-4 h-4 text-slate-400" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5">
-            ₹{monthStats.monthTotal.toLocaleString("en-IN")}
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-            કુલ {monthStats.totalBookings} બુકિંગ્સ
-          </span>
-        </div>
-
-        {/* Full Payment (Green) */}
-        <div className="bg-emerald-50/70 p-4 sm:p-5 rounded-2xl border-2 border-emerald-300 shadow-2xs">
-          <div className="flex items-center justify-between text-xs font-bold text-emerald-800">
-            <span>🟢 પૂર્ણ ચુકવણી મળેલ</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-emerald-950 mt-1.5">
-            ₹{monthStats.monthPaid.toLocaleString("en-IN")}
-          </div>
-          <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">
-            જમા થયેલ રકમ
-          </span>
-        </div>
-
-        {/* Pending Payment (Yellow) */}
-        <div className="bg-amber-50/70 p-4 sm:p-5 rounded-2xl border-2 border-amber-300 shadow-2xs">
-          <div className="flex items-center justify-between text-xs font-bold text-amber-900">
-            <span>🟡 બાકી ચુકવણી</span>
-            <Clock className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-amber-950 mt-1.5">
-            ₹{monthStats.monthPending.toLocaleString("en-IN")}
-          </div>
-          <span className="text-[10px] text-amber-800 font-bold block mt-0.5">
-            વસૂલ કરવાની બાકી રકમ
-          </span>
-        </div>
-
-        {/* Pending Bookings Count */}
-        <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="flex items-center justify-between text-xs font-bold text-slate-500">
-            <span>બાકી બુકિંગ્સ સંખ્યા</span>
-            <Receipt className="w-4 h-4 text-slate-400" />
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-1.5">
-            {monthStats.pendingBookings}{" "}
-            <span className="text-sm font-normal text-slate-400">બુકિંગ</span>
-          </div>
-          <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-            આ મહિનામાં બાકી ખાતા
-          </span>
-        </div>
-      </div>
-
-      {/* TAB 1: CALENDAR VIEW */}
-      {activeTab === "CALENDAR" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Calendar Grid (2 Cols) */}
-          <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4">
-            {/* Month & Period Navigation */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={prevMonth}
-                  aria-label="Previous Month"
-                  className="p-2 hover:bg-slate-100 active:bg-slate-200 rounded-xl text-slate-600 transition"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <h2 className="text-lg sm:text-xl font-black text-slate-900">
-                  {monthNames[month]} {year}
-                </h2>
-                <button
-                  onClick={nextMonth}
-                  aria-label="Next Month"
-                  className="p-2 hover:bg-slate-100 active:bg-slate-200 rounded-xl text-slate-600 transition"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
+    <div className="min-h-screen bg-slate-50/50 pb-16">
+      {/* Top Banner & Header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs backdrop-blur-md bg-white/95">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3.5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-700 flex items-center justify-center text-white shadow-sm shadow-amber-600/30">
+                <Banknote className="w-5 h-5" />
               </div>
-
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={goToToday}
-                  className="px-3.5 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
-                >
-                  આજનો દિવસ (Today)
-                </button>
-
-                {/* Facility Filter */}
-                <select
-                  value={selectedFacilityId}
-                  onChange={(e) => setSelectedFacilityId(e.target.value)}
-                  className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 bg-white"
-                >
-                  <option value="ALL">બધી સુવિધાઓ (All)</option>
-                  {facilities.map((fac) => (
-                    <option key={fac.id} value={fac.id}>
-                      {fac.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* COLOR SCHEME & FACILITY LEGEND */}
-            <div className="p-3 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-700 shadow-2xs">
-              <div className="flex items-center space-x-3 flex-wrap gap-y-1.5">
-                <span className="text-[11px] font-black uppercase text-slate-400">પેમેન્ટ સ્થિતિ:</span>
-                <div className="flex items-center space-x-1">
-                  <span className="w-3 h-3 rounded-full border border-slate-300 bg-white" />
-                  <span className="text-slate-500 font-semibold">ખાલી દિવસ</span>
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80">
-                    🟢 પૂર્ણ ચુકવણી (Full Paid)
+              <div>
+                <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>પેમેન્ટ સ્થિતિ અને જમા ખાતાવહી</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+                    Accounts & Jama Ledger
                   </span>
-                </div>
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80">
-                    🟡 ચુકવણી બાકી (Pending)
-                  </span>
-                </div>
-              </div>
-
-              {/* Facility Dots Legend */}
-              <div className="flex items-center space-x-3 flex-wrap gap-y-1 text-[11px] text-slate-600">
-                <span className="text-[11px] font-black uppercase text-slate-400">સુવિધાઓ:</span>
-                <span className="inline-flex items-center gap-1 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" /> 🌳 પ્લોટ
-                </span>
-                <span className="inline-flex items-center gap-1 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-blue-600" /> 🏛️ હોલ
-                </span>
-                <span className="inline-flex items-center gap-1 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-purple-600" /> 🛏️ ડોર્મિટરી
-                </span>
-                <span className="inline-flex items-center gap-1 font-semibold">
-                  <span className="w-2 h-2 rounded-full bg-amber-500" /> 🚪 રૂમ
-                </span>
+                </h1>
+                <p className="text-xs text-slate-500 font-medium">
+                  પાર્ટી વાઇઝ બુકિંગ ખાતું, ડિપોઝિટ, જમા રકમ અને કેલેન્ડર સ્થિતિ
+                </p>
               </div>
             </div>
 
-            {/* Days of week header */}
-            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center text-xs font-bold text-slate-500 py-1.5 border-b border-slate-100">
-              <span className="text-red-700 font-black">રવિ (Sun)</span>
-              <span>સોમ (Mon)</span>
-              <span>મંગળ (Tue)</span>
-              <span>બુધ (Wed)</span>
-              <span>ગુરુ (Thu)</span>
-              <span>શુક્ર (Fri)</span>
-              <span>શનિ (Sat)</span>
-            </div>
-
-            {/* Days Grid */}
-            <div className="grid grid-cols-7 gap-1.5 sm:gap-2.5">
-              {/* Blanks before day 1 */}
-              {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-                <div
-                  key={`blank-${i}`}
-                  className="min-h-[66px] sm:min-h-[86px] bg-slate-50/50 rounded-xl sm:rounded-2xl border border-dashed border-slate-200/70"
-                />
-              ))}
-
-              {/* Month Days */}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const dayNum = i + 1;
-                const dayDate = new Date(year, month, dayNum);
-                const evalResult = getDayPaymentEvaluation(dayNum);
-                const isSelected =
-                  selectedDate &&
-                  selectedDate.getDate() === dayNum &&
-                  selectedDate.getMonth() === month &&
-                  selectedDate.getFullYear() === year;
-
-                // Color-coded booked facility types for dots
-                const dayBookings = getBookingsForDay(dayNum);
-                const bookedFacTypes = Array.from(
-                  new Set(
-                    dayBookings.map((b) => {
-                      const fac = facilities.find((f) => f.id === b.facilityId) || b.facility;
-                      return fac?.type || "";
-                    }).filter(Boolean)
-                  )
-                );
-
-                // Card and badge themes with soft glassmorphism
-                let cardTheme = "bg-white/90 border border-slate-200/90 text-slate-800 hover:border-slate-300 hover:bg-slate-50/90";
-                let badge = null;
-
-                if (evalResult.type === "FULL_PAID") {
-                  cardTheme = "bg-emerald-50/70 border-emerald-200/90 text-emerald-950 hover:bg-emerald-100/70 hover:border-emerald-300";
-                  badge = (
-                    <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 shadow-2xs truncate block max-w-full">
-                      🟢 ₹{evalResult.totalAmount.toLocaleString("en-IN")}
-                    </span>
-                  );
-                } else if (evalResult.type === "PENDING") {
-                  cardTheme = "bg-amber-50/70 border-amber-200/90 text-amber-950 hover:bg-amber-100/70 hover:border-amber-300";
-                  badge = (
-                    <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs truncate block max-w-full">
-                      🟡 ₹{evalResult.pendingAmount.toLocaleString("en-IN")} બાકી
-                    </span>
-                  );
-                }
-
-                return (
-                  <button
-                    key={`day-${dayNum}`}
-                    type="button"
-                    onClick={() => setSelectedDate(dayDate)}
-                    className={`min-h-[66px] sm:min-h-[86px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 text-center ${cardTheme} ${
-                      isSelected
-                        ? "ring-4 ring-amber-400 border-amber-500 shadow-md scale-[1.03] z-10"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="text-xs sm:text-sm font-black leading-none text-slate-900 font-mono tabular-nums">
-                        {dayNum}
-                      </span>
-                    </div>
-
-                    {/* Badge */}
-                    <div className="w-full my-auto">
-                      {badge}
-                    </div>
-
-                    {/* Facility Dots */}
-                    {bookedFacTypes.length > 0 && (
-                      <div className="flex items-center gap-1 pt-0.5 shrink-0">
-                        {bookedFacTypes.includes("PLOT") && (
-                          <span title="પાર્ટી પ્લોટ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 shadow-2xs" />
-                        )}
-                        {bookedFacTypes.includes("HALL") && (
-                          <span title="કોમ્યુનિટી હોલ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-600 ring-1 ring-blue-300 shadow-2xs" />
-                        )}
-                        {bookedFacTypes.includes("DORMITORY") && (
-                          <span title="ડોર્મિટરી" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-600 ring-1 ring-purple-300 shadow-2xs" />
-                        )}
-                        {bookedFacTypes.includes("ROOM") && (
-                          <span title="એસી ગેસ્ટ રૂમ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 shadow-2xs" />
-                        )}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Day Payment Inspector (Right Col) */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 flex flex-col">
-            {/* Header */}
-            <div className="border-b border-slate-100 pb-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black uppercase text-slate-500">
-                  તારીખ વિગત (DAY INSPECTOR)
-                </span>
-                <span
-                  className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${
-                    selectedDayEval.type === "BLANK"
-                      ? "bg-slate-100 text-slate-700 border-slate-300"
-                      : selectedDayEval.type === "FULL_PAID"
-                      ? "bg-emerald-100 text-emerald-900 border-emerald-300"
-                      : "bg-amber-100 text-amber-900 border-amber-300"
+            {/* View Switcher Tabs (iOS Segmented Style) */}
+            <div className="flex items-center gap-2">
+              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("PARTY_LEDGER")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === "PARTY_LEDGER"
+                      ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
                 >
-                  {selectedDayEval.type === "BLANK"
-                    ? "⚪ કોઈ બુકિંગ નથી"
-                    : selectedDayEval.type === "FULL_PAID"
-                    ? "🟢 પૂર્ણ ચુકવણી (Full Paid)"
-                    : "🟡 ચુકવણી બાકી (Pending)"}
-                </span>
+                  <Building className="w-3.5 h-3.5 text-amber-600" />
+                  <span>પાર્ટી ખાતાવહી (Parties)</span>
+                  <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-amber-100 text-amber-800 font-mono">
+                    {partyGroups.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("CALENDAR")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === "CALENDAR"
+                      ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <CalendarIcon className="w-3.5 h-3.5 text-blue-600" />
+                  <span>કેલેન્ડર (Calendar)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("PENDING_LIST")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    activeTab === "PENDING_LIST"
+                      ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                  <span>બાકી યાદી (Pending)</span>
+                  {allPendingBookings.length > 0 && (
+                    <span className="ml-1 text-[10px] px-1.5 py-0.2 rounded-full bg-rose-100 text-rose-800 font-mono">
+                      {allPendingBookings.length}
+                    </span>
+                  )}
+                </button>
               </div>
-              <h3 className="text-xl font-black text-slate-900">
-                {selectedDate
-                  ? selectedDate.toLocaleDateString("en-IN", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })
-                  : "તારીખ પસંદ કરો"}
-              </h3>
+
+              <button
+                type="button"
+                onClick={() => refreshBookings()}
+                title="Refresh data"
+                className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        {/* ========================================================================= */}
+        {/* TAB 1: 🏢 PARTY-WISE ACCOUNTS & JAMA LEDGER (PRIMARY DEFAULT VIEW)        */}
+        {/* ========================================================================= */}
+        {activeTab === "PARTY_LEDGER" && (
+          <div className="space-y-6">
+            {/* 4-Box Top KPI Financial Summary Bar */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                  <span>કુલ પાર્ટીઓ</span>
+                  <Building className="w-4 h-4 text-slate-400" />
+                </div>
+                <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
+                  {partyStats.totalParties}
+                </div>
+                <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2">
+                  <span className="text-emerald-700 font-bold">{partyStats.paidCount} ચુકતે</span>
+                  <span>•</span>
+                  <span className="text-amber-700 font-bold">{partyStats.partialCount} આંશિક</span>
+                  <span>•</span>
+                  <span className="text-rose-700 font-bold">{partyStats.pendingCount} બાકી</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-blue-200/70 bg-gradient-to-br from-blue-50/30 to-white shadow-2xs">
+                <div className="text-[11px] font-bold text-blue-800 uppercase tracking-wider flex items-center justify-between">
+                  <span>કુલ નેટ બિલિંગ (Net Billed)</span>
+                  <Wallet className="w-4 h-4 text-blue-600" />
+                </div>
+                <div className="text-2xl font-black text-blue-950 mt-1 tabular-nums">
+                  ₹{partyStats.totalBilled.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-blue-700 mt-1">
+                  ડિસ્કાઉન્ટ બાદ ભાડું + ડિપોઝિટ
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50/30 to-white shadow-2xs">
+                <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
+                  <span>કુલ જમા મળેલ (Jama Collected)</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="text-2xl font-black text-emerald-900 mt-1 tabular-nums">
+                  ₹{partyStats.totalJamaCollected.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-emerald-700 mt-1">
+                  ખાતાવહીમાં જમા થયેલ કુલ રકમ
+                </div>
+              </div>
+
+              <div className="bg-white p-4 rounded-2xl border border-rose-200/70 bg-gradient-to-br from-rose-50/30 to-white shadow-2xs">
+                <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center justify-between">
+                  <span>કુલ બાકી નેટ રકમ (Net Remaining)</span>
+                  <Clock className="w-4 h-4 text-rose-600" />
+                </div>
+                <div className="text-2xl font-black text-rose-900 mt-1 tabular-nums">
+                  ₹{partyStats.totalNetRemaining.toLocaleString("en-IN")}
+                </div>
+                <div className="text-[11px] text-rose-700 mt-1 font-bold">
+                  વસૂલવાપાત્ર બાકી રકમ
+                </div>
+              </div>
             </div>
 
-            {/* Selected Day Stats */}
-            {selectedDayEval.type !== "BLANK" && (
-              <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
-                <div>
-                  <span className="text-slate-500 font-semibold block">કુલ રકમ:</span>
-                  <span className="text-sm font-black text-slate-900">
-                    ₹{selectedDayEval.total.toLocaleString("en-IN")}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-500 font-semibold block">બાકી રકમ:</span>
-                  <span className="text-sm font-black text-amber-800">
-                    ₹{selectedDayEval.pending.toLocaleString("en-IN")}
-                  </span>
-                </div>
+            {/* Filter and Search Bar */}
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-96">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={partySearchQuery}
+                  onChange={(e) => setPartySearchQuery(e.target.value)}
+                  placeholder="પાર્ટીનું નામ, ફોન નંબર કે બુકિંગ નંબરથી શોધો..."
+                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition"
+                />
+                {partySearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setPartySearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                {(
+                  [
+                    { id: "ALL", label: "બધા (All)" },
+                    { id: "PENDING", label: "બાકી (Pending)" },
+                    { id: "PARTIAL", label: "આંશિક જમા (Partial)" },
+                    { id: "PAID", label: "પૂર્ણ ચુકતે (Paid)" },
+                  ] as const
+                ).map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setPartyStatusFilter(st.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                      partyStatusFilter === st.id
+                        ? "bg-slate-900 text-white shadow-2xs"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Parties List */}
+            {filteredPartyGroups.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                <Building className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <div className="text-base font-bold text-slate-800">કોઈ પાર્ટી મળી નથી</div>
+                <p className="text-xs text-slate-500 mt-1">
+                  શોધ શરતો બદલીને અથવા નવા ફિલ્ટર સાથે તપાસ કરો.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredPartyGroups.map((party) => {
+                  const badge = getPaymentBadge(party.paymentStatus);
+                  return (
+                    <div
+                      key={party.partyKey}
+                      className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition overflow-hidden"
+                    >
+                      {/* Party Card Header */}
+                      <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/70 via-white to-white flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                              {party.customerName}
+                            </span>
+                            <span
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${badge.badgeClass}`}
+                            >
+                              {badge.shortLabel}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                              {party.eventType}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                            {party.customerPhone && (
+                              <a
+                                href={`tel:${party.customerPhone}`}
+                                className="flex items-center gap-1 text-blue-700 hover:underline font-mono font-bold"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                                <span>{party.customerPhone}</span>
+                              </a>
+                            )}
+                            {party.customerAddress && (
+                              <span className="flex items-center gap-1 text-slate-500">
+                                <MapPin className="w-3 h-3" />
+                                <span className="truncate max-w-xs">{party.customerAddress}</span>
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1 text-amber-900 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/70">
+                              <Calendar className="w-3 h-3 text-amber-700" />
+                              <span>{party.dateRange.label}</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Top Action Buttons */}
+                        <div className="flex items-center gap-2 self-start lg:self-center">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenJamaModal(party)}
+                            className="px-4 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-sm shadow-amber-600/30 transition cursor-pointer flex items-center gap-1.5 active:scale-[0.98]"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>+ જમા કરો (Add Jama)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setViewingParty(party)}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer flex items-center gap-1"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>વિગત / રસીદ</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Booked Facilities Pills */}
+                      <div className="px-4 sm:px-5 py-2.5 bg-slate-50/50 border-b border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="text-[11px] font-bold text-slate-500 mr-1">
+                          બુક કરેલ સુવિધાઓ ({party.bookings.length}):
+                        </span>
+                        {party.bookings.map((b) => (
+                          <span
+                            key={b.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800 font-medium text-[11px]"
+                          >
+                            <Building className="w-3 h-3 text-slate-500" />
+                            <span className="font-bold">{b.facility?.name || "Facility"}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">
+                              ({new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })})
+                            </span>
+                            <span className="font-bold text-slate-900 tabular-nums">
+                              ₹{(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* 4-METRIC FINANCIAL STRIP (Exact user formula) */}
+                      <div className="p-4 sm:p-5">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                          {/* 1. Total Rent */}
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              કુલ રકમ (Total)
+                            </span>
+                            <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
+                              ₹{party.total.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block">સુવિધા ભાડું</span>
+                          </div>
+
+                          {/* 2. Total with Discount */}
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              ડિસ્કાઉન્ટ બાદ રકમ
+                            </span>
+                            <span className="text-base sm:text-lg font-black text-blue-900 tabular-nums">
+                              ₹{party.totalWithDiscount.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[10px] text-blue-600 block">
+                              {party.discountAmount > 0
+                                ? `-₹${party.discountAmount.toLocaleString("en-IN")} ડિસ્કાઉન્ટ`
+                                : "૦% ડિસ્કાઉન્ટ"}
+                            </span>
+                          </div>
+
+                          {/* 3. Caution Deposit */}
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              ડિપોઝિટ (Deposit)
+                            </span>
+                            <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
+                              ₹{party.deposit.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block">રીફંડેબલ ડિપોઝિટ</span>
+                          </div>
+
+                          {/* 4. Net (After Deposit) */}
+                          <div className="bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
+                            <span className="text-[10px] font-black text-amber-900 uppercase tracking-wider block">
+                              ચુકવવાપાત્ર કુલ નેટ (Net)
+                            </span>
+                            <span className="text-base sm:text-lg font-black text-amber-950 tabular-nums">
+                              ₹{party.net.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[10px] text-amber-800 font-bold block">
+                              ભાડું + ડિપોઝિટ
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Jama Entries Ledger Banner & Net Remaining Adjustment */}
+                        <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50/70 via-slate-50 to-white border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-emerald-900 flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>અત્યાર સુધી જમા રકમ:</span>
+                              </span>
+                              <span className="text-sm font-black text-emerald-800 tabular-nums">
+                                ₹{party.totalJama.toLocaleString("en-IN")}
+                              </span>
+                            </div>
+
+                            {/* Show previous Jama entries summary */}
+                            {party.jamaEntries.length > 0 ? (
+                              <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+                                {party.jamaEntries.slice(0, 3).map((ent) => (
+                                  <span
+                                    key={ent.id}
+                                    className="px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-950 font-medium"
+                                  >
+                                    📅 {ent.date}: ₹{ent.amount.toLocaleString("en-IN")} ({formatPaymentMode(ent.method)})
+                                  </span>
+                                ))}
+                                {party.jamaEntries.length > 3 && (
+                                  <span className="text-slate-400">
+                                    +{party.jamaEntries.length - 3} વધુ
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-[11px] text-slate-500 italic">
+                                હજુ સુધી કોઈ જમા રસીદ નોંધાયેલ નથી.
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Net Remaining Balance Adjustment */}
+                          <div className="text-right shrink-0 border-t md:border-t-0 md:border-l border-slate-200 pt-2 md:pt-0 md:pl-4">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                              બાકી રહેતી નેટ રકમ (Net Remaining)
+                            </span>
+                            <div className="flex items-center justify-end gap-1.5">
+                              <span
+                                className={`text-lg sm:text-xl font-black tabular-nums ${
+                                  party.netRemaining === 0 ? "text-emerald-700" : "text-rose-700"
+                                }`}
+                              >
+                                ₹{party.netRemaining.toLocaleString("en-IN")}
+                              </span>
+                              {party.netRemaining === 0 ? (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
+                                  ✓ ચુકતે
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
+                                  બાકી
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              ₹{party.net.toLocaleString("en-IN")} - ₹{party.totalJama.toLocaleString("en-IN")}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
+          </div>
+        )}
 
-            {/* Bookings List for the Day */}
-            <div className="flex-1 space-y-3 overflow-y-auto max-h-[580px] pr-1">
-              {selectedDayBookings.length === 0 ? (
-                <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6 space-y-2">
-                  <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    ⚪
-                  </div>
-                  <div className="text-sm font-bold text-slate-700">આ તારીખે કોઈ બુકિંગ નથી</div>
-                  <p className="text-xs text-slate-400">
-                    સફેદ કલર એટલે ખાલી દિવસ. આ તારીખે નવી બુકિંગ કરી શકાય છે.
-                  </p>
+        {/* ========================================================================= */}
+        {/* TAB 2: 📅 CALENDAR VIEW                                                   */}
+        {/* ========================================================================= */}
+        {activeTab === "CALENDAR" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-8 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+              {/* Calendar Month Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-base sm:text-lg font-black text-slate-900">
+                    {monthNames[month]} {year}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={goToToday}
+                    className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 hover:bg-slate-200"
+                  >
+                    આજે (Today)
+                  </button>
                 </div>
-              ) : (
-                selectedDayBookings.map((b) => {
-                  const badge = getPaymentBadge(b.paymentStatus);
-                  const cleanPhone = b.customerPhone?.replace(/\D/g, "") || "";
-                  const waMessage = `શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ-નરોડા)\nજય શ્રી ખોડિયાર 🙏\n\nબુકિંગ પેમેન્ટ સ્થિતિ:\n• બુકિંગ નંબર: ${b.bookingNumber}\n• અરજદાર: ${b.customerName}\n• સુવિધા: ${b.facility?.name}\n• કુલ રકમ: ₹${b.totalAmount}\n• પેમેન્ટ સ્થિતિ: ${badge.shortLabel}\n• પદ્ધતિ: ${b.paymentMethod || "રોકડ"}`;
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={prevMonth}
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-700" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={nextMonth}
+                    className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Day of Week Headers */}
+              <div className="grid grid-cols-7 gap-1 text-center text-xs font-bold text-slate-400 uppercase py-1 border-b border-slate-100">
+                <span>રવિ</span>
+                <span>સોમ</span>
+                <span>મંગળ</span>
+                <span>બુધ</span>
+                <span>ગુરુ</span>
+                <span>શુક્ર</span>
+                <span>શનિ</span>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1.5">
+                {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+                  <div key={`blank-${i}`} className="min-h-[70px] rounded-xl bg-slate-50/50 opacity-40" />
+                ))}
+
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const dayNum = i + 1;
+                  const dayEval = getDayPaymentEvaluation(dayNum);
+                  const thisDate = new Date(year, month, dayNum);
+                  const isSelected =
+                    selectedDate &&
+                    selectedDate.getFullYear() === year &&
+                    selectedDate.getMonth() === month &&
+                    selectedDate.getDate() === dayNum;
+
+                  const isToday =
+                    new Date().getFullYear() === year &&
+                    new Date().getMonth() === month &&
+                    new Date().getDate() === dayNum;
 
                   return (
                     <div
-                      key={b.id}
-                      className={`p-4 rounded-2xl border-2 space-y-3 transition shadow-2xs ${
-                        badge.isPaid
-                          ? "bg-emerald-50/60 border-emerald-300"
-                          : "bg-amber-50/60 border-amber-300"
+                      key={`day-${dayNum}`}
+                      onClick={() => setSelectedDate(thisDate)}
+                      className={`min-h-[75px] p-1.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
+                        isSelected
+                          ? "ring-2 ring-blue-600 border-blue-500 shadow-xs"
+                          : "border-slate-200 hover:border-slate-300"
+                      } ${
+                        dayEval.type === "FULL_PAID"
+                          ? "bg-emerald-50/60 border-emerald-200"
+                          : dayEval.type === "PENDING"
+                          ? "bg-amber-50/60 border-amber-200"
+                          : "bg-white"
                       }`}
                     >
-                      {/* Booking Top Info */}
-                      <div className="flex items-center justify-between pb-2 border-b border-slate-200/80">
-                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-800">
-                          {b.bookingNumber}
-                        </span>
+                      <div className="flex items-center justify-between">
                         <span
-                          className={`text-xs font-black px-2.5 py-0.5 rounded-full border ${badge.badgeClass}`}
+                          className={`text-xs font-black px-1.5 py-0.5 rounded-md ${
+                            isToday
+                              ? "bg-blue-600 text-white"
+                              : "text-slate-800"
+                          }`}
                         >
-                          {badge.label}
+                          {dayNum}
                         </span>
-                      </div>
-
-                      {/* Applicant & Facility */}
-                      <div>
-                        <h4 className="text-base font-black text-slate-900">{b.customerName}</h4>
-                        <p className="text-xs font-bold text-slate-600 mt-0.5">
-                          🏛️ {b.facility?.name} • ({formatSlotLabel(b.slot)})
-                        </p>
-                        <p className="text-xs font-medium text-slate-500">
-                          🎉 પ્રસંગ: {b.eventType}
-                        </p>
-                      </div>
-
-                      {/* Payment Breakdown */}
-                      <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5 text-xs">
-                        <div className="flex justify-between items-center">
-                          <span className="text-slate-500 font-semibold">કુલ ભાડું (Total):</span>
-                          <span className="font-black text-slate-900 text-sm">
-                            ₹{Number(b.totalAmount || 0).toLocaleString("en-IN")}
-                          </span>
-                        </div>
-                        {b.depositAmount > 0 && (
-                          <div className="flex justify-between items-center text-slate-600 text-[11px]">
-                            <span>ડિપોઝિટ (Deposit):</span>
-                            <span className="font-bold">
-                              ₹{Number(b.depositAmount).toLocaleString("en-IN")}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center pt-1 border-t border-slate-100 text-[11px]">
-                          <span className="text-slate-500">ચુકવણી પદ્ધતિ:</span>
-                          <span className="font-bold text-slate-800">
-                            {b.paymentMethod === "CASH_AT_OFFICE"
-                              ? "રોકડ (Cash)"
-                              : b.paymentMethod === "UPI_BANK_TRANSFER"
-                              ? "UPI / બેંક ટ્રાન્સફર"
-                              : b.paymentMethod === "CHEQUE"
-                              ? "ચેક (Cheque)"
-                              : b.paymentMethod || "રોકડ"}
-                          </span>
-                        </div>
-                        {b.paymentRefNo && (
-                          <div className="flex justify-between items-center text-[11px]">
-                            <span className="text-slate-500">રેફરન્સ / પાવતી:</span>
-                            <span className="font-mono font-bold text-slate-800">
-                              {b.paymentRefNo}
-                            </span>
-                          </div>
+                        {dayEval.type !== "BLANK" && (
+                          <span
+                            className="w-2 h-2 rounded-full"
+                            style={{
+                              backgroundColor:
+                                dayEval.type === "FULL_PAID" ? "#10b981" : "#f59e0b",
+                            }}
+                          />
                         )}
                       </div>
 
-                      {/* Phone & Shortcuts */}
-                      {b.customerPhone && (
-                        <div className="flex items-center justify-between text-xs pt-1">
-                          <span className="text-slate-500 font-semibold">
-                            📞 {b.customerPhone}
+                      {dayEval.type !== "BLANK" ? (
+                        <div className="space-y-0.5 text-[10px]">
+                          <span className="font-bold text-slate-800 block truncate">
+                            {dayEval.bookings.length} બુકિંગ
                           </span>
-                          <div className="flex items-center space-x-1.5">
-                            <a
-                              href={`tel:${b.customerPhone}`}
-                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] transition"
-                            >
-                              કોલ
-                            </a>
-                            {cleanPhone && (
-                              <a
-                                href={`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(
-                                  waMessage
-                                )}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition"
-                              >
-                                WhatsApp
-                              </a>
-                            )}
-                          </div>
+                          <span
+                            className={`font-black block tabular-nums ${
+                              dayEval.type === "FULL_PAID"
+                                ? "text-emerald-700"
+                                : "text-amber-700"
+                            }`}
+                          >
+                            ₹{dayEval.totalAmount.toLocaleString("en-IN")}
+                          </span>
                         </div>
+                      ) : (
+                        <div className="text-[10px] text-slate-300">ખાલી</div>
                       )}
-
-                      {/* EDIT PAYMENT STATUS ACTION (Only Super Admin) */}
-                      <div className="pt-1">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditModal(b)}
-                          className="w-full py-2.5 px-3 rounded-xl bg-[#0066cc] hover:bg-[#0071e3] active:bg-[#0077ed] text-white font-black text-xs shadow-xs transition flex items-center justify-center space-x-1.5 cursor-pointer"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          <span>ચુકવણી સ્થિતિ અપડેટ કરો (Update Payment)</span>
-                        </button>
-                      </div>
                     </div>
                   );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: ALL PENDING PAYMENTS QUICK LIST */}
-      {activeTab === "PENDING_LIST" && (
-        <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 shadow-sm space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-amber-500" />
-                <span>બધા બાકી પેમેન્ટ્સનું લિસ્ટ (All Pending Bookings)</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                કુલ {allPendingBookings.length} બુકિંગ્સમાં પેમેન્ટ બાકી છે. અહીંથી સીધું અપડેટ કરી શકો છો.
-              </p>
-            </div>
-
-            {/* Search Box */}
-            <div className="relative w-full sm:w-72">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="નામ, મોબાઇલ કે બુકિંગ નં..."
-                value={pendingSearchQuery}
-                onChange={(e) => setPendingSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 bg-white"
-              />
-            </div>
-          </div>
-
-          {allPendingBookings.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6 space-y-2">
-              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
-              <div className="text-base font-black text-slate-800">
-                કોઈ પેમેન્ટ બાકી નથી! (No Pending Payments)
+                })}
               </div>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                બધા જ એક્ટિવ બુકિંગ્સના પેમેન્ટ જમા થઈ ગયા છે.
-              </p>
+
+              {/* Legend */}
+              <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-emerald-500" />
+                  <span>સંપૂર્ણ ચુકતે (Full Paid)</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-amber-500" />
+                  <span>ચુકવણી બાકી / આંશિક (Pending)</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-md border border-slate-200 bg-white" />
+                  <span>ખાલી દિવસ (No Bookings)</span>
+                </span>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-slate-200 text-slate-500 font-bold uppercase text-[10px]">
-                    <th className="py-3 px-3">બુકિંગ નં</th>
-                    <th className="py-3 px-3">તારીખ</th>
-                    <th className="py-3 px-3">અરજદાર</th>
-                    <th className="py-3 px-3">સુવિધા</th>
-                    <th className="py-3 px-3">બાકી રકમ</th>
-                    <th className="py-3 px-3">સ્થિતિ</th>
-                    <th className="py-3 px-3 text-right">ક્રિયા (Action)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {allPendingBookings.map((b) => (
-                    <tr key={b.id} className="hover:bg-amber-50/50 transition">
-                      <td className="py-3 px-3 font-mono font-bold text-slate-900">
-                        {b.bookingNumber}
-                      </td>
-                      <td className="py-3 px-3 font-bold text-slate-700 whitespace-nowrap">
-                        {new Date(b.startDate).toLocaleDateString("en-IN", {
+
+            {/* Selected Date Details Sidebar */}
+            <div className="lg:col-span-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-blue-600" />
+                  <span>
+                    {selectedDate
+                      ? selectedDate.toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
                           year: "numeric",
-                        })}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="font-black text-slate-900">{b.customerName}</div>
-                        <div className="text-[11px] text-slate-500 font-mono">
-                          {b.customerPhone}
+                        })
+                      : "તારીખ પસંદ કરો"}
+                  </span>
+                </h3>
+                <span className="text-xs font-bold text-slate-500">
+                  {selectedDayBookings.length} બુકિંગ્સ
+                </span>
+              </div>
+
+              {selectedDayBookings.length === 0 ? (
+                <div className="text-center py-10 text-slate-400 text-xs">
+                  આ તારીખે કોઈ બુકિંગ નોંધાયેલ નથી.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {selectedDayBookings.map((b) => {
+                    const badge = getPaymentBadge(b.paymentStatus);
+                    const matchingParty = partyGroups.find((g) =>
+                      g.bookingIds.includes(b.id)
+                    );
+                    return (
+                      <div
+                        key={b.id}
+                        className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-black text-slate-900">
+                              {b.customerName}
+                            </div>
+                            <div className="text-[11px] text-slate-500">
+                              {b.facility?.name} • {formatSlotLabel(b.slot)}
+                            </div>
+                          </div>
+                          <span
+                            className={`text-[9px] font-black px-1.5 py-0.5 rounded-full border ${badge.badgeClass}`}
+                          >
+                            {badge.shortLabel}
+                          </span>
                         </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-700 font-medium">
-                        <div>{b.facility?.name}</div>
-                        <div className="text-[10px] text-slate-400">{formatSlotLabel(b.slot)}</div>
-                      </td>
-                      <td className="py-3 px-3 font-black text-amber-900 text-sm whitespace-nowrap">
-                        ₹{Number(b.totalAmount || 0).toLocaleString("en-IN")}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 whitespace-nowrap">
-                          🟡 બાકી (Pending)
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-right">
+
+                        <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-200/60">
+                          <span className="font-bold text-slate-700">
+                            રકમ: ₹{Number(b.totalAmount || 0).toLocaleString("en-IN")}
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            {matchingParty && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenJamaModal(matchingParty)}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-600 text-white hover:bg-amber-700"
+                              >
+                                + જમા
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(b)}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
+                            >
+                              એડિટ
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 3: ⏳ PENDING PAYMENTS LIST                                           */}
+        {/* ========================================================================= */}
+        {activeTab === "PENDING_LIST" && (
+          <div className="space-y-4">
+            <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center justify-between gap-3">
+              <div className="relative w-full sm:w-96">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={pendingSearchQuery}
+                  onChange={(e) => setPendingSearchQuery(e.target.value)}
+                  placeholder="બાકી પેમેન્ટમાં શોધો..."
+                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none"
+                />
+              </div>
+              <div className="text-xs font-bold text-slate-500">
+                કુલ બાકી: {allPendingBookings.length}
+              </div>
+            </div>
+
+            {allPendingBookings.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
+                <div className="text-base font-bold text-slate-800">
+                  બધા બુકિંગ્સનું પેમેન્ટ પૂર્ણ છે!
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase font-bold text-[10px]">
+                      <tr>
+                        <th className="py-3 px-4">બુકિંગ #</th>
+                        <th className="py-3 px-4">પાર્ટીનું નામ / ફોન</th>
+                        <th className="py-3 px-4">સુવિધા</th>
+                        <th className="py-3 px-4">તારીખ</th>
+                        <th className="py-3 px-4">કુલ રકમ</th>
+                        <th className="py-3 px-4">સ્થિતિ</th>
+                        <th className="py-3 px-4 text-right">ક્રિયા</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {allPendingBookings.map((b) => {
+                        const matchingParty = partyGroups.find((g) =>
+                          g.bookingIds.includes(b.id)
+                        );
+                        return (
+                          <tr key={b.id} className="hover:bg-slate-50/70 transition">
+                            <td className="py-3 px-4 font-mono font-bold text-blue-700">
+                              {b.bookingNumber}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-bold text-slate-900">{b.customerName}</div>
+                              <div className="text-[11px] text-slate-500 font-mono">
+                                {b.customerPhone}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-slate-700">{b.facility?.name}</td>
+                            <td className="py-3 px-4 font-mono text-slate-600">
+                              {new Date(b.startDate).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </td>
+                            <td className="py-3 px-4 font-bold text-slate-900 tabular-nums">
+                              ₹{Number(b.totalAmount || 0).toLocaleString("en-IN")}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200">
+                                બાકી
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-right space-x-1.5">
+                              {matchingParty && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenJamaModal(matchingParty)}
+                                  className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold text-[11px] hover:bg-amber-700"
+                                >
+                                  + જમા
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditModal(b)}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-[11px] hover:bg-slate-200 border border-slate-200"
+                              >
+                                એડિટ
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL: 💰 PARTY JAMA LEDGER MODAL (+ જમા કરો)                            */}
+      {/* ========================================================================= */}
+      {selectedPartyForJama && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-amber-600 to-amber-700 text-white flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-200 block">
+                  જમા ખાતાવહી નોંધણી (Party Jama Ledger)
+                </span>
+                <h3 className="text-base sm:text-lg font-black tracking-tight">
+                  {selectedPartyForJama.customerName}
+                </h3>
+                <div className="text-xs text-amber-100 flex items-center gap-2 mt-0.5">
+                  <span>{selectedPartyForJama.customerPhone}</span>
+                  <span>•</span>
+                  <span>{selectedPartyForJama.dateRange.label}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPartyForJama(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+              {/* Party Financial Context Strip */}
+              <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-center">
+                <div>
+                  <span className="text-[10px] font-bold text-amber-800 uppercase block">
+                    કુલ નેટ (Net Billed)
+                  </span>
+                  <span className="text-base sm:text-lg font-black text-amber-950 tabular-nums">
+                    ₹{selectedPartyForJama.net.toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-800 uppercase block">
+                    અત્યાર સુધી જમા
+                  </span>
+                  <span className="text-base sm:text-lg font-black text-emerald-800 tabular-nums">
+                    ₹{partyJamaLedger.reduce((sum, e) => sum + (Number(e.amount) || 0), 0).toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-rose-800 uppercase block">
+                    બાકી નેટ રકમ
+                  </span>
+                  {(() => {
+                    const currentTotalJama = partyJamaLedger.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+                    const rem = Math.max(0, selectedPartyForJama.net - currentTotalJama);
+                    return (
+                      <span className="text-base sm:text-lg font-black text-rose-800 tabular-nums">
+                        ₹{rem.toLocaleString("en-IN")}
+                      </span>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Form to Add New Jama Entry */}
+              <div className="p-4 rounded-2xl border-2 border-amber-200/80 bg-white space-y-3.5 shadow-2xs">
+                <div className="text-xs font-black text-slate-800 flex items-center justify-between">
+                  <span>+ નવી જમા રકમ ઉમેરો (Add New Jama Entry)</span>
+                  <span className="text-[10px] text-slate-500 font-normal">તારીખ અને રકમ પસંદ કરો</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Amount Input */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      જમા રકમ (₹ Amount) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={jamaAmountInput}
+                        onChange={(e) => setJamaAmountInput(e.target.value)}
+                        placeholder="25000"
+                        className="w-full pl-8 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Date Input */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      જમા તારીખ (Jama Date) *
+                    </label>
+                    <input
+                      type="date"
+                      value={jamaDateInput}
+                      onChange={(e) => setJamaDateInput(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Payment Mode */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      ચુકવણી પદ્ધતિ (Mode)
+                    </label>
+                    <select
+                      value={jamaMethodInput}
+                      onChange={(e) => setJamaMethodInput(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800 focus:bg-white focus:outline-none"
+                    >
+                      <option value="CASH_AT_OFFICE">રોકડ (Cash at Office)</option>
+                      <option value="UPI_BANK_TRANSFER">UPI / બેંક ટ્રાન્સફર (NEFT/IMPS)</option>
+                      <option value="CHEQUE">ચેક (Cheque)</option>
+                      <option value="ONLINE">ઓનલાઈન પોર્ટલ (Online)</option>
+                    </select>
+                  </div>
+
+                  {/* Cheque / Ref No */}
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      ચેક / રેફરન્સ નંબર (Ref No)
+                    </label>
+                    <input
+                      type="text"
+                      value={jamaRefNoInput}
+                      onChange={(e) => setJamaRefNoInput(e.target.value)}
+                      placeholder="e.g. UTR12345 / CHQ-9988"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Notes Input */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    નોંધ / વિગત (Note / Remarks)
+                  </label>
+                  <input
+                    type="text"
+                    value={jamaNotesInput}
+                    onChange={(e) => setJamaNotesInput(e.target.value)}
+                    placeholder="e.g. એડવાન્સ જમા (Advance token payment)"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-900 focus:bg-white focus:outline-none"
+                  />
+                </div>
+
+                {/* Add Entry Button */}
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleAddJamaEntryToLedger}
+                    className="px-4 py-2 rounded-xl text-xs font-black text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>ખાતામાં ઉમેરો (+ Add Entry)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Jama History Ledger for this Party */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span>જમા થયેલ રસીદોનો ઇતિહાસ (Recorded Jama Entries)</span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    {partyJamaLedger.length} એન્ટ્રીઓ
+                  </span>
+                </div>
+
+                {partyJamaLedger.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
+                    હજુ સુધી આ પાર્ટી માટે કોઈ જમા એન્ટ્રી નથી.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {partyJamaLedger.map((ent, idx) => (
+                      <div
+                        key={ent.id || idx}
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-emerald-800 tabular-nums">
+                              ₹{ent.amount.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 font-mono">
+                              {ent.date}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-600">
+                              {formatPaymentMode(ent.method)}
+                            </span>
+                          </div>
+                          {(ent.refNo || ent.notes) && (
+                            <div className="text-[11px] text-slate-500">
+                              {ent.refNo ? `Ref: ${ent.refNo}` : ""}
+                              {ent.refNo && ent.notes ? " • " : ""}
+                              {ent.notes || ""}
+                            </div>
+                          )}
+                        </div>
+
                         <button
                           type="button"
-                          onClick={() => handleOpenEditModal(b)}
-                          className="px-3 py-1.5 rounded-xl bg-[#0066cc] hover:bg-[#0071e3] text-white font-bold text-xs shadow-xs transition inline-flex items-center space-x-1 cursor-pointer"
+                          onClick={() => handleRemoveJamaEntry(ent.id)}
+                          title="કાઢી નાખો (Remove)"
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                         >
-                          <Edit3 className="w-3 h-3" />
-                          <span>ચુકવણી અપડેટ</span>
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Error & Success Messages */}
+              {jamaError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{jamaError}</span>
+                </div>
+              )}
+              {jamaSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{jamaSuccess}</span>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setSelectedPartyForJama(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition"
+              >
+                રદ કરો (Cancel)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSavePartyJama}
+                disabled={savingJama}
+                className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-md shadow-amber-600/30 transition cursor-pointer flex items-center gap-2 disabled:opacity-60"
+              >
+                <Save className="w-4 h-4" />
+                <span>{savingJama ? "સાચવી રહ્યું છે..." : "ખાતાવહી સાચવો (Save Jama Ledger)"}</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* SUPER ADMIN EDIT PAYMENT MODAL */}
-      {editingBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-lg w-full p-6 space-y-5 overflow-y-auto max-h-[90vh]">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      {/* ========================================================================= */}
+      {/* MODAL: 📄 VIEW PARTY DETAILS & OFFICIAL AUDIT BREAKDOWN                   */}
+      {/* ========================================================================= */}
+      {viewingParty && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-black uppercase text-[#0066cc] tracking-wider">
-                  સુપર એડમિન ચુકવણી નિયંત્રણ
+                <span className="text-[10px] font-bold uppercase text-slate-400">
+                  પાર્ટી બુકિંગ સ્ટેટમેન્ટ (Party Statement)
                 </span>
-                <h3 className="text-xl font-black text-slate-900">
-                  ચુકવણી સ્થિતિ અપડેટ કરો
+                <h3 className="text-base sm:text-lg font-black text-slate-900">
+                  {viewingParty.customerName}
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setEditingBooking(null)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                onClick={() => setViewingParty(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Booking Summary Box */}
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="font-mono font-bold text-slate-700">
-                  {editingBooking.bookingNumber}
-                </span>
-                <span className="font-black text-slate-900 text-sm">
-                  કુલ: ₹{Number(editingBooking.totalAmount || 0).toLocaleString("en-IN")}
-                </span>
+            <div className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">ફોન:</span>
+                  <span className="font-mono font-bold">{viewingParty.customerPhone || "-"}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">પ્રસંગ / પ્રકાર:</span>
+                  <span className="font-bold">{viewingParty.eventType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">તારીખ ગાળો:</span>
+                  <span className="font-bold text-amber-900">{viewingParty.dateRange.label}</span>
+                </div>
               </div>
-              <div className="font-black text-slate-900 text-sm">
-                {editingBooking.customerName} ({editingBooking.customerPhone})
+
+              <div>
+                <span className="font-bold text-slate-700 block mb-2">બુક કરેલ તમામ સુવિધાઓ:</span>
+                <div className="space-y-1.5">
+                  {viewingParty.bookings.map((b) => (
+                    <div
+                      key={b.id}
+                      className="p-2.5 rounded-xl border border-slate-200 flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-bold text-slate-900">{b.facility?.name}</div>
+                        <div className="text-[11px] text-slate-500">
+                          {new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} • {formatSlotLabel(b.slot)}
+                        </div>
+                      </div>
+                      <span className="font-mono font-bold text-slate-900">
+                        ₹{(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="text-slate-500">
-                {editingBooking.facility?.name} •{" "}
-                {new Date(editingBooking.startDate).toLocaleDateString("en-IN", {
-                  day: "numeric",
-                  month: "long",
-                  year: "numeric",
-                })}
+
+              {/* Summary Totals */}
+              <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2">
+                <div className="flex justify-between text-slate-300">
+                  <span>કુલ ભાડું (Total Rent):</span>
+                  <span className="font-mono font-bold">₹{viewingParty.total.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>ડિસ્કાઉન્ટ બાદ (After Discount):</span>
+                  <span className="font-mono font-bold">₹{viewingParty.totalWithDiscount.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>ડિપોઝિટ (Caution Deposit):</span>
+                  <span className="font-mono font-bold">₹{viewingParty.deposit.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between text-amber-400 font-black text-sm border-t border-slate-800 pt-2">
+                  <span>ચુકવવાપાત્ર નેટ (Net):</span>
+                  <span className="font-mono">₹{viewingParty.net.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between text-emerald-400 font-bold">
+                  <span>જમા રકમ (Jama Paid):</span>
+                  <span className="font-mono">₹{viewingParty.totalJama.toLocaleString("en-IN")}</span>
+                </div>
+                <div className="flex justify-between text-rose-400 font-black text-sm border-t border-slate-800 pt-2">
+                  <span>બાકી નેટ રકમ (Balance):</span>
+                  <span className="font-mono">₹{viewingParty.netRemaining.toLocaleString("en-IN")}</span>
+                </div>
               </div>
             </div>
 
-            {/* Error & Success Messages */}
-            {saveErrorMsg && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800">
-                ⚠️ {saveErrorMsg}
-              </div>
-            )}
-            {saveSuccessMsg && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-300 text-xs font-black text-emerald-900">
-                {saveSuccessMsg}
-              </div>
-            )}
-
-            {/* Payment Status Selector (Green vs Yellow) */}
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-700 block uppercase">
-                ૧. ચુકવણી સ્થિતિ પસંદ કરો (Payment Status) *
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {/* Full Payment Button */}
-                <button
-                  type="button"
-                  onClick={() => setEditStatus("PAID")}
-                  className={`p-3 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 cursor-pointer ${
-                    editStatus === "PAID" || editStatus === "PAID_CASH" || editStatus === "PAID_FULL"
-                      ? "bg-emerald-100 border-emerald-500 text-emerald-950 ring-2 ring-emerald-300"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="w-3.5 h-3.5 rounded-full bg-emerald-500 shrink-0"></span>
-                  <div>
-                    <div className="text-xs font-black">🟢 પૂર્ણ ચુકવણી (Paid)</div>
-                    <div className="text-[10px] text-emerald-800 font-normal">સંપૂર્ણ રકમ જમા થઈ ગઈ</div>
-                  </div>
-                </button>
-
-                {/* Pending Payment Button */}
-                <button
-                  type="button"
-                  onClick={() => setEditStatus("PENDING")}
-                  className={`p-3 rounded-2xl border-2 text-left font-bold transition flex items-center space-x-2.5 cursor-pointer ${
-                    editStatus === "PENDING"
-                      ? "bg-amber-100 border-amber-500 text-amber-950 ring-2 ring-amber-300"
-                      : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  <span className="w-3.5 h-3.5 rounded-full bg-amber-500 shrink-0"></span>
-                  <div>
-                    <div className="text-xs font-black">🟡 બાકી પેમેન્ટ (Pending)</div>
-                    <div className="text-[10px] text-amber-800 font-normal">રકમ લેવાની બાકી છે</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Payment Method Selector */}
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-700 block uppercase">
-                ૨. ચુકવણી પદ્ધતિ (Payment Method)
-              </label>
-              <select
-                value={editMethod}
-                onChange={(e) => setEditMethod(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-900 bg-white"
+            <div className="p-4 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setViewingParty(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200"
               >
-                <option value="CASH_AT_OFFICE">રોકડ (Cash at Office)</option>
-                <option value="UPI_BANK_TRANSFER">UPI / બેંક ટ્રાન્સફર (Google Pay / PhonePe / IMPS)</option>
-                <option value="CHEQUE">ચેક (Cheque)</option>
-                <option value="ONLINE">ઓનલાઇન પેમેન્ટ (Online Payment)</option>
-              </select>
+                બંધ કરો (Close)
+              </button>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Reference Number */}
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-700 block uppercase">
-                ૩. પાવતી / ટ્રાન્ઝેક્શન / ચેક નંબર (Reference No.)
-              </label>
-              <input
-                type="text"
-                placeholder="દા.ત. UTR12345678, રસીદ નં ૪૫, ચેક નં"
-                value={editRefNo}
-                onChange={(e) => setEditRefNo(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-mono font-bold text-slate-900 bg-white"
-              />
-            </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <label className="text-xs font-black text-slate-700 block uppercase">
-                ૪. નોંધ / રિમાર્ક (Optional Notes)
-              </label>
-              <input
-                type="text"
-                placeholder="દા.ત. ડિપોઝિટ રોકડા મળ્યા, બાકી ₹2000 પ્રસંગ વખતે આપશે"
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 bg-white"
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center space-x-3 pt-3 border-t border-slate-100">
+      {/* ========================================================================= */}
+      {/* MODAL: QUICK EDIT PAYMENT FOR A SINGLE BOOKING                            */}
+      {/* ========================================================================= */}
+      {editingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase">પેમેન્ટ સ્થિતિ એડિટ</span>
+                <h3 className="text-base font-black text-slate-900">{editingBooking.customerName}</h3>
+                <div className="text-[11px] text-slate-500 font-mono">{editingBooking.bookingNumber}</div>
+              </div>
               <button
                 type="button"
                 onClick={() => setEditingBooking(null)}
-                className="flex-1 py-3 px-4 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
               >
-                રદ કરો (Cancel)
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">સ્થિતિ (Payment Status)</label>
+                <select
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
+                >
+                  <option value="PAID">🟢 પૂર્ણ ચુકવણી (PAID)</option>
+                  <option value="PARTIAL">🟡 આંશિક ચુકવણી (PARTIAL)</option>
+                  <option value="PENDING">🔴 ચુકવણી બાકી (PENDING)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">ચુકવણી પદ્ધતિ (Method)</label>
+                <select
+                  value={editMethod}
+                  onChange={(e) => setEditMethod(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
+                >
+                  <option value="CASH_AT_OFFICE">રોકડ (Cash at Office)</option>
+                  <option value="UPI_BANK_TRANSFER">UPI / બેંક ટ્રાન્સફર</option>
+                  <option value="CHEQUE">ચેક (Cheque)</option>
+                  <option value="ONLINE">ઓનલાઈન પોર્ટલ</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">ચેક / રેફરન્સ નંબર</label>
+                <input
+                  type="text"
+                  value={editRefNo}
+                  onChange={(e) => setEditRefNo(e.target.value)}
+                  placeholder="Reference number"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono"
+                />
+              </div>
+
+              {saveErrorMsg && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+                  {saveErrorMsg}
+                </div>
+              )}
+              {saveSuccessMsg && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                  {saveSuccessMsg}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setEditingBooking(null)}
+                className="px-4 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-200 text-xs"
+              >
+                રદ કરો
               </button>
               <button
                 type="button"
-                disabled={savingPayment}
                 onClick={handleSavePayment}
-                className="flex-1 py-3 px-4 rounded-xl bg-[#0066cc] hover:bg-[#0071e3] active:bg-[#0077ed] text-white text-xs font-black shadow-md transition flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-60"
+                disabled={savingPayment}
+                className="px-5 py-2 rounded-xl font-black text-white bg-slate-900 hover:bg-slate-800 text-xs disabled:opacity-50"
               >
-                {savingPayment ? (
-                  <span>સાચવી રહ્યા છીએ...</span>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    <span>સાચવો (Save Changes)</span>
-                  </>
-                )}
+                {savingPayment ? "સાચવી રહ્યું છે..." : "સાચવો"}
               </button>
             </div>
           </div>

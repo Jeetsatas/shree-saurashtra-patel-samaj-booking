@@ -16,6 +16,7 @@ import {
   isFullDaySlot,
   isGroundFloorHall,
   getBookingGroundHallOption,
+  getStandardFacilityRate,
 } from "@/lib/slotUtils";
 import {
   Plus,
@@ -962,6 +963,15 @@ function BookingsManagementContent() {
           const isFull = isFullDaySlot(slotLabel);
           const endDateStr = isFull ? getNextDateStr(dateStr) || dateStr : dateStr;
 
+          let slotBaseRent = baseRent;
+          if (fac.code === "HALL-MULTIPURPOSE") {
+            slotBaseRent = isFull ? 31000 : 21000;
+          } else if (fac.code === "HALL-GROUND-FLOOR") {
+            slotBaseRent = isFull ? 150000 : 100000;
+          } else if (!slotBaseRent) {
+            slotBaseRent = getStandardFacilityRate(fac, slotLabel, datePlotPurposeMap[dateStr] || plotPurpose);
+          }
+
           // Conflict check against active bookings in database
           const dbConflict = bookings.find((b) => {
             if (b.status === "CANCELLED") return false;
@@ -1020,7 +1030,7 @@ function BookingsManagementContent() {
             startDate: dateStr,
             endDate: endDateStr,
             slot: slotLabel,
-            baseRent,
+            baseRent: slotBaseRent,
             cautionDeposit,
             conflict: conflictInfo,
             groundHallOption: hallAcOpt,
@@ -1066,10 +1076,13 @@ function BookingsManagementContent() {
 
   const totalDepositAmount = useMemo(() => {
     const uniqueFacilityIds = Array.from(new Set(bookingItems.map((it) => it.facilityId)));
-    return uniqueFacilityIds.reduce((acc, id) => {
-      const fac = facilities.find((f) => f.id === id);
-      return acc + (fac?.cautionDeposit || 0);
-    }, 0);
+    const bookedFacs = uniqueFacilityIds.map((id) => facilities.find((f) => f.id === id)).filter(Boolean);
+    const hasMajorFacility = bookedFacs.some((f) => {
+      const c = f?.code || "";
+      return c === "PLOT-OUTSIDE" || c === "HALL-GROUND-FLOOR" || c === "HALL-MULTIPURPOSE" || c.startsWith("DORM");
+    });
+    if (hasMajorFacility) return 25000;
+    return bookedFacs.reduce((acc, fac) => acc + (fac?.cautionDeposit || 0), 0);
   }, [bookingItems, facilities]);
 
   const finalTotalAmount = useMemo(() => {
@@ -3525,8 +3538,8 @@ function BookingsManagementContent() {
                                         const isChecked = facIds.includes(fac.id);
                                         const currentRent =
                                           dtPlotPurpose === "WEDDING"
-                                            ? fac.weddingRent || fac.baseRent || 0
-                                            : fac.familyRent || fac.baseRent || 0;
+                                            ? fac.weddingRent || fac.baseRent || 51000
+                                            : fac.familyRent || fac.baseRent || 21000;
                                         return (
                                           <div
                                             key={`${dateStr}-${fac.id}`}
@@ -3657,9 +3670,14 @@ function BookingsManagementContent() {
                                                   </div>
                                                 </div>
                                                 <div className="text-right shrink-0">
-                                                  <span className="text-xs font-black text-slate-800 block">
-                                                    {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
-                                                  </span>
+                                                  {(() => {
+                                                    const hallRent = fac.baseRent || (fac.code === "HALL-GROUND-FLOOR" ? 150000 : 31000);
+                                                    return (
+                                                      <span className="text-xs font-black text-slate-800 block">
+                                                        ₹{hallRent.toLocaleString("en-IN")}
+                                                      </span>
+                                                    );
+                                                  })()}
                                                 </div>
                                               </label>
 
@@ -3755,7 +3773,7 @@ function BookingsManagementContent() {
                                               </div>
                                               <div className="text-right shrink-0">
                                                 <span className="text-xs font-black text-slate-800 block">
-                                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                                  ₹${(fac.baseRent || (fac.code === "DORM-42-BEDS" ? 16000 : 11000)).toLocaleString("en-IN")}
                                                 </span>
                                               </div>
                                             </label>
@@ -3802,7 +3820,7 @@ function BookingsManagementContent() {
                                               </div>
                                               <div className="text-right shrink-0">
                                                 <span className="text-[11px] font-black text-slate-800 block">
-                                                  {fac.baseRent > 0 ? `₹${fac.baseRent.toLocaleString("en-IN")}` : "Rate Pending"}
+                                                  ₹${(fac.baseRent || (fac.code === "ROOM-6BED" ? 2500 : 3000)).toLocaleString("en-IN")}
                                                 </span>
                                               </div>
                                             </label>
