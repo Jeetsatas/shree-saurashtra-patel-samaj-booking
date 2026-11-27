@@ -339,7 +339,9 @@ export async function POST(req: NextRequest) {
           const c = f?.code || "";
           return c === "PLOT-OUTSIDE" || c === "HALL-GROUND-FLOOR" || c === "HALL-MULTIPURPOSE" || c.startsWith("DORM");
         });
-        const eventDeposit = hasMajorFac ? 25000 : (depositAmount !== undefined ? Number(depositAmount) : (fac.cautionDeposit || 0));
+        const eventDeposit = depositAmount !== undefined && depositAmount !== null && !isNaN(Number(depositAmount))
+          ? Number(depositAmount)
+          : (hasMajorFac ? 25000 : (fac.cautionDeposit || 0));
         const itemDeposit = isFirstItem ? eventDeposit : 0;
         const itemTotal = Math.max(0, itemBaseRent - itemDiscAmt) + itemServCost;
 

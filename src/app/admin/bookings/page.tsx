@@ -119,6 +119,7 @@ function BookingsManagementContent() {
     notes: "",
   };
   const [formData, setFormData] = useState(initialBookingFormData);
+  const [customDeposit, setCustomDeposit] = useState<number | null>(null);
 
   // Multi-Facility, Multi-Date, Multi-Timing Checkbox States
   const defaultTodayDateStr = new Date().toISOString().split("T")[0];
@@ -296,6 +297,7 @@ function BookingsManagementContent() {
     setCreateError("");
     setShowCreateModal(true);
     setDateCopySuccess(false);
+    setCustomDeposit(null);
     setGroundHallAc("NON_AC");
     setDateGroundHallAcMap({});
     const dStr = dateParam || new Date().toISOString().split("T")[0];
@@ -318,6 +320,7 @@ function BookingsManagementContent() {
   const closeCreateModal = () => {
     setShowCreateModal(false);
     setDateCopySuccess(false);
+    setCustomDeposit(null);
     setFormData(initialBookingFormData);
     if (typeof window !== "undefined" && window.location.search.includes("new=true")) {
       const url = new URL(window.location.href);
@@ -1214,9 +1217,20 @@ function BookingsManagementContent() {
     return bookedFacs.reduce((acc, fac) => acc + (fac?.cautionDeposit || 0), 0);
   }, [bookingItems, facilities]);
 
+  const effectiveDeposit = useMemo(() => {
+    if (customDeposit !== null && !isNaN(customDeposit)) {
+      return Math.max(0, customDeposit);
+    }
+    return totalDepositAmount;
+  }, [customDeposit, totalDepositAmount]);
+
   const finalTotalAmount = useMemo(() => {
     return Math.max(0, totalFacilityRent - totalDiscountAmount) + totalServicesAmount;
   }, [totalFacilityRent, totalDiscountAmount, totalServicesAmount]);
+
+  const netPayableWithDeposit = useMemo(() => {
+    return finalTotalAmount + effectiveDeposit;
+  }, [finalTotalAmount, effectiveDeposit]);
 
   const hasAnyConflict = useMemo(() => {
     return bookingItems.some((it) => it.conflict.isConflict);
@@ -1286,13 +1300,13 @@ function BookingsManagementContent() {
       return { name: s?.name || code, code, price: s?.price || 0 };
     });
 
-    const preparedItems = bookingItems.map((item) => ({
+    const preparedItems = bookingItems.map((item, idx) => ({
       facilityId: item.facilityId,
       startDate: item.startDate,
       endDate: item.endDate,
       slot: item.slot,
       facilityAmount: item.baseRent,
-      depositAmount: item.cautionDeposit,
+      depositAmount: idx === 0 ? effectiveDeposit : 0,
       groundHallOption: (item as any).groundHallOption,
       eventType: (item as any).eventType || formData.eventType || "General Function",
     }));
@@ -1317,7 +1331,7 @@ function BookingsManagementContent() {
           discountOverrideReason: formData.discountOverrideReason,
           selectedServices: selectedServiceObjs,
           servicesAmount: totalServicesAmount,
-          depositAmount: totalDepositAmount,
+          depositAmount: effectiveDeposit,
           totalAmount: finalTotalAmount,
           paymentStatus: formData.paymentStatus || "PENDING",
           paymentMethod: formData.paymentMethod || "CASH_AT_OFFICE",
@@ -3620,9 +3634,14 @@ function BookingsManagementContent() {
                               <FileText className="w-3.5 h-3.5 text-slate-600" />
                               બુકિંગ સમીક્ષા ({bookingItems.length})
                             </span>
-                            <span className="font-bold text-slate-700">
-                              ₹{totalFacilityRent.toLocaleString("en-IN")}
-                            </span>
+                            <div className="text-right">
+                              <span className="font-bold text-slate-700 block">
+                                ભાડું: ₹{totalFacilityRent.toLocaleString("en-IN")}
+                              </span>
+                              <span className="text-[10px] text-amber-900 font-extrabold block">
+                                + ડિપોઝિટ: ₹{effectiveDeposit.toLocaleString("en-IN")}
+                              </span>
+                            </div>
                           </div>
 
                           <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 p-2 space-y-2">
@@ -4747,39 +4766,150 @@ function BookingsManagementContent() {
                         )}
                       </div>
 
-                      {/* Financial Breakdown Preview */}
-                      <div className="bg-white p-3.5 rounded-xl border border-amber-200 text-xs space-y-1.5 mt-2">
-                        <div className="flex justify-between text-slate-600">
+                      {/* 4-Column Financial Summary Grid (સમાજ હિસાબ પદ્ધતિ - ડિપોઝિટ કોલમ નેટ પહેલાં) */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-slate-50/90 border border-amber-200/90 mt-2.5 shadow-2xs">
+                        {/* 1. Base Rent Column */}
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            ૧. મૂળ ભાડું (Base)
+                          </span>
+                          <span className="text-sm sm:text-base font-black text-slate-900 tabular-nums block mt-0.5">
+                            ₹{totalFacilityRent.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            {bookingItems.length} બુકિંગ સ્લોટ
+                          </span>
+                        </div>
+
+                        {/* 2. Total with Discount Column */}
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            ૨. ડિસ્કાઉન્ટ બાદ ભાડું
+                          </span>
+                          <span className="text-sm sm:text-base font-black text-blue-900 tabular-nums block mt-0.5">
+                            ₹{finalTotalAmount.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-blue-600 block mt-0.5">
+                            {totalDiscountAmount > 0
+                              ? `-₹${totalDiscountAmount.toLocaleString("en-IN")} (${currentDiscountPercent}%)`
+                              : "૦% ડિસ્કાઉન્ટ"}
+                          </span>
+                        </div>
+
+                        {/* 3. Caution Deposit Column - Prominently BEFORE Net! */}
+                        <div className="bg-amber-50/90 p-2.5 rounded-xl border-2 border-amber-300 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-amber-900 uppercase tracking-wider block">
+                              ૩. ડિપોઝિટ (Deposit)
+                            </span>
+                            {customDeposit !== null && (
+                              <span className="text-[9px] bg-amber-200 text-amber-900 px-1 py-0.2 rounded font-bold">
+                                કસ્ટમ
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-sm sm:text-base font-black text-amber-950 tabular-nums block mt-0.5">
+                            ₹{effectiveDeposit.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-amber-700 font-semibold block mt-0.5">
+                            રીફંડેબલ ડિપોઝિટ
+                          </span>
+                        </div>
+
+                        {/* 4. Net Column - After Deposit! */}
+                        <div className="bg-gradient-to-br from-amber-100 via-amber-200/80 to-amber-300/60 p-2.5 rounded-xl border-2 border-amber-400 shadow-xs">
+                          <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider block">
+                            ૪. ચૂકવવાપાત્ર નેટ (Net)
+                          </span>
+                          <span className="text-base sm:text-lg font-black text-red-950 tabular-nums block mt-0.5">
+                            ₹{netPayableWithDeposit.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-amber-900 font-bold block mt-0.5">
+                            ભાડું + ડિપોઝિટ
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Detailed Step-by-Step Financial Breakdown Preview */}
+                      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 text-xs space-y-2 mt-2 shadow-2xs">
+                        <div className="flex justify-between items-center text-slate-600">
                           <span>કુલ મૂળ સુવિધા ભાડું (Total Base Rent - {bookingItems.length} Bookings):</span>
-                          <span className="font-semibold text-slate-800">
+                          <span className="font-bold text-slate-800">
                             ₹{totalFacilityRent.toLocaleString("en-IN")}
                           </span>
                         </div>
 
                         {totalDiscountAmount > 0 && (
-                          <div className="flex justify-between text-emerald-700 font-semibold">
+                          <div className="flex justify-between items-center text-emerald-700 font-semibold">
                             <span>ડિસ્કાઉન્ટ (Discount {currentDiscountPercent}%):</span>
                             <span>- ₹{totalDiscountAmount.toLocaleString("en-IN")}</span>
                           </div>
                         )}
 
                         {totalServicesAmount > 0 && (
-                          <div className="flex justify-between text-blue-700 font-semibold">
+                          <div className="flex justify-between items-center text-blue-700 font-semibold">
                             <span>વધારાની સેવાઓ (Add-on Services Total):</span>
                             <span>+ ₹{totalServicesAmount.toLocaleString("en-IN")}</span>
                           </div>
                         )}
 
-                        <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-slate-200">
-                          <span>કુલ ચૂકવવાપાત્ર રકમ (Final Payable Amount):</span>
-                          <span className="text-red-900 text-base">
+                        <div className="flex justify-between items-center text-slate-700 font-bold pt-1 border-t border-slate-100">
+                          <span>કુલ સુવિધા ભાડું (Total Facility Rent):</span>
+                          <span className="text-slate-900">
                             ₹{finalTotalAmount.toLocaleString("en-IN")}
                           </span>
                         </div>
 
-                        <div className="flex justify-between text-[11px] text-slate-500 pt-0.5">
-                          <span>પરત મળવાપાત્ર ડિપોઝિટ (Refundable Caution Deposit):</span>
-                          <span>₹{totalDepositAmount.toLocaleString("en-IN")}</span>
+                        {/* Caution Deposit Row - Explicitly Placed BEFORE NET */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-50/90 border border-amber-300">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-black text-amber-950">
+                              🛡️ પરત મળવાપાત્ર ડિપોઝિટ (Refundable Caution Deposit):
+                            </span>
+                            <span className="text-[10px] text-amber-700 font-semibold hidden sm:inline">(નેટ પહેલાં)</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="relative">
+                              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-900">₹</span>
+                              <input
+                                type="number"
+                                step="any"
+                                min="0"
+                                value={customDeposit !== null ? customDeposit : totalDepositAmount}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setCustomDeposit(val === "" ? 0 : Number(val));
+                                }}
+                                className="w-28 pl-6 pr-2 py-1 text-xs font-black bg-white border border-amber-400 rounded-lg text-amber-950 outline-none focus:ring-2 focus:ring-amber-500"
+                                placeholder="ડિપોઝિટ"
+                              />
+                            </div>
+                            {customDeposit !== null && (
+                              <button
+                                type="button"
+                                onClick={() => setCustomDeposit(null)}
+                                title="સ્વચાલિત ડિપોઝિટ પર ફરી સેટ કરો"
+                                className="text-[10px] font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                              >
+                                રીસેટ
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Final Net Payable Row */}
+                        <div className="flex justify-between items-center text-slate-900 font-black text-sm pt-2.5 border-t-2 border-slate-300 bg-gradient-to-r from-red-50/50 via-amber-50/50 to-transparent p-2.5 rounded-xl">
+                          <div>
+                            <span className="text-slate-900 font-black text-sm block">
+                              કુલ ચૂકવવાપાત્ર નેટ રકમ (Net Payable Amount):
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-normal block">
+                              (સુવિધા ભાડું ₹{finalTotalAmount.toLocaleString("en-IN")} + ડિપોઝિટ ₹{effectiveDeposit.toLocaleString("en-IN")})
+                            </span>
+                          </div>
+                          <span className="text-red-900 text-lg font-black font-mono">
+                            ₹{netPayableWithDeposit.toLocaleString("en-IN")}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -4847,11 +4977,14 @@ function BookingsManagementContent() {
                   <span className="font-extrabold px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800">
                     🏢 {Array.from(new Set(bookingItems.map((it) => it.facilityId))).length} સુવિધા
                   </span>
-                  <span className="font-extrabold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">
-                    ⏱️ {bookingItems.length} બુકિંગ
+                  <span className="font-extrabold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-300">
+                    ભાડું: ₹{finalTotalAmount.toLocaleString("en-IN")}
                   </span>
-                  <span className="font-black text-slate-900 text-sm ml-1">
-                    કુલ રકમ: ₹{finalTotalAmount.toLocaleString("en-IN")}
+                  <span className="font-extrabold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">
+                    🛡️ ડિપોઝિટ: ₹{effectiveDeposit.toLocaleString("en-IN")}
+                  </span>
+                  <span className="font-black text-red-900 text-sm ml-1 bg-red-50 px-3 py-1 rounded-lg border border-red-200 shadow-2xs">
+                    નેટ રકમ: ₹{netPayableWithDeposit.toLocaleString("en-IN")}
                   </span>
                 </div>
 
