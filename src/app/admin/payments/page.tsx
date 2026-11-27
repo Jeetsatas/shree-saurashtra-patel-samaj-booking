@@ -47,6 +47,8 @@ import {
   parseJamaEntries,
   setJamaEntriesInNotes,
   calculateEventDeposit,
+  getCleanPartyName,
+  getPartyIndexLetter,
 } from "@/lib/slotUtils";
 
 // Helper: Payment status label & badge
@@ -121,6 +123,7 @@ export default function AdminPaymentStatusPage() {
   const [partySearchQuery, setPartySearchQuery] = useState("");
   const [partyStatusFilter, setPartyStatusFilter] = useState<"ALL" | "PENDING" | "PARTIAL" | "PAID">("ALL");
   const [selectedPartyKey, setSelectedPartyKey] = useState<string | null>(null);
+  const [alphabetFilter, setAlphabetFilter] = useState<string>("ALL");
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -316,12 +319,41 @@ export default function AdminPaymentStatusPage() {
     });
   }, [partyGroups, partySearchQuery, partyStatusFilter]);
 
+  // Extract all unique alphabet letters available in filteredPartyGroups for phone diary index
+  const availableAlphabetIndex = useMemo(() => {
+    const letterMap = new Map<string, { letter: string; english: string; count: number; displayLabel: string }>();
+    for (const p of filteredPartyGroups) {
+      const info = getPartyIndexLetter(p.customerName);
+      const key = info.primaryKey;
+      if (!letterMap.has(key)) {
+        letterMap.set(key, {
+          letter: info.gujarati,
+          english: info.english,
+          count: 1,
+          displayLabel: info.displayLabel,
+        });
+      } else {
+        letterMap.get(key)!.count += 1;
+      }
+    }
+    return Array.from(letterMap.values()).sort((a, b) => a.letter.localeCompare(b.letter, "gu"));
+  }, [filteredPartyGroups]);
+
+  // Parties filtered by Alphabet (Phone Diary Index)
+  const alphabetFilteredPartyGroups = useMemo(() => {
+    if (alphabetFilter === "ALL") return filteredPartyGroups;
+    return filteredPartyGroups.filter((p) => {
+      const info = getPartyIndexLetter(p.customerName);
+      return info.primaryKey === alphabetFilter || info.english === alphabetFilter;
+    });
+  }, [filteredPartyGroups, alphabetFilter]);
+
   // Active party selection for 2-Panel Master-Detail view in Party Ledger
   const activeParty = useMemo(() => {
-    if (!filteredPartyGroups || filteredPartyGroups.length === 0) return null;
-    const found = filteredPartyGroups.find((p) => p.partyKey === selectedPartyKey);
-    return found || filteredPartyGroups[0];
-  }, [filteredPartyGroups, selectedPartyKey]);
+    if (!alphabetFilteredPartyGroups || alphabetFilteredPartyGroups.length === 0) return null;
+    const found = alphabetFilteredPartyGroups.find((p) => p.partyKey === selectedPartyKey);
+    return found || alphabetFilteredPartyGroups[0];
+  }, [alphabetFilteredPartyGroups, selectedPartyKey]);
 
   // Overall Party Ledger Financial Statistics
   const partyStats = useMemo(() => {
@@ -927,19 +959,96 @@ export default function AdminPaymentStatusPage() {
                 {/* LEFT PANEL (35%-40% width / lg:col-span-5): Compact Party List */}
                 {/* ============================================================== */}
                 <div className="lg:col-span-5 flex flex-col gap-2.5">
+                  {/* 📇 Phone Diary Alphabet Slider / Quick Scroller */}
+                  {availableAlphabetIndex.length > 0 && (
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                      <div className="flex items-center justify-between px-0.5 text-[11px] font-bold text-slate-600">
+                        <span className="flex items-center gap-1.5 text-slate-800">
+                          <span className="text-sm">📇</span>
+                          <span className="font-extrabold">ફોન ડાયરી મૂળાક્ષર (Phone Diary A-Z):</span>
+                        </span>
+                        {alphabetFilter !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => setAlphabetFilter("ALL")}
+                            className="text-[10px] text-amber-800 hover:text-amber-950 font-bold bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200 transition cursor-pointer flex items-center gap-1"
+                          >
+                            <span>બધા જુઓ (Clear)</span>
+                            <span>✕</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Scrollable Alphabet Ribbon */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scroll-smooth">
+                        <button
+                          type="button"
+                          onClick={() => setAlphabetFilter("ALL")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer shrink-0 ${
+                            alphabetFilter === "ALL"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          }`}
+                        >
+                          બધા ({filteredPartyGroups.length})
+                        </button>
+
+                        {availableAlphabetIndex.map((item) => {
+                          const isSelected = alphabetFilter === item.letter || alphabetFilter === item.english;
+                          return (
+                            <button
+                              key={`alph-pay-${item.letter}`}
+                              type="button"
+                              onClick={() => {
+                                const newFilter = isSelected ? "ALL" : item.letter;
+                                setAlphabetFilter(newFilter);
+                                const match = filteredPartyGroups.find((p) => {
+                                  const info = getPartyIndexLetter(p.customerName);
+                                  return info.primaryKey === item.letter || info.english === item.english;
+                                });
+                                if (match) {
+                                  setSelectedPartyKey(match.partyKey);
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-sm ring-2 ring-amber-400 font-black scale-105"
+                                  : "bg-slate-50 hover:bg-amber-50 hover:text-amber-900 text-slate-700 border border-slate-200/80"
+                              }`}
+                              title={`અક્ષર '${item.letter}' વાળી પાર્ટીઓ જુઓ`}
+                            >
+                              <span className="font-bold">{item.letter}</span>
+                              <span className="text-[10px] opacity-80 font-mono">({item.english})</span>
+                              <span
+                                className={`text-[9px] px-1 py-0.2 rounded-full font-mono ml-0.5 ${
+                                  isSelected ? "bg-amber-900/60 text-white" : "bg-slate-200 text-slate-600"
+                                }`}
+                              >
+                                {item.count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between px-1 text-xs text-slate-500 font-bold">
                     <span className="flex items-center gap-1.5 text-slate-700">
                       <Building className="w-3.5 h-3.5 text-amber-700" />
-                      <span>પાર્ટીઓ ({filteredPartyGroups.length})</span>
+                      <span>
+                        પાર્ટીઓ ({alphabetFilteredPartyGroups.length}
+                        {alphabetFilter !== "ALL" ? ` / કુલ ${filteredPartyGroups.length}` : ""})
+                      </span>
                     </span>
                     <span className="text-[10px] text-slate-400">
-                      ક્લિક કરીને જમણી બાજુ ખાતાવહી જુઓ
+                      {alphabetFilter !== "ALL" ? `અક્ષર '${alphabetFilter}' ફિલ્ટર કરેલ` : "ક્લિક કરીને ખાતાવહી જુઓ"}
                     </span>
                   </div>
 
                   {/* Scrollable compact list */}
                   <div className="space-y-2 lg:max-h-[calc(100vh-210px)] lg:overflow-y-auto pr-1 scrollbar-thin">
-                    {filteredPartyGroups.map((party) => {
+                    {alphabetFilteredPartyGroups.map((party) => {
                       const isSelectedParty = activeParty?.partyKey === party.partyKey;
                       const badge = getPaymentBadge(party.paymentStatus);
 
@@ -961,13 +1070,18 @@ export default function AdminPaymentStatusPage() {
                           {/* Card Header: Customer Name & Payment Badge */}
                           <div className="flex items-start justify-between gap-2 pl-1">
                             <div className="min-w-0">
-                              <h4
-                                className={`text-sm font-bold truncate leading-tight ${
-                                  isSelectedParty ? "text-amber-950 font-black" : "text-slate-800"
-                                }`}
-                              >
-                                {party.customerName}
-                              </h4>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h4
+                                  className={`text-sm font-bold truncate leading-tight ${
+                                    isSelectedParty ? "text-amber-950 font-black" : "text-slate-800"
+                                  }`}
+                                >
+                                  {party.customerName}
+                                </h4>
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-900 font-mono border border-amber-200/80 shrink-0">
+                                  📇 {getPartyIndexLetter(party.customerName).gujarati}
+                                </span>
+                              </div>
                               <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5 font-mono">
                                 <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                 <span>{party.customerPhone}</span>

@@ -21,6 +21,8 @@ import {
   getStandardFacilityRate,
   groupBookingsByParty,
   PartyBookingGroup,
+  getCleanPartyName,
+  getPartyIndexLetter,
 } from "@/lib/slotUtils";
 import {
   Plus,
@@ -295,6 +297,7 @@ function BookingsManagementContent() {
   // View Format: PARTY_WISE (Default - proper party format with facilities & 4-metric strip) or FLAT (raw individual rows)
   const [viewMode, setViewMode] = useState<"PARTY_WISE" | "FLAT">("PARTY_WISE");
   const [selectedPartyKey, setSelectedPartyKey] = useState<string | null>(null);
+  const [alphabetFilter, setAlphabetFilter] = useState<string>("ALL");
 
   // Open and Close Modal Helpers with URL Cleanup
   const openNewBookingModal = (dateParam?: string | null, facParam?: string | null) => {
@@ -1844,16 +1847,45 @@ function BookingsManagementContent() {
   // Reset pagination to page 1 whenever any filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, categoryFilter, facilityFilter, statusFilter, startDateFilter, endDateFilter, sortBy, viewMode]);
+  }, [searchTerm, categoryFilter, facilityFilter, statusFilter, startDateFilter, endDateFilter, sortBy, viewMode, alphabetFilter]);
 
-  const totalPartyPages = Math.max(1, Math.ceil(sortedPartyGroups.length / pageSize));
+  // Extract all unique alphabet letters available in sortedPartyGroups for phone diary index
+  const availableAlphabetIndex = useMemo(() => {
+    const letterMap = new Map<string, { letter: string; english: string; count: number; displayLabel: string }>();
+    for (const p of sortedPartyGroups) {
+      const info = getPartyIndexLetter(p.customerName);
+      const key = info.primaryKey;
+      if (!letterMap.has(key)) {
+        letterMap.set(key, {
+          letter: info.gujarati,
+          english: info.english,
+          count: 1,
+          displayLabel: info.displayLabel,
+        });
+      } else {
+        letterMap.get(key)!.count += 1;
+      }
+    }
+    return Array.from(letterMap.values()).sort((a, b) => a.letter.localeCompare(b.letter, "gu"));
+  }, [sortedPartyGroups]);
+
+  // Parties filtered by Alphabet (Phone Diary Index)
+  const alphabetFilteredPartyGroups = useMemo(() => {
+    if (alphabetFilter === "ALL") return sortedPartyGroups;
+    return sortedPartyGroups.filter((p) => {
+      const info = getPartyIndexLetter(p.customerName);
+      return info.primaryKey === alphabetFilter || info.english === alphabetFilter;
+    });
+  }, [sortedPartyGroups, alphabetFilter]);
+
+  const totalPartyPages = Math.max(1, Math.ceil(alphabetFilteredPartyGroups.length / pageSize));
   const totalFlatPages = Math.max(1, Math.ceil(sortedBookings.length / pageSize));
   const totalPages = viewMode === "PARTY_WISE" ? totalPartyPages : totalFlatPages;
 
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedPartyGroups = useMemo(() => {
-    return sortedPartyGroups.slice(startIndex, startIndex + pageSize);
-  }, [sortedPartyGroups, startIndex, pageSize]);
+    return alphabetFilteredPartyGroups.slice(startIndex, startIndex + pageSize);
+  }, [alphabetFilteredPartyGroups, startIndex, pageSize]);
 
   const paginatedBookings = useMemo(() => {
     return sortedBookings.slice(startIndex, startIndex + pageSize);
@@ -2254,13 +2286,90 @@ function BookingsManagementContent() {
                 {/* LEFT PANEL (35%-40% width / lg:col-span-5): Compact Party List */}
                 {/* ============================================================== */}
                 <div className="lg:col-span-5 flex flex-col gap-2.5">
+                  {/* 📇 Phone Diary Alphabet Slider / Quick Scroller */}
+                  {availableAlphabetIndex.length > 0 && (
+                    <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs space-y-1.5">
+                      <div className="flex items-center justify-between px-0.5 text-[11px] font-bold text-slate-600">
+                        <span className="flex items-center gap-1.5 text-slate-800">
+                          <span className="text-sm">📇</span>
+                          <span className="font-extrabold">ફોન ડાયરી મૂળાક્ષર (Phone Diary A-Z):</span>
+                        </span>
+                        {alphabetFilter !== "ALL" && (
+                          <button
+                            type="button"
+                            onClick={() => setAlphabetFilter("ALL")}
+                            className="text-[10px] text-red-700 hover:text-red-900 font-bold bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-md border border-red-200 transition cursor-pointer flex items-center gap-1"
+                          >
+                            <span>બધા જુઓ (Clear)</span>
+                            <span>✕</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Scrollable Alphabet Ribbon */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-1 pt-0.5 scrollbar-thin scroll-smooth">
+                        <button
+                          type="button"
+                          onClick={() => setAlphabetFilter("ALL")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-black transition cursor-pointer shrink-0 ${
+                            alphabetFilter === "ALL"
+                              ? "bg-slate-900 text-white shadow-xs"
+                              : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                          }`}
+                        >
+                          બધા ({sortedPartyGroups.length})
+                        </button>
+
+                        {availableAlphabetIndex.map((item) => {
+                          const isSelected = alphabetFilter === item.letter || alphabetFilter === item.english;
+                          return (
+                            <button
+                              key={`alph-${item.letter}`}
+                              type="button"
+                              onClick={() => {
+                                const newFilter = isSelected ? "ALL" : item.letter;
+                                setAlphabetFilter(newFilter);
+                                const match = sortedPartyGroups.find((p) => {
+                                  const info = getPartyIndexLetter(p.customerName);
+                                  return info.primaryKey === item.letter || info.english === item.english;
+                                });
+                                if (match) {
+                                  setSelectedPartyKey(match.partyKey);
+                                }
+                              }}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 flex items-center gap-1 ${
+                                isSelected
+                                  ? "bg-gradient-to-r from-red-800 to-red-700 text-white shadow-sm ring-2 ring-red-400 font-black scale-105"
+                                  : "bg-slate-50 hover:bg-red-50 hover:text-red-900 text-slate-700 border border-slate-200/80"
+                              }`}
+                              title={`અક્ષર '${item.letter}' વાળી પાર્ટીઓ જુઓ`}
+                            >
+                              <span className="font-bold">{item.letter}</span>
+                              <span className="text-[10px] opacity-80 font-mono">({item.english})</span>
+                              <span
+                                className={`text-[9px] px-1 py-0.2 rounded-full font-mono ml-0.5 ${
+                                  isSelected ? "bg-red-900/60 text-white" : "bg-slate-200 text-slate-600"
+                                }`}
+                              >
+                                {item.count}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between px-1 text-xs text-slate-500 font-bold">
                     <span className="flex items-center gap-1.5 text-slate-700">
                       <Users className="w-3.5 h-3.5 text-red-700" />
-                      <span>પાર્ટીઓ ({paginatedPartyGroups.length})</span>
+                      <span>
+                        પાર્ટીઓ ({paginatedPartyGroups.length}
+                        {alphabetFilter !== "ALL" ? ` / કુલ ${sortedPartyGroups.length}` : ""})
+                      </span>
                     </span>
                     <span className="text-[10px] text-slate-400">
-                      ક્લિક કરીને જમણી બાજુ વિગત જુઓ
+                      {alphabetFilter !== "ALL" ? `અક્ષર '${alphabetFilter}' ફિલ્ટર કરેલ` : "ક્લિક કરીને વિગત જુઓ"}
                     </span>
                   </div>
 
@@ -2307,11 +2416,16 @@ function BookingsManagementContent() {
                                 />
                               )}
                               <div className="min-w-0">
-                                <h4 className={`text-sm font-bold truncate leading-tight ${
-                                  isSelectedParty ? "text-red-950 font-black" : "text-slate-800"
-                                }`}>
-                                  {party.customerName}
-                                </h4>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h4 className={`text-sm font-bold truncate leading-tight ${
+                                    isSelectedParty ? "text-red-950 font-black" : "text-slate-800"
+                                  }`}>
+                                    {party.customerName}
+                                  </h4>
+                                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-mono border border-slate-200/80 shrink-0">
+                                    📇 {getPartyIndexLetter(party.customerName).gujarati}
+                                  </span>
+                                </div>
                                 <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5 font-mono">
                                   <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                                   <span>{party.customerPhone}</span>

@@ -684,4 +684,73 @@ export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
   );
 }
 
+/**
+ * Strips common honorific prefixes like "શ્રી", "શ્રીમતી", "કુમારી", "Shree", "Shri", "Mr.", etc.
+ * to extract the actual root name for phone diary alphabetical indexing.
+ */
+export function getCleanPartyName(fullName: string): string {
+  if (!fullName) return "";
+  return fullName
+    .replace(/^(\s*(?:શ્રી|શ્રીમતી|કુમારી|shree|shri|smt|mr\.?|mrs\.?|ms\.?|dr\.?)\s+)/i, "")
+    .trim();
+}
+
+export const GUJARATI_TO_ENGLISH_LETTER_MAP: Record<string, string> = {
+  // Vowels
+  "અ": "A", "આ": "A", "ઇ": "I", "ઈ": "I", "ઉ": "U", "ઊ": "U", "ઋ": "R", "એ": "E", "ઐ": "AI", "ઓ": "O", "ઔ": "AU",
+  // Consonants
+  "ક": "K", "ખ": "KH", "ગ": "G", "ઘ": "GH", "ઙ": "N",
+  "ચ": "CH", "છ": "CH", "જ": "J", "ઝ": "Z", "ઞ": "N",
+  "ટ": "T", "ઠ": "TH", "ડ": "D", "ઢ": "DH", "ણ": "N",
+  "ત": "T", "થ": "TH", "દ": "D", "ધ": "DH", "ન": "N",
+  "પ": "P", "ફ": "F", "બ": "B", "ભ": "BH", "મ": "M",
+  "ય": "Y", "ર": "R", "લ": "L", "ળ": "L", "વ": "V",
+  "શ": "SH", "ષ": "SH", "સ": "S", "હ": "H",
+};
+
+/**
+ * Returns the primary sorting/indexing letter info for phone diary navigation.
+ */
+export function getPartyIndexLetter(fullName: string): {
+  gujarati: string;
+  english: string;
+  displayLabel: string;
+  primaryKey: string;
+} {
+  const clean = getCleanPartyName(fullName);
+  if (!clean) return { gujarati: "#", english: "#", displayLabel: "#", primaryKey: "#" };
+
+  const firstChar = clean.charAt(0);
+  const upper = firstChar.toUpperCase();
+
+  // If English letter
+  if (upper >= "A" && upper <= "Z") {
+    return {
+      gujarati: upper,
+      english: upper,
+      displayLabel: upper,
+      primaryKey: upper,
+    };
+  }
+
+  // If Gujarati letter
+  if (GUJARATI_TO_ENGLISH_LETTER_MAP[firstChar]) {
+    const eng = GUJARATI_TO_ENGLISH_LETTER_MAP[firstChar];
+    return {
+      gujarati: firstChar,
+      english: eng,
+      displayLabel: `${firstChar} (${eng})`,
+      primaryKey: firstChar,
+    };
+  }
+
+  return {
+    gujarati: firstChar,
+    english: firstChar,
+    displayLabel: firstChar,
+    primaryKey: firstChar,
+  };
+}
+
+
 
