@@ -120,6 +120,7 @@ export default function AdminPaymentStatusPage() {
   // Party Ledger State
   const [partySearchQuery, setPartySearchQuery] = useState("");
   const [partyStatusFilter, setPartyStatusFilter] = useState<"ALL" | "PENDING" | "PARTIAL" | "PAID">("ALL");
+  const [selectedPartyKey, setSelectedPartyKey] = useState<string | null>(null);
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -314,6 +315,13 @@ export default function AdminPaymentStatusPage() {
       return true;
     });
   }, [partyGroups, partySearchQuery, partyStatusFilter]);
+
+  // Active party selection for 2-Panel Master-Detail view in Party Ledger
+  const activeParty = useMemo(() => {
+    if (!filteredPartyGroups || filteredPartyGroups.length === 0) return null;
+    const found = filteredPartyGroups.find((p) => p.partyKey === selectedPartyKey);
+    return found || filteredPartyGroups[0];
+  }, [filteredPartyGroups, selectedPartyKey]);
 
   // Overall Party Ledger Financial Statistics
   const partyStats = useMemo(() => {
@@ -904,7 +912,7 @@ export default function AdminPaymentStatusPage() {
               </div>
             </div>
 
-            {/* Parties List */}
+            {/* Master-Detail Split View (2-Panel Layout: 35% Left List & 65% Sticky Right Detail) */}
             {filteredPartyGroups.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
                 <Building className="w-12 h-12 text-slate-300 mx-auto mb-3" />
@@ -914,100 +922,209 @@ export default function AdminPaymentStatusPage() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {filteredPartyGroups.map((party) => {
-                  const badge = getPaymentBadge(party.paymentStatus);
-                  return (
-                    <div
-                      key={party.partyKey}
-                      className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md transition overflow-hidden"
-                    >
-                      {/* Party Card Header */}
-                      <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/70 via-white to-white flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-                        <div className="space-y-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-                              {party.customerName}
-                            </span>
-                            <span
-                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${badge.badgeClass}`}
-                            >
-                              {badge.shortLabel}
-                            </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                              {party.eventType}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5 items-start">
+                {/* ============================================================== */}
+                {/* LEFT PANEL (35%-40% width / lg:col-span-5): Compact Party List */}
+                {/* ============================================================== */}
+                <div className="lg:col-span-5 flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between px-1 text-xs text-slate-500 font-bold">
+                    <span className="flex items-center gap-1.5 text-slate-700">
+                      <Building className="w-3.5 h-3.5 text-amber-700" />
+                      <span>પાર્ટીઓ ({filteredPartyGroups.length})</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      ક્લિક કરીને જમણી બાજુ ખાતાવહી જુઓ
+                    </span>
+                  </div>
+
+                  {/* Scrollable compact list */}
+                  <div className="space-y-2 lg:max-h-[calc(100vh-210px)] lg:overflow-y-auto pr-1 scrollbar-thin">
+                    {filteredPartyGroups.map((party) => {
+                      const isSelectedParty = activeParty?.partyKey === party.partyKey;
+                      const badge = getPaymentBadge(party.paymentStatus);
+
+                      return (
+                        <div
+                          key={party.partyKey}
+                          onClick={() => setSelectedPartyKey(party.partyKey)}
+                          className={`group relative p-3 sm:p-3.5 rounded-xl border transition-all duration-200 cursor-pointer ${
+                            isSelectedParty
+                              ? "bg-white border-amber-500 ring-2 ring-amber-500/20 shadow-md translate-x-0.5"
+                              : "bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/70 shadow-2xs"
+                          }`}
+                        >
+                          {/* Active marker accent bar */}
+                          {isSelectedParty && (
+                            <div className="absolute left-0 top-2 bottom-2 w-1.5 bg-amber-600 rounded-r-full" />
+                          )}
+
+                          {/* Card Header: Customer Name & Payment Badge */}
+                          <div className="flex items-start justify-between gap-2 pl-1">
+                            <div className="min-w-0">
+                              <h4
+                                className={`text-sm font-bold truncate leading-tight ${
+                                  isSelectedParty ? "text-amber-950 font-black" : "text-slate-800"
+                                }`}
+                              >
+                                {party.customerName}
+                              </h4>
+                              <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5 font-mono">
+                                <Phone className="w-2.5 h-2.5 text-slate-400 shrink-0" />
+                                <span>{party.customerPhone}</span>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col items-end gap-1 shrink-0">
+                              <span
+                                className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${badge.badgeClass}`}
+                              >
+                                {badge.shortLabel}
+                              </span>
+                              {party.eventType && (
+                                <span className="text-[10px] font-medium text-slate-600 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200/80">
+                                  {party.eventType}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Middle row: Dates & Facilities count */}
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 pl-1">
+                            <div className="flex items-center gap-1 truncate">
+                              <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">{party.dateRange.label}</span>
+                            </div>
+                            <span className="shrink-0 font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 text-[10px]">
+                              {party.bookings.length} સુવિધાઓ
                             </span>
                           </div>
 
+                          {/* Bottom Row: Net Billed & Net Remaining Balance */}
+                          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between pl-1">
+                            <div className="text-[10px] text-slate-600 font-bold">
+                              નેટ: ₹{party.net.toLocaleString("en-IN")}
+                            </div>
+                            <div className="text-right">
+                              {party.netRemaining === 0 ? (
+                                <span className="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                  ✓ પૂર્ણ ચુકતે
+                                </span>
+                              ) : party.totalJama > 0 ? (
+                                <span className="text-[10px] font-black text-amber-900 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                  બાકી: ₹{party.netRemaining.toLocaleString("en-IN")}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-black text-rose-800 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                  બાકી: ₹{party.netRemaining.toLocaleString("en-IN")}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* ============================================================== */}
+                {/* RIGHT PANEL (65%-60% width / lg:col-span-7): Sticky Party Dossier & Ledger */}
+                {/* ============================================================== */}
+                <div className="lg:col-span-7 lg:sticky lg:top-4">
+                  {activeParty ? (
+                    <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden space-y-0 lg:max-h-[calc(100vh-140px)] lg:overflow-y-auto scrollbar-thin">
+                      {/* 1. Header: Customer Name, Status, Phone, Event & Quick Actions */}
+                      <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-slate-50/80 via-white to-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                              {activeParty.customerName}
+                            </span>
+                            {(() => {
+                              const badge = getPaymentBadge(activeParty.paymentStatus);
+                              return (
+                                <span
+                                  className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${badge.badgeClass}`}
+                                >
+                                  {badge.shortLabel}
+                                </span>
+                              );
+                            })()}
+                            {activeParty.eventType && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                {activeParty.eventType}
+                              </span>
+                            )}
+                          </div>
+
                           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                            {party.customerPhone && (
+                            {activeParty.customerPhone && (
                               <a
-                                href={`tel:${party.customerPhone}`}
+                                href={`tel:${activeParty.customerPhone}`}
                                 className="flex items-center gap-1 text-blue-700 hover:underline font-mono font-bold"
                               >
                                 <Phone className="w-3.5 h-3.5" />
-                                <span>{party.customerPhone}</span>
+                                <span>{activeParty.customerPhone}</span>
                               </a>
                             )}
-                            {party.customerAddress && (
+                            {activeParty.customerAddress && (
                               <span className="flex items-center gap-1 text-slate-500">
                                 <MapPin className="w-3 h-3" />
-                                <span className="truncate max-w-xs">{party.customerAddress}</span>
+                                <span className="truncate max-w-xs">{activeParty.customerAddress}</span>
                               </span>
                             )}
                             <span className="flex items-center gap-1 text-amber-900 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/70">
                               <Calendar className="w-3 h-3 text-amber-700" />
-                              <span>{party.dateRange.label}</span>
+                              <span>{activeParty.dateRange.label}</span>
                             </span>
                           </div>
                         </div>
 
-                        {/* Top Action Buttons (with Manual Audit & Edit) */}
-                        <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+                        {/* Top Action Buttons (Edit, Add Jama, Audit, Receipt) */}
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
                           <Link
-                            href={`/admin/bookings?edit=${party.bookings[0]?.id}`}
-                            className="px-3 py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-[0.98]"
+                            href={`/admin/bookings?edit=${activeParty.bookings[0]?.id}`}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-[0.98]"
                             title="આ પાર્ટી અને સુવિધાઓની વિગતો સુધારો (Edit Party & Facilities)"
                           >
                             <Edit3 className="w-3.5 h-3.5 text-amber-700" />
-                            <span>સુધારો (Edit)</span>
+                            <span>સુધારો</span>
                           </Link>
 
                           <button
                             type="button"
-                            onClick={() => handleOpenJamaModal(party)}
-                            className="px-4 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-sm shadow-amber-600/30 transition cursor-pointer flex items-center gap-1.5 active:scale-[0.98]"
+                            onClick={() => handleOpenJamaModal(activeParty)}
+                            className="px-3.5 py-1.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 shadow-sm shadow-amber-600/30 transition cursor-pointer flex items-center gap-1.5 active:scale-[0.98]"
                           >
                             <Plus className="w-4 h-4" />
-                            <span>+ જમા કરો (Add Jama)</span>
+                            <span>+ જમા કરો</span>
                           </button>
 
                           <button
                             type="button"
-                            onClick={() => handleOpenManualAuditModal({ party })}
-                            className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                            onClick={() => handleOpenManualAuditModal({ party: activeParty })}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                           >
                             <Shield className="w-3.5 h-3.5 text-slate-600" />
-                            <span>ઓડિટ (Audit)</span>
+                            <span>ઓડિટ</span>
                           </button>
 
                           <button
                             type="button"
-                            onClick={() => setViewingParty(party)}
-                            className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer flex items-center gap-1"
+                            onClick={() => setViewingParty(activeParty)}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition cursor-pointer flex items-center gap-1"
                           >
                             <Receipt className="w-3.5 h-3.5" />
-                            <span>વિગત / રસીદ</span>
+                            <span>રસીદ</span>
                           </button>
                         </div>
                       </div>
 
-                      {/* Booked Facilities Pills */}
+                      {/* 2. Booked Facilities Section */}
                       <div className="px-4 sm:px-5 py-2.5 bg-slate-50/50 border-b border-slate-100 flex flex-wrap items-center gap-1.5 text-xs">
                         <span className="text-[11px] font-bold text-slate-500 mr-1">
-                          બુક કરેલ સુવિધાઓ ({party.bookings.length}):
+                          બુક કરેલ સુવિધાઓ ({activeParty.bookings.length}):
                         </span>
-                        {party.bookings.map((b) => (
+                        {activeParty.bookings.map((b) => (
                           <span
                             key={b.id}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-800 font-medium text-[11px]"
@@ -1023,7 +1140,7 @@ export default function AdminPaymentStatusPage() {
                             <Link
                               href={`/admin/bookings?edit=${b.id}`}
                               className="ml-1 px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-0.5 transition"
-                              title="આ સુવિધા, તારીખ અથવા રકમ સુધારો (Edit Facility or Amount)"
+                              title="આ સુવિધા, તારીખ અથવા રકમ સુધારો"
                             >
                               <Edit3 className="w-2.5 h-2.5 text-amber-700" />
                               <span>Edit</span>
@@ -1032,16 +1149,16 @@ export default function AdminPaymentStatusPage() {
                         ))}
                       </div>
 
-                      {/* 4-METRIC FINANCIAL STRIP (Exact user formula) */}
-                      <div className="p-4 sm:p-5">
+                      {/* 3. 4-METRIC FINANCIAL STRIP */}
+                      <div className="p-4 sm:px-5">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200">
                           {/* 1. Total Rent */}
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                              કુલ રકમ (Total)
+                              ૧. કુલ રકમ (Total)
                             </span>
                             <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
-                              ₹{party.total.toLocaleString("en-IN")}
+                              ₹{activeParty.total.toLocaleString("en-IN")}
                             </span>
                             <span className="text-[10px] text-slate-400 block">સુવિધા ભાડું</span>
                           </div>
@@ -1049,14 +1166,14 @@ export default function AdminPaymentStatusPage() {
                           {/* 2. Total with Discount */}
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                              ડિસ્કાઉન્ટ બાદ રકમ
+                              ૨. ડિસ્કાઉન્ટ બાદ રકમ
                             </span>
                             <span className="text-base sm:text-lg font-black text-blue-900 tabular-nums">
-                              ₹{party.totalWithDiscount.toLocaleString("en-IN")}
+                              ₹{activeParty.totalWithDiscount.toLocaleString("en-IN")}
                             </span>
                             <span className="text-[10px] text-blue-600 block">
-                              {party.discountAmount > 0
-                                ? `-₹${party.discountAmount.toLocaleString("en-IN")} ડિસ્કાઉન્ટ`
+                              {activeParty.discountAmount > 0
+                                ? `-₹${activeParty.discountAmount.toLocaleString("en-IN")} ડિસ્કાઉન્ટ`
                                 : "૦% ડિસ્કાઉન્ટ"}
                             </span>
                           </div>
@@ -1064,10 +1181,10 @@ export default function AdminPaymentStatusPage() {
                           {/* 3. Caution Deposit */}
                           <div>
                             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                              ડિપોઝિટ (Deposit)
+                              ૩. ડિપોઝિટ (Deposit)
                             </span>
                             <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
-                              ₹{party.deposit.toLocaleString("en-IN")}
+                              ₹{activeParty.deposit.toLocaleString("en-IN")}
                             </span>
                             <span className="text-[10px] text-slate-500 block">રીફંડેબલ ડિપોઝિટ</span>
                           </div>
@@ -1075,10 +1192,10 @@ export default function AdminPaymentStatusPage() {
                           {/* 4. Net (After Deposit) */}
                           <div className="bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
                             <span className="text-[10px] font-black text-amber-900 uppercase tracking-wider block">
-                              ચુકવવાપાત્ર કુલ નેટ (Net)
+                              ૪. ચુકવવાપાત્ર નેટ (Net)
                             </span>
                             <span className="text-base sm:text-lg font-black text-amber-950 tabular-nums">
-                              ₹{party.net.toLocaleString("en-IN")}
+                              ₹{activeParty.net.toLocaleString("en-IN")}
                             </span>
                             <span className="text-[10px] text-amber-800 font-bold block">
                               ભાડું + ડિપોઝિટ
@@ -1086,8 +1203,8 @@ export default function AdminPaymentStatusPage() {
                           </div>
                         </div>
 
-                        {/* Jama Entries Ledger Banner & Net Remaining Adjustment */}
-                        <div className="mt-3 p-3 rounded-xl bg-gradient-to-r from-emerald-50/70 via-slate-50 to-white border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        {/* 4. Jama Entries Ledger Banner & Net Remaining Adjustment */}
+                        <div className="mt-3 p-3.5 rounded-xl bg-gradient-to-r from-emerald-50/70 via-slate-50 to-white border border-emerald-200 flex flex-col md:flex-row md:items-center justify-between gap-3">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-black text-emerald-900 flex items-center gap-1">
@@ -1095,14 +1212,14 @@ export default function AdminPaymentStatusPage() {
                                 <span>અત્યાર સુધી જમા રકમ:</span>
                               </span>
                               <span className="text-sm font-black text-emerald-800 tabular-nums">
-                                ₹{party.totalJama.toLocaleString("en-IN")}
+                                ₹{activeParty.totalJama.toLocaleString("en-IN")}
                               </span>
                             </div>
 
                             {/* Show previous Jama entries summary */}
-                            {party.jamaEntries.length > 0 ? (
+                            {activeParty.jamaEntries.length > 0 ? (
                               <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
-                                {party.jamaEntries.slice(0, 3).map((ent) => (
+                                {activeParty.jamaEntries.map((ent) => (
                                   <span
                                     key={ent.id}
                                     className="px-2 py-0.5 rounded-md bg-white border border-emerald-200 text-emerald-950 font-medium"
@@ -1110,11 +1227,6 @@ export default function AdminPaymentStatusPage() {
                                     📅 {ent.date}: ₹{ent.amount.toLocaleString("en-IN")} ({formatPaymentMode(ent.method)})
                                   </span>
                                 ))}
-                                {party.jamaEntries.length > 3 && (
-                                  <span className="text-slate-400">
-                                    +{party.jamaEntries.length - 3} વધુ
-                                  </span>
-                                )}
                               </div>
                             ) : (
                               <div className="text-[11px] text-slate-500 italic">
@@ -1131,16 +1243,16 @@ export default function AdminPaymentStatusPage() {
                             <div className="flex items-center justify-end gap-1.5">
                               <span
                                 className={`text-lg sm:text-xl font-black tabular-nums ${
-                                  party.netRemaining === 0 ? "text-emerald-700" : "text-rose-700"
+                                  activeParty.netRemaining === 0 ? "text-emerald-700" : "text-rose-700"
                                 }`}
                               >
-                                ₹{party.netRemaining.toLocaleString("en-IN")}
+                                ₹{activeParty.netRemaining.toLocaleString("en-IN")}
                               </span>
-                              {party.netRemaining === 0 ? (
+                              {activeParty.netRemaining === 0 ? (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
-                                  ✓ ચુકતે
+                                  ✓ પૂર્ણ ચુકતે
                                 </span>
-                              ) : party.totalJama > 0 ? (
+                              ) : activeParty.totalJama > 0 ? (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
                                   આંશિક જમા
                                 </span>
@@ -1151,17 +1263,22 @@ export default function AdminPaymentStatusPage() {
                               )}
                             </div>
                             <span className="text-[10px] text-slate-400 font-mono">
-                              ₹{party.net.toLocaleString("en-IN")} - ₹{party.totalJama.toLocaleString("en-IN")}
+                              ₹{activeParty.net.toLocaleString("en-IN")} - ₹{activeParty.totalJama.toLocaleString("en-IN")}
                             </span>
                           </div>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  ) : (
+                    <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center text-xs text-slate-400">
+                      ડાબી બાજુની યાદીમાંથી કોઈપણ એક પાર્ટી પસંદ કરો (Select a party).
+                    </div>
+                  )}
+                </div>
               </div>
             )}
-          </div>
+
+</div>
         )}
 
         {/* ========================================================================= */}
