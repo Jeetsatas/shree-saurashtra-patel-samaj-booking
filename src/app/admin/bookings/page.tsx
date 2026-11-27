@@ -260,8 +260,11 @@ function BookingsManagementContent() {
   const bookingsRefresh = useRef<Promise<void> | null>(null);
   const facilitiesRefresh = useRef<Promise<void> | null>(null);
 
-  // Senior-Friendly Delete Modal State
+  // Senior-Friendly Delete Modal State with Smart Delete (Party & Mobile Auto-Detection)
   const [bookingToDelete, setBookingToDelete] = useState<any | null>(null);
+  const [relatedDeleteBookings, setRelatedDeleteBookings] = useState<any[]>([]);
+  const [deleteMode, setDeleteMode] = useState<"SINGLE" | "SMART_ALL">("SMART_ALL");
+  const [isDeletingBooking, setIsDeletingBooking] = useState(false);
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
@@ -1516,33 +1519,67 @@ function BookingsManagementContent() {
       alert("Only the Super Admin is authorized to cancel or delete bookings.");
       return;
     }
+
+    // Smart Matching: find all other bookings by this party (same customer name or phone)
+    const cleanPhone = b.customerPhone?.replace(/\D/g, "") || "";
+    const cleanName = b.customerName?.trim().toLowerCase() || "";
+
+    const related = bookings.filter((other) => {
+      if (other.id === b.id) return false;
+      const oPhone = other.customerPhone?.replace(/\D/g, "") || "";
+      const oName = other.customerName?.trim().toLowerCase() || "";
+      const phoneMatches = cleanPhone && oPhone && cleanPhone === oPhone;
+      const nameMatches = cleanName && oName && cleanName === oName;
+      return Boolean(phoneMatches || nameMatches);
+    });
+
     setBookingToDelete(b);
+    setRelatedDeleteBookings(related);
+    // If related bookings exist, default to SMART_ALL (smart delete) for fast convenience, or user can toggle to SINGLE (manual delete)
+    setDeleteMode(related.length > 0 ? "SMART_ALL" : "SINGLE");
   };
 
-  const confirmDeleteBooking = async (id: string) => {
-    // Optimistic instant removal: row disappears in 0ms without waiting for network
+  const confirmDeleteBooking = async (id?: string) => {
+    if (!bookingToDelete && !id) return;
+    setIsDeletingBooking(true);
+
+    const targetBaseId = id || bookingToDelete.id;
+    const idsToDelete =
+      deleteMode === "SMART_ALL" && relatedDeleteBookings.length > 0
+        ? Array.from(new Set([targetBaseId, ...relatedDeleteBookings.map((r) => r.id)]))
+        : [targetBaseId];
+
+    // Optimistic instant removal: rows disappear in 0ms without waiting for network
     const previousBookings = [...bookings];
-    setBookings((prev) => prev.filter((b) => b.id !== id));
-    if (detailBooking?.id === id) {
+    setBookings((prev) => prev.filter((b) => !idsToDelete.includes(b.id)));
+    if (detailBooking && idsToDelete.includes(detailBooking.id)) {
       setDetailBooking(null);
     }
     setBookingToDelete(null);
+    setRelatedDeleteBookings([]);
 
     try {
-      const res = await fetch(`/api/bookings?id=${id}`, { method: "DELETE" });
+      const res = await fetch("/api/bookings", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: idsToDelete }),
+      });
       if (!res.ok) {
         const err = await res.json();
         // Revert on failure
         setBookings(previousBookings);
-        alert(err.error || "Failed to delete booking");
+        alert(err.error || "Failed to delete booking(s)");
       } else {
+        clearAdminClientCache();
         refreshBookings();
       }
     } catch (err) {
       // Revert on network failure
       setBookings(previousBookings);
       console.error(err);
-      alert("Network error: Could not delete booking.");
+      alert("Network error: Could not delete booking(s).");
+    } finally {
+      setIsDeletingBooking(false);
     }
   };
 
@@ -2547,6 +2584,20 @@ function BookingsManagementContent() {
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200">
+                {isSuperAdmin && (
+                  <button
+                    onClick={() => {
+                      const target = detailBooking;
+                      setDetailBooking(null);
+                      handleDeleteClick(target);
+                    }}
+                    title="આ બુકિંગ રદ અને ડીલીટ કરો (Cancel & Smart Delete)"
+                    className="bg-rose-50 border border-rose-200 text-rose-800 hover:bg-rose-100 active:scale-[0.98] text-xs font-bold px-3 py-2 rounded-xl flex items-center shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-1 text-rose-600" />
+                    રદ કરો (Delete)
+                  </button>
+                )}
                 {isSuperAdmin && (
                   <button
                     onClick={() => {
@@ -4598,10 +4649,10 @@ function BookingsManagementContent() {
           </div>
         </div>
       )}
-      {/* Senior-Friendly Delete Confirmation Modal */}
+      {/* Senior-Friendly Delete Confirmation Modal with Smart Delete (Party Matching) */}
       {bookingToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl border-2 border-red-200 space-y-5 text-center">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border-2 border-red-200 space-y-5 text-center">
             {/* Warning Icon */}
             <div className="w-16 h-16 sm:w-20 sm:h-20 bg-red-100 text-red-700 rounded-3xl flex items-center justify-center mx-auto shadow-inner border border-red-200">
               <Trash2 className="w-8 h-8 sm:w-10 sm:h-10 text-red-700 stroke-[2.2]" />
@@ -4609,51 +4660,197 @@ function BookingsManagementContent() {
 
             <div className="space-y-1.5">
               <span className="text-xs sm:text-sm font-extrabold text-red-800 uppercase tracking-wider bg-red-50 px-3 py-1 rounded-full border border-red-200 inline-block">
-                બુકિંગ રદ કરવાની ખાતરી (Cancel Booking)
+                બુકિંગ રદ કરવાની ખાતરી (Cancel & Delete Booking)
               </span>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-tight pt-1">
                 શું તમે આ બુકિંગ રદ કરવા માંગો છો?
               </h2>
               <p className="text-sm sm:text-base font-semibold text-slate-600">
-                Cancel Booking for <span className="font-extrabold text-slate-950 underline decoration-red-400">{bookingToDelete.customerName}</span>?
+                Cancel Booking for{" "}
+                <span className="font-extrabold text-slate-950 underline decoration-red-400">
+                  {bookingToDelete.customerName}
+                </span>{" "}
+                ({bookingToDelete.customerPhone})?
               </p>
             </div>
 
-            {/* High-Contrast Info Card for Seniors */}
-            <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-left space-y-2 text-sm sm:text-base">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-semibold text-xs sm:text-sm">બુકિંગ નંબર (No):</span>
-                <span className="font-mono font-black text-slate-900 text-sm sm:text-base">{bookingToDelete.bookingNumber}</span>
+            {/* Smart Linking & Delete Options if Multiple Bookings Belong to this Party */}
+            {relatedDeleteBookings.length > 0 ? (
+              <div className="space-y-3 text-left">
+                {/* Smart Linking Banner */}
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl p-4 space-y-3 shadow-xs">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="w-7 h-7 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-sm shadow-2xs">
+                        ⚡
+                      </span>
+                      <div>
+                        <span className="font-black text-amber-950 text-xs sm:text-sm block">
+                          સ્માર્ટ લિંકિંગ: આ અરજદારના અન્ય {relatedDeleteBookings.length} સંબંધિત બુકિંગ્સ શોધાયા!
+                        </span>
+                        <span className="text-[10px] text-amber-800 font-semibold block">
+                          આ જ અરજદાર / ફોન નંબર ({bookingToDelete.customerPhone}) સાથે જોડાયેલા કુલ {relatedDeleteBookings.length + 1} બુકિંગ્સ છે.
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-black bg-amber-200 text-amber-900 px-2.5 py-1 rounded-full border border-amber-300">
+                      કુલ {relatedDeleteBookings.length + 1} બુકિંગ્સ
+                    </span>
+                  </div>
+
+                  {/* Mode Selector: Smart Delete vs Manual Delete */}
+                  <div className="space-y-2 pt-1">
+                    {/* Option 1: Smart Delete All */}
+                    <label
+                      onClick={() => setDeleteMode("SMART_ALL")}
+                      className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition shadow-2xs ${
+                        deleteMode === "SMART_ALL"
+                          ? "bg-red-50/90 border-red-500 ring-2 ring-red-400/40"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="deleteMode"
+                        checked={deleteMode === "SMART_ALL"}
+                        onChange={() => setDeleteMode("SMART_ALL")}
+                        className="w-5 h-5 text-red-600 mt-0.5 focus:ring-red-500 cursor-pointer shrink-0"
+                      />
+                      <div className="text-xs">
+                        <div className="flex items-center gap-1.5 font-black text-slate-950">
+                          <span>⚡ સ્માર્ટ ડીલીટ (Smart Delete)</span>
+                          <span className="text-[9px] px-1.5 py-0.2 bg-red-100 text-red-800 font-bold rounded-full">
+                            સૂચિત
+                          </span>
+                        </div>
+                        <span className="font-bold text-red-900 block mt-0.5">
+                          આ અરજદારના તમામ {relatedDeleteBookings.length + 1} બુકિંગ્સ એકસાથે રદ કરો
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium block">
+                          (એક-એક કરીને ડિલીટ કરવાની જરૂર નથી — એક જ ક્લિકથી આ પાર્ટીના તમામ બુકિંગ્સ રદ થઈ સ્લોટ્સ ખાલી થશે)
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* Option 2: Manual Single Delete */}
+                    <label
+                      onClick={() => setDeleteMode("SINGLE")}
+                      className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition shadow-2xs ${
+                        deleteMode === "SINGLE"
+                          ? "bg-slate-100/90 border-slate-600 ring-2 ring-slate-400/40"
+                          : "bg-white border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="deleteMode"
+                        checked={deleteMode === "SINGLE"}
+                        onChange={() => setDeleteMode("SINGLE")}
+                        className="w-5 h-5 text-slate-700 mt-0.5 focus:ring-slate-500 cursor-pointer shrink-0"
+                      />
+                      <div className="text-xs">
+                        <span className="font-black text-slate-950 block">
+                          🗑️ મેન્યુઅલ ડીલીટ (Manual Single Delete)
+                        </span>
+                        <span className="font-bold text-slate-700 block mt-0.5">
+                          માત્ર આ એક જ બુકિંગ (#{bookingToDelete.bookingNumber}) રદ કરો
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium block">
+                          (બાકીના અન્ય {relatedDeleteBookings.length} બુકિંગ્સ સુરક્ષિત રહેશે)
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Chips of Related Bookings */}
+                  <div className="space-y-1 pt-1">
+                    <span className="text-[10px] font-bold text-amber-900 uppercase tracking-wider block">
+                      {deleteMode === "SMART_ALL"
+                        ? `આ તમામ ${relatedDeleteBookings.length + 1} બુકિંગ્સ રદ થશે:`
+                        : "સંબંધિત અન્ય બુકિંગ નંબરો (યથાવત રહેશે):"}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      <span className="text-[10px] font-mono font-bold text-red-950 bg-white border border-red-300 px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-600" />
+                        <span>{bookingToDelete.bookingNumber}</span>
+                        <span className="font-sans font-semibold text-red-700">
+                          ({bookingToDelete.facilityName || bookingToDelete.facility?.name || "Facility"} • હાલનું)
+                        </span>
+                      </span>
+                      {relatedDeleteBookings.map((rb: any) => (
+                        <span
+                          key={rb.id}
+                          className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg shadow-2xs flex items-center gap-1 bg-white border ${
+                            deleteMode === "SMART_ALL"
+                              ? "text-red-900 border-red-200"
+                              : "text-slate-700 border-slate-200"
+                          }`}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              deleteMode === "SMART_ALL" ? "bg-red-500" : "bg-slate-400"
+                            }`}
+                          />
+                          <span>{rb.bookingNumber}</span>
+                          <span className="font-sans font-normal text-slate-600">
+                            ({rb.facility?.name || rb.facilityName || "Facility"} •{" "}
+                            {new Date(rb.startDate).toLocaleDateString("en-IN", {
+                              day: "numeric",
+                              month: "short",
+                            })}
+                            )
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-semibold text-xs sm:text-sm">સુવિધા (Facility):</span>
-                <span className="font-bold text-slate-900 text-right max-w-[240px] truncate">{bookingToDelete.facilityName}</span>
+            ) : (
+              /* Single Booking Card when no related bookings exist */
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-left space-y-2 text-sm sm:text-base">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                  <span className="text-slate-500 font-semibold text-xs sm:text-sm">બુકિંગ નંબર (No):</span>
+                  <span className="font-mono font-black text-slate-900 text-sm sm:text-base">
+                    {bookingToDelete.bookingNumber}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                  <span className="text-slate-500 font-semibold text-xs sm:text-sm">સુવિધા (Facility):</span>
+                  <span className="font-bold text-slate-900 text-right max-w-[240px] truncate">
+                    {bookingToDelete.facilityName || bookingToDelete.facility?.name || "Facility"}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                  <span className="text-slate-500 font-semibold text-xs sm:text-sm">તારીખ (Event Date):</span>
+                  <span className="font-black text-red-950">
+                    {new Date(bookingToDelete.startDate).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-semibold text-xs sm:text-sm">મોબાઇલ (Phone):</span>
+                  <span className="font-mono font-bold text-slate-900">{bookingToDelete.customerPhone}</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-                <span className="text-slate-500 font-semibold text-xs sm:text-sm">તારીખ (Event Date):</span>
-                <span className="font-black text-red-950">
-                  {new Date(bookingToDelete.startDate).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-semibold text-xs sm:text-sm">મોબાઇલ (Phone):</span>
-                <span className="font-mono font-bold text-slate-900">{bookingToDelete.customerPhone}</span>
-              </div>
-            </div>
+            )}
 
             <p className="text-xs text-slate-500 font-medium">
-              નોંધ: રદ કર્યા પછી આ તારીખ ફરીથી બીજા લોકો માટે ખાલી (Open) થઈ જશે.
+              નોંધ: રદ કર્યા પછી પસંદ કરેલ તારીખો ફરીથી બીજા લોકો માટે ખાલી (Open) થઈ જશે.
             </p>
 
             {/* Big Chunky Action Buttons for Elders */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <button
                 type="button"
-                onClick={() => setBookingToDelete(null)}
+                disabled={isDeletingBooking}
+                onClick={() => {
+                  setBookingToDelete(null);
+                  setRelatedDeleteBookings([]);
+                }}
                 className="w-full py-3.5 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-extrabold text-sm sm:text-base shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer min-h-[52px]"
               >
                 <CheckCircle className="w-5 h-5 text-emerald-200" />
@@ -4662,11 +4859,25 @@ function BookingsManagementContent() {
 
               <button
                 type="button"
-                onClick={() => confirmDeleteBooking(bookingToDelete.id)}
+                disabled={isDeletingBooking}
+                onClick={() => confirmDeleteBooking()}
                 className="w-full py-3.5 px-4 rounded-2xl bg-red-700 hover:bg-red-800 active:bg-red-900 text-white font-extrabold text-sm sm:text-base shadow-lg transition flex items-center justify-center space-x-2 cursor-pointer min-h-[52px]"
               >
-                <Trash2 className="w-5 h-5 text-red-200" />
-                <span>રદ કરો (Yes, Delete)</span>
+                {isDeletingBooking ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>રદ થઈ રહ્યું છે...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-5 h-5 text-red-200" />
+                    <span>
+                      {deleteMode === "SMART_ALL" && relatedDeleteBookings.length > 0
+                        ? `⚡ તમામ ${relatedDeleteBookings.length + 1} બુકિંગ્સ રદ કરો (Smart Delete)`
+                        : "રદ કરો (Yes, Delete)"}
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </div>
