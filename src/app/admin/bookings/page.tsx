@@ -17,6 +17,8 @@ import {
   isGroundFloorHall,
   getBookingGroundHallOption,
   getStandardFacilityRate,
+  groupBookingsByParty,
+  PartyBookingGroup,
 } from "@/lib/slotUtils";
 import { InteractiveClockModal } from "@/components/InteractiveClockModal";
 import {
@@ -42,6 +44,8 @@ import {
   ArrowUpDown,
   Tag,
   User,
+  Users,
+  List,
   Info,
   Check,
   X,
@@ -291,6 +295,9 @@ function BookingsManagementContent() {
   // Pagination State (Fast 25/50/100 records per page to eliminate DOM lag)
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(25);
+
+  // View Format: PARTY_WISE (Default - proper party format with facilities & 4-metric strip) or FLAT (raw individual rows)
+  const [viewMode, setViewMode] = useState<"PARTY_WISE" | "FLAT">("PARTY_WISE");
 
   // Open and Close Modal Helpers with URL Cleanup
   const openNewBookingModal = (dateParam?: string | null, facParam?: string | null) => {
@@ -1812,36 +1819,92 @@ function BookingsManagementContent() {
     return true;
   });
 
+  // Group all filtered bookings into Parties
+  const partyGroups: PartyBookingGroup[] = useMemo(() => {
+    return groupBookingsByParty(filteredBookings);
+  }, [filteredBookings]);
+
+  // Sort Party Groups
+  const sortedPartyGroups = useMemo(() => {
+    return [...partyGroups].sort((a, b) => {
+      if (sortBy === "NEWEST") {
+        const aTime = Math.max(...a.bookings.map((b) => new Date(b.createdAt || b.startDate).getTime()));
+        const bTime = Math.max(...b.bookings.map((b) => new Date(b.createdAt || b.startDate).getTime()));
+        return bTime - aTime;
+      }
+      if (sortBy === "EVENT_DATE_ASC") {
+        return new Date(a.dateRange.startDate).getTime() - new Date(b.dateRange.startDate).getTime();
+      }
+      if (sortBy === "EVENT_DATE_DESC") {
+        return new Date(b.dateRange.startDate).getTime() - new Date(a.dateRange.startDate).getTime();
+      }
+      if (sortBy === "AMOUNT_HIGH") {
+        return b.net - a.net;
+      }
+      if (sortBy === "AMOUNT_LOW") {
+        return a.net - b.net;
+      }
+      return 0;
+    });
+  }, [partyGroups, sortBy]);
+
   // Sorting
-  const sortedBookings = [...filteredBookings].sort((a, b) => {
-    if (sortBy === "NEWEST") {
-      return new Date(b.createdAt || b.startDate).getTime() - new Date(a.createdAt || a.startDate).getTime();
-    }
-    if (sortBy === "EVENT_DATE_ASC") {
-      return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
-    }
-    if (sortBy === "EVENT_DATE_DESC") {
-      return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
-    }
-    if (sortBy === "AMOUNT_HIGH") {
-      return (b.totalAmount || 0) - (a.totalAmount || 0);
-    }
-    if (sortBy === "AMOUNT_LOW") {
-      return (a.totalAmount || 0) - (b.totalAmount || 0);
-    }
-    return 0;
-  });
+  const sortedBookings = useMemo(() => {
+    return [...filteredBookings].sort((a, b) => {
+      if (sortBy === "NEWEST") {
+        return new Date(b.createdAt || b.startDate).getTime() - new Date(a.createdAt || a.startDate).getTime();
+      }
+      if (sortBy === "EVENT_DATE_ASC") {
+        return new Date(a.startDate).getTime() - new Date(b.startDate).getTime();
+      }
+      if (sortBy === "EVENT_DATE_DESC") {
+        return new Date(b.startDate).getTime() - new Date(a.startDate).getTime();
+      }
+      if (sortBy === "AMOUNT_HIGH") {
+        return (b.totalAmount || 0) - (a.totalAmount || 0);
+      }
+      if (sortBy === "AMOUNT_LOW") {
+        return (a.totalAmount || 0) - (b.totalAmount || 0);
+      }
+      return 0;
+    });
+  }, [filteredBookings, sortBy]);
 
   // Reset pagination to page 1 whenever any filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, categoryFilter, facilityFilter, statusFilter, startDateFilter, endDateFilter, sortBy]);
+  }, [searchTerm, categoryFilter, facilityFilter, statusFilter, startDateFilter, endDateFilter, sortBy, viewMode]);
 
-  const totalPages = Math.max(1, Math.ceil(sortedBookings.length / pageSize));
+  const totalPartyPages = Math.max(1, Math.ceil(sortedPartyGroups.length / pageSize));
+  const totalFlatPages = Math.max(1, Math.ceil(sortedBookings.length / pageSize));
+  const totalPages = viewMode === "PARTY_WISE" ? totalPartyPages : totalFlatPages;
+
   const startIndex = (currentPage - 1) * pageSize;
+  const paginatedPartyGroups = useMemo(() => {
+    return sortedPartyGroups.slice(startIndex, startIndex + pageSize);
+  }, [sortedPartyGroups, startIndex, pageSize]);
+
   const paginatedBookings = useMemo(() => {
     return sortedBookings.slice(startIndex, startIndex + pageSize);
   }, [sortedBookings, startIndex, pageSize]);
+
+  // Helper to toggle selecting a whole party's bookings
+  const toggleSelectParty = (bookingIds: string[]) => {
+    if (bookingIds.every((id) => selectedBookingIds.includes(id))) {
+      setSelectedBookingIds((prev) => prev.filter((id) => !bookingIds.includes(id)));
+    } else {
+      setSelectedBookingIds((prev) => Array.from(new Set([...prev, ...bookingIds])));
+    }
+  };
+
+  const allCurrentIds = useMemo(() => {
+    if (viewMode === "PARTY_WISE") {
+      return paginatedPartyGroups.flatMap((g) => g.bookingIds);
+    }
+    return paginatedBookings.map((b) => b.id);
+  }, [viewMode, paginatedPartyGroups, paginatedBookings]);
+
+  const isAllSelected = allCurrentIds.length > 0 && allCurrentIds.every((id) => selectedBookingIds.includes(id));
 
   const selectedFacilityObj = facilities.find(
     (f) => f.id === (activeDateFacilityIds[0] || formData.facilityId)
@@ -2142,10 +2205,390 @@ function BookingsManagementContent() {
         </div>
       )}
 
-      {/* Bookings Container: Responsive Dual-View (Cards for Mobile/Tablet, Full Table for Desktop) */}
+      {/* Bookings Container: Dual View (Party-Wise Format & Individual Flat Rows) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {/* 1. Desktop & iPad Landscape Table View (md+) */}
-        <div className="hidden md:block overflow-x-auto">
+        {/* View Switcher Header Bar */}
+        <div className="p-3.5 sm:px-6 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex items-center bg-slate-200/80 p-1 rounded-xl border border-slate-300/80 text-xs font-bold shadow-inner">
+            <button
+              type="button"
+              onClick={() => setViewMode("PARTY_WISE")}
+              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === "PARTY_WISE"
+                  ? "bg-white text-red-900 shadow-sm border border-slate-300 font-black"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>👥 પાર્ટી વાઇઝ વિવરણ (Party-Wise Format)</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-red-100 text-red-800 ml-1">
+                {sortedPartyGroups.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("FLAT")}
+              className={`px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === "FLAT"
+                  ? "bg-white text-slate-900 shadow-sm border border-slate-300 font-black"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>📄 સિંગલ સ્લોટ્સ યાદી (Individual Rows)</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 ml-1">
+                {sortedBookings.length}
+              </span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 text-xs text-slate-600 font-medium">
+            {isSuperAdmin && (
+              <label className="flex items-center gap-1.5 cursor-pointer select-none font-bold text-slate-700 hover:text-slate-900">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={() => toggleSelectAll(allCurrentIds)}
+                  className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer"
+                />
+                <span>બધા પસંદ કરો (Select All)</span>
+              </label>
+            )}
+            <span className="hidden sm:inline text-slate-300">|</span>
+            <span className="font-semibold text-slate-700">
+              {viewMode === "PARTY_WISE"
+                ? `કુલ ${sortedPartyGroups.length} પાર્ટીઓ (${sortedBookings.length} સુવિધા બુકિંગ્સ)`
+                : `કુલ ${sortedBookings.length} સુવિધા બુકિંગ્સ`}
+            </span>
+          </div>
+        </div>
+
+        {/* VIEW 1: PARTY-WISE GROUPED VIEW (User Preferred Format) */}
+        {viewMode === "PARTY_WISE" && (
+          <div className="p-4 sm:p-5 space-y-4 bg-slate-100/50">
+            {paginatedPartyGroups.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 text-xs">
+                તમારા ફિલ્ટર્સ સાથે મેળ ખાતા કોઈ પાર્ટી બુકિંગ રેકોર્ડ મળેલ નથી (No party booking records found).
+              </div>
+            ) : (
+              paginatedPartyGroups.map((party) => {
+                const isPartySelected =
+                  party.bookingIds.length > 0 &&
+                  party.bookingIds.every((id) => selectedBookingIds.includes(id));
+
+                const partyStatus = party.bookings.every((b) => b.status === "CONFIRMED")
+                  ? "CONFIRMED"
+                  : party.bookings.some((b) => b.status === "CANCELLED")
+                  ? "CANCELLED"
+                  : party.bookings[0]?.status || "CONFIRMED";
+
+                return (
+                  <div
+                    key={party.partyKey}
+                    className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden shadow-2xs hover:shadow-md ${
+                      isPartySelected
+                        ? "border-red-400 ring-2 ring-red-100 bg-red-50/20"
+                        : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    {/* 1. TOP HEADER: Checkbox, Booking Slips, Status & Quick Action Buttons */}
+                    <div className="bg-slate-50/90 px-4 sm:px-5 py-3 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        {isSuperAdmin && (
+                          <input
+                            type="checkbox"
+                            checked={isPartySelected}
+                            onChange={() => toggleSelectParty(party.bookingIds)}
+                            className="w-4 h-4 rounded text-red-800 focus:ring-red-700 cursor-pointer"
+                            title="આ પાર્ટીના તમામ બુકિંગ્સ પસંદ કરો"
+                          />
+                        )}
+
+                        {/* Booking Slips Badges */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                            બુકિંગ સ્લિપ:
+                          </span>
+                          {party.bookings.map((b) => (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => setDetailBooking(b)}
+                              className="text-xs font-mono font-bold text-blue-700 hover:text-blue-900 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 px-2 py-0.5 rounded-md transition cursor-pointer"
+                              title="વિગત જુઓ"
+                            >
+                              {b.bookingNumber}
+                            </button>
+                          ))}
+                        </div>
+
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-200/80 text-slate-700">
+                          {party.bookings.length} સુવિધા સ્લોટ્સ
+                        </span>
+                      </div>
+
+                      {/* Header Right: Status & Action Buttons */}
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[11px] font-black px-2.5 py-1 rounded-full border ${
+                            partyStatus === "CONFIRMED"
+                              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                              : partyStatus === "CANCELLED"
+                              ? "bg-rose-50 text-rose-800 border-rose-200"
+                              : "bg-amber-50 text-amber-800 border-amber-200"
+                          }`}
+                        >
+                          {partyStatus}
+                        </span>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setDetailBooking(party.bookings[0])}
+                            title="વિગત જુઓ (View Full Details)"
+                            className="p-1.5 rounded-lg text-slate-600 hover:text-blue-700 bg-white hover:bg-blue-50 border border-slate-200 shadow-2xs transition cursor-pointer"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+
+                          <Link
+                            href={`/admin/bookings/${party.bookings[0].id}/receipt`}
+                            target="_blank"
+                            title="સત્તાવાર સ્લિપ પ્રિન્ટ કરો (Print Official Slip)"
+                            className="p-1.5 rounded-lg text-slate-600 hover:text-emerald-700 bg-white hover:bg-emerald-50 border border-slate-200 shadow-2xs transition cursor-pointer"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </Link>
+
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(party.bookings[0])}
+                              title="પાર્ટી અને બુકિંગ વિગતો સુધારો (Smart Edit)"
+                              className="p-1.5 rounded-lg text-slate-600 hover:text-amber-700 bg-white hover:bg-amber-50 border border-slate-200 shadow-2xs transition cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-amber-600" />
+                            </button>
+                          )}
+
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteClick(party.bookings[0])}
+                              title="આ પાર્ટીના તમામ બુકિંગ્સ રદ અને ડીલીટ કરો (Smart Delete)"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 bg-white hover:bg-rose-50 border border-slate-200 shadow-2xs transition cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. PARTY INFO SECTION: Name, Number, Other Details */}
+                    <div className="p-4 sm:px-5 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                            {party.customerName}
+                          </h3>
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-red-50 text-red-800 border border-red-200">
+                            💍 {party.eventType}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1 text-xs text-slate-600">
+                          <div className="flex items-center gap-1 font-mono font-bold text-slate-800">
+                            <Phone className="w-3.5 h-3.5 text-red-700" />
+                            <a href={`tel:${party.customerPhone}`} className="hover:underline">
+                              {party.customerPhone}
+                            </a>
+                          </div>
+                          <div className="flex items-center gap-1 text-slate-500 font-medium">
+                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                            <span>{party.dateRange.label}</span>
+                          </div>
+                          {party.customerAadhar && (
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              આધાર: {party.customerAadhar}
+                            </div>
+                          )}
+                          {party.customerAddress && (
+                            <div className="text-[11px] text-slate-500 truncate max-w-xs">
+                              📍 {party.customerAddress}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {party.customerPhone && (
+                        <a
+                          href={`tel:${party.customerPhone}`}
+                          className="self-start md:self-center inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-900 border border-red-200 text-xs font-black transition shrink-0"
+                        >
+                          <Phone className="w-3 h-3 text-red-700" />
+                          <span>કૉલ કરો</span>
+                        </a>
+                      )}
+                    </div>
+
+                    {/* 3. BOOKED FACILITIES SECTION: Facility, Dates, Total Time Booked, Base Rent */}
+                    <div className="p-4 sm:px-5 bg-slate-50/40">
+                      <div className="text-xs font-black text-slate-700 uppercase tracking-wider mb-2 flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Building className="w-3.5 h-3.5 text-slate-500" />
+                          <span>બુક કરેલ સુવિધાઓ અને સ્લોટ્સ (Booked Facilities & Timings):</span>
+                        </span>
+                        <span className="text-[11px] font-bold text-slate-500">
+                          કુલ {party.bookings.length} સુવિધાઓ
+                        </span>
+                      </div>
+
+                      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-2xs">
+                        <table className="w-full text-left text-xs">
+                          <thead>
+                            <tr className="bg-slate-100/80 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                              <th className="py-2.5 px-3">સુવિધા (Facility)</th>
+                              <th className="py-2.5 px-3">બુકિંગ તારીખ (Dates)</th>
+                              <th className="py-2.5 px-3">સમયગાળો (Total Time Booked)</th>
+                              <th className="py-2.5 px-3 text-right">મૂળ ભાડું (Base Rent)</th>
+                              <th className="py-2.5 px-3 text-right">ક્રિયા (Action)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {party.bookings.map((b) => (
+                              <tr key={b.id} className="hover:bg-slate-50/70 transition">
+                                <td className="py-2.5 px-3">
+                                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                                    <span>{b.facility?.name}</span>
+                                    {isGroundFloorHall(b.facility) && (
+                                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded border ${
+                                        getBookingGroundHallOption(b) === "AC"
+                                          ? "bg-blue-50 text-blue-700 border-blue-200"
+                                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                      }`}>
+                                        {getBookingGroundHallOption(b) === "AC" ? "AC" : "Non-AC"}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] font-mono text-amber-800">
+                                    {b.bookingNumber} {b.facility?.code ? `• ${b.facility.code}` : ""}
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 whitespace-nowrap font-medium text-slate-700">
+                                  📅 {new Date(b.startDate).toLocaleDateString("en-IN", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </td>
+                                <td className="py-2.5 px-3">
+                                  <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md inline-block text-[11px]">
+                                    ⏱️ {b.slot}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-mono font-black text-slate-900 whitespace-nowrap tabular-nums">
+                                  ₹{(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-2.5 px-3 text-right whitespace-nowrap space-x-1">
+                                  <Link
+                                    href={`/admin/bookings/${b.id}/receipt`}
+                                    target="_blank"
+                                    className="px-2 py-1 rounded bg-slate-50 hover:bg-emerald-50 text-slate-600 hover:text-emerald-700 border border-slate-200 text-[10px] font-bold inline-flex items-center gap-0.5 transition cursor-pointer"
+                                    title="સ્લિપ પ્રિન્ટ કરો"
+                                  >
+                                    <Printer className="w-2.5 h-2.5" />
+                                    <span>Slip</span>
+                                  </Link>
+                                  {isSuperAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEdit(b)}
+                                      className="px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold inline-flex items-center gap-0.5 transition cursor-pointer"
+                                      title="આ સુવિધા અથવા રકમ સુધારો"
+                                    >
+                                      <Edit3 className="w-2.5 h-2.5 text-amber-700" />
+                                      <span>Edit</span>
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* 4. FINANCIAL SUMMARY GRID: Total, Discount, Deposit, Net */}
+                    <div className="p-4 sm:px-5 bg-white border-t border-slate-200">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-slate-50/90 border border-amber-200">
+                        {/* 1. Total Base Rent */}
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            ૧. કુલ મૂળ રકમ (Total)
+                          </span>
+                          <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums block mt-0.5">
+                            ₹{party.total.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-slate-400 block mt-0.5">
+                            {party.bookings.length} સુવિધા સ્લોટ્સ
+                          </span>
+                        </div>
+
+                        {/* 2. Total with Discount */}
+                        <div className="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                            ૨. ડિસ્કાઉન્ટ બાદ ભાડું
+                          </span>
+                          <span className="text-base sm:text-lg font-black text-blue-900 tabular-nums block mt-0.5">
+                            ₹{party.totalWithDiscount.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-blue-600 block mt-0.5">
+                            {party.discountAmount > 0
+                              ? `-₹${party.discountAmount.toLocaleString("en-IN")} ડિસ્કાઉન્ટ`
+                              : "૦% ડિસ્કાઉન્ટ"}
+                          </span>
+                        </div>
+
+                        {/* 3. Caution Deposit (BEFORE NET!) */}
+                        <div className="bg-amber-50/90 p-2.5 rounded-xl border-2 border-amber-300 shadow-2xs">
+                          <span className="text-[10px] font-black text-amber-900 uppercase tracking-wider block">
+                            ૩. 🛡️ ડિપોઝિટ (Deposit)
+                          </span>
+                          <span className="text-base sm:text-lg font-black text-amber-950 tabular-nums block mt-0.5">
+                            ₹{party.deposit.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-amber-700 font-semibold block mt-0.5">
+                            રીફંડેબલ ડિપોઝિટ
+                          </span>
+                        </div>
+
+                        {/* 4. Net (After Deposit) */}
+                        <div className="bg-gradient-to-br from-amber-100 via-amber-200/80 to-amber-300/60 p-2.5 rounded-xl border-2 border-amber-400 shadow-xs">
+                          <span className="text-[10px] font-black text-amber-950 uppercase tracking-wider block">
+                            ૪. ચૂકવવાપાત્ર નેટ (Net)
+                          </span>
+                          <span className="text-base sm:text-lg font-black text-red-950 tabular-nums block mt-0.5">
+                            ₹{party.net.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-amber-900 font-bold block mt-0.5">
+                            ભાડું + ડિપોઝિટ
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* VIEW 2: FLAT SINGLE-SLOT TABLE VIEW (Original Granular View) */}
+        {viewMode === "FLAT" && (
+          <>
+            {/* 1. Desktop & iPad Landscape Table View (md+) */}
+            <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
@@ -2484,9 +2927,11 @@ function BookingsManagementContent() {
             })
           )}
         </div>
+          </>
+        )}
 
-        {/* Pagination Controls (Fast 25/50/100/All Records Slicing) */}
-        {sortedBookings.length > 0 && (
+        {/* Pagination Controls (Adapts to Party-Wise or Flat Mode) */}
+        {(viewMode === "PARTY_WISE" ? sortedPartyGroups.length : sortedBookings.length) > 0 && (
           <div className="bg-slate-50 border-t border-slate-200 px-4 py-3 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-xs text-slate-600">
               <span className="font-medium text-slate-500">પ્રતિ પેજ (Per Page):</span>
@@ -2505,7 +2950,15 @@ function BookingsManagementContent() {
               </select>
               <span className="text-slate-300">|</span>
               <span className="font-semibold text-slate-700">
-                {startIndex + 1} - {Math.min(startIndex + pageSize, sortedBookings.length)} of {sortedBookings.length} reservations
+                {startIndex + 1} -{" "}
+                {Math.min(
+                  startIndex + pageSize,
+                  viewMode === "PARTY_WISE" ? sortedPartyGroups.length : sortedBookings.length
+                )}{" "}
+                of{" "}
+                {viewMode === "PARTY_WISE"
+                  ? `${sortedPartyGroups.length} પાર્ટીઓ (${sortedBookings.length} બુકિંગ્સ)`
+                  : `${sortedBookings.length} reservations`}
               </span>
             </div>
 
