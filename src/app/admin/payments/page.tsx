@@ -1626,8 +1626,8 @@ export default function AdminPaymentStatusPage() {
                       </span>
                       <input
                         type="number"
-                        min="1"
-                        step="1"
+                        min="0"
+                        step="any"
                         value={jamaAmountInput}
                         onChange={(e) => setJamaAmountInput(e.target.value)}
                         placeholder="25000"

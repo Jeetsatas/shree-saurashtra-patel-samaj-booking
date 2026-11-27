@@ -2840,7 +2840,7 @@ function BookingsManagementContent() {
                       <input
                         type="number"
                         min="0"
-                        step="100"
+                        step="any"
                         required
                         value={editFormData.facilityAmount}
                         onChange={(e) => {
@@ -2868,7 +2868,7 @@ function BookingsManagementContent() {
                       <input
                         type="number"
                         min="0"
-                        step="100"
+                        step="any"
                         required
                         value={editFormData.depositAmount}
                         onChange={(e) => {

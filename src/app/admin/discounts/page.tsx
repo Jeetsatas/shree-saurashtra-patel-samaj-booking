@@ -489,7 +489,7 @@ export default function DiscountsAndServicesPage() {
                   <div className="relative">
                     <input
                       type="number"
-                      step="0.5"
+                      step="any"
                       required
                       min="0"
                       max="100"
@@ -631,7 +631,7 @@ export default function DiscountsAndServicesPage() {
                   <div className="relative">
                     <input
                       type="number"
-                      step="0.5"
+                      step="any"
                       required
                       min="0"
                       max="100"
