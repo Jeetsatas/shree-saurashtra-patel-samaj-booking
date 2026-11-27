@@ -10,6 +10,7 @@ import {
   isGroundFloorHall,
   parseJamaEntries,
   setJamaEntriesInNotes,
+  calculateEventDeposit,
 } from "@/lib/slotUtils";
 import {
   getNextAvailableBookingNumbers,
@@ -827,10 +828,41 @@ export async function PUT(req: NextRequest) {
     if (Array.isArray(jamaEntries)) {
       const targetBookings = await prisma.booking.findMany({
         where: { id: { in: targetIds } },
-        select: { id: true, notes: true, totalAmount: true, depositAmount: true },
+        include: { facility: true },
       });
 
       const totalJama = jamaEntries.reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+
+      // Automated Net Calculation for this party
+      let sumBase = 0;
+      let sumDisc = 0;
+      const facsList: any[] = [];
+      for (const tb of targetBookings) {
+        sumBase += Number(tb.facilityAmount ?? tb.totalAmount ?? 0) + Number(tb.servicesAmount ?? 0);
+        sumDisc += Number(tb.discountAmount ?? 0);
+        if (tb.facility) facsList.push(tb.facility);
+      }
+      const eventDeposit = calculateEventDeposit(facsList);
+      const partyNet = Math.max(0, sumBase - sumDisc) + eventDeposit;
+
+      // Automated status evaluation:
+      // If Net is 1 Lakh and Jama is 1 Lakh (totalJama >= partyNet) -> AUTOMATICALLY PAID!
+      // If Jama is 50k (totalJama > 0 && totalJama < partyNet) -> AUTOMATICALLY PARTIAL!
+      // If Jama is 0 -> PENDING!
+      const isAutoFullPaid = partyNet > 0 ? totalJama >= partyNet : totalJama > 0;
+      const autoStatus = isAutoFullPaid ? "PAID" : totalJama > 0 ? "PARTIAL" : "PENDING";
+
+      // If manual paymentStatus was explicitly provided by manual audit, keep it; otherwise use autoStatus
+      const finalStatus = paymentStatus || (body.isFullPaid ? "PAID" : autoStatus);
+      updateData.paymentStatus = finalStatus;
+
+      const lastEntry = jamaEntries[0] || jamaEntries[jamaEntries.length - 1];
+      if (lastEntry?.method && !updateData.paymentMethod) {
+        updateData.paymentMethod = lastEntry.method;
+      }
+      if (lastEntry?.refNo && !updateData.paymentRefNo) {
+        updateData.paymentRefNo = lastEntry.refNo;
+      }
 
       for (const tb of targetBookings) {
         const updatedNotes = setJamaEntriesInNotes(tb.notes, jamaEntries);
@@ -838,21 +870,10 @@ export async function PUT(req: NextRequest) {
           where: { id: tb.id },
           data: {
             notes: updatedNotes,
+            paymentStatus: finalStatus,
             lastUpdatedByName: user.name,
           },
         });
-      }
-
-      if (!paymentStatus) {
-        const isFullyPaid = body.isFullPaid || false;
-        updateData.paymentStatus = isFullyPaid ? "PAID" : totalJama > 0 ? "PARTIAL" : "PENDING";
-        const lastEntry = jamaEntries[jamaEntries.length - 1];
-        if (lastEntry?.method) {
-          updateData.paymentMethod = lastEntry.method;
-        }
-        if (lastEntry?.refNo) {
-          updateData.paymentRefNo = lastEntry.refNo;
-        }
       }
 
       delete updateData.notes;

@@ -49,19 +49,6 @@ import {
   calculateEventDeposit,
 } from "@/lib/slotUtils";
 
-// Helper: Check if a booking is considered fully paid
-function isBookingFullyPaid(b: any): boolean {
-  if (!b) return false;
-  const status = (b.paymentStatus || "").toUpperCase().trim();
-  return (
-    status === "PAID" ||
-    status === "PAID_FULL" ||
-    status === "PAID_CASH" ||
-    status === "PAID_ONLINE" ||
-    status === "COMPLETED"
-  );
-}
-
 // Helper: Payment status label & badge
 function getPaymentBadge(status: string) {
   const s = (status || "").toUpperCase().trim();
@@ -78,6 +65,7 @@ function getPaymentBadge(status: string) {
       badgeClass: "bg-emerald-100 text-emerald-900 border-emerald-300",
       dotColor: "#10b981",
       isPaid: true,
+      isPartial: false,
     };
   }
   if (s === "PARTIAL") {
@@ -87,14 +75,16 @@ function getPaymentBadge(status: string) {
       badgeClass: "bg-amber-100 text-amber-900 border-amber-300",
       dotColor: "#f59e0b",
       isPaid: false,
+      isPartial: true,
     };
   }
   return {
-    label: "🟡 ચુકવણી બાકી (Pending)",
+    label: "🔴 ચુકવણી બાકી (Pending)",
     shortLabel: "ચુકવણી બાકી",
     badgeClass: "bg-rose-100 text-rose-900 border-rose-300",
     dotColor: "#f43f5e",
     isPaid: false,
+    isPartial: false,
   };
 }
 
@@ -137,15 +127,20 @@ export default function AdminPaymentStatusPage() {
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>("ALL");
   const [pendingSearchQuery, setPendingSearchQuery] = useState("");
 
-  // Quick Single Booking Edit Modal
-  const [editingBooking, setEditingBooking] = useState<any | null>(null);
-  const [editStatus, setEditStatus] = useState<string>("PAID");
-  const [editMethod, setEditMethod] = useState<string>("CASH_AT_OFFICE");
-  const [editRefNo, setEditRefNo] = useState<string>("");
-  const [editNotes, setEditNotes] = useState<string>("");
-  const [savingPayment, setSavingPayment] = useState(false);
-  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>("");
-  const [saveErrorMsg, setSaveErrorMsg] = useState<string>("");
+  // MANUAL AUDIT MODAL STATE
+  const [auditTarget, setAuditTarget] = useState<{
+    booking?: any;
+    party?: PartyBookingGroup;
+    isPartyAudit: boolean;
+  } | null>(null);
+  const [manualAuditStatus, setManualAuditStatus] = useState<string>("PAID");
+  const [manualAuditMethod, setManualAuditMethod] = useState<string>("CASH_AT_OFFICE");
+  const [manualAuditRefNo, setManualAuditRefNo] = useState<string>("");
+  const [manualAuditNotes, setManualAuditNotes] = useState<string>("");
+  const [applyToAllPartyBookings, setApplyToAllPartyBookings] = useState<boolean>(true);
+  const [savingAudit, setSavingAudit] = useState(false);
+  const [auditSuccessMsg, setAuditSuccessMsg] = useState<string>("");
+  const [auditErrorMsg, setAuditErrorMsg] = useState<string>("");
 
   // JAMA MODAL (Party-wise Jama Entry Ledger)
   const [selectedPartyForJama, setSelectedPartyForJama] = useState<PartyBookingGroup | null>(null);
@@ -165,7 +160,6 @@ export default function AdminPaymentStatusPage() {
   // View Party Details Modal
   const [viewingParty, setViewingParty] = useState<PartyBookingGroup | null>(null);
 
-  const isMounted = useRef(false);
   const bookingsRefresh = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
@@ -245,17 +239,62 @@ export default function AdminPaymentStatusPage() {
     return bookingsRefresh.current;
   };
 
-  const isSuper = currentUser?.role === "SUPER_ADMIN";
-
   // Group all bookings into Parties
   const partyGroups: PartyBookingGroup[] = useMemo(() => {
     return groupBookingsByParty(bookings);
   }, [bookings]);
 
+  // Fast mapping from booking ID -> PartyBookingGroup
+  const bookingPartyMap = useMemo(() => {
+    const map = new Map<string, PartyBookingGroup>();
+    for (const g of partyGroups) {
+      for (const b of g.bookings) {
+        map.set(b.id, g);
+      }
+    }
+    return map;
+  }, [partyGroups]);
+
+  // Automated Effective Payment Status Evaluator (respects manual audit + calculates Jama automation)
+  const getBookingEffectivePaymentInfo = (b: any) => {
+    if (!b) return { status: "PENDING", isPaid: false, isPartial: false, party: null };
+    const party = bookingPartyMap.get(b.id);
+    const manualStatus = (b.paymentStatus || "").toUpperCase().trim();
+
+    // 1. If Manual Audit marked it PAID, strictly honor manual audit:
+    const isManualPaid =
+      manualStatus === "PAID" ||
+      manualStatus === "PAID_FULL" ||
+      manualStatus === "PAID_CASH" ||
+      manualStatus === "PAID_ONLINE" ||
+      manualStatus === "COMPLETED";
+
+    if (isManualPaid) {
+      return { status: "PAID", isPaid: true, isPartial: false, party };
+    }
+
+    // 2. Automated evaluation based on Party Jama Ledger:
+    if (party) {
+      // If Net is 1 Lakh and Jama is 1 Lakh (netRemaining <= 0) -> AUTOMATICALLY PAID!
+      if (party.netRemaining <= 0 && party.net > 0) {
+        return { status: "PAID", isPaid: true, isPartial: false, party };
+      }
+      // If Net is 1 Lakh and Jama is 50k (totalJama > 0) -> AUTOMATICALLY PARTIALLY PAID!
+      if (party.totalJama > 0 && party.netRemaining > 0) {
+        return { status: "PARTIAL", isPaid: false, isPartial: true, party };
+      }
+    }
+
+    if (manualStatus === "PARTIAL") {
+      return { status: "PARTIAL", isPaid: false, isPartial: true, party };
+    }
+
+    return { status: "PENDING", isPaid: false, isPartial: false, party };
+  };
+
   // Filtered party groups for the Party Ledger tab
   const filteredPartyGroups = useMemo(() => {
     return partyGroups.filter((g) => {
-      // Search Filter
       if (partySearchQuery.trim()) {
         const q = partySearchQuery.toLowerCase().trim();
         const matchesName = g.customerName.toLowerCase().includes(q);
@@ -268,7 +307,6 @@ export default function AdminPaymentStatusPage() {
         if (!matchesName && !matchesPhone && !matchesBookings) return false;
       }
 
-      // Status Filter
       if (partyStatusFilter !== "ALL") {
         if (g.paymentStatus !== partyStatusFilter) return false;
       }
@@ -324,7 +362,6 @@ export default function AdminPaymentStatusPage() {
     setJamaSuccess("");
   };
 
-  // Add Jama entry to local ledger in modal
   const handleAddJamaEntryToLedger = () => {
     const amt = Number(jamaAmountInput);
     if (!amt || isNaN(amt) || amt <= 0) {
@@ -353,16 +390,14 @@ export default function AdminPaymentStatusPage() {
     setJamaError("");
   };
 
-  // Remove Jama entry from local ledger in modal
   const handleRemoveJamaEntry = (entryId: string) => {
     setPartyJamaLedger((prev) => prev.filter((e) => e.id !== entryId));
   };
 
-  // Save all Jama entries for this Party to DB
+  // Save Jama entries with automated calendar & status sync
   const handleSavePartyJama = async () => {
     if (!selectedPartyForJama) return;
 
-    // If user filled in the input but didn't click "Add", include it automatically
     let finalLedger = [...partyJamaLedger];
     const pendingAmt = Number(jamaAmountInput);
     if (pendingAmt > 0 && jamaDateInput) {
@@ -411,6 +446,7 @@ export default function AdminPaymentStatusPage() {
         body: JSON.stringify({
           ids: selectedPartyForJama.bookingIds,
           jamaEntries: finalLedger,
+          paymentStatus: derivedStatus,
           isFullPaid,
           updateAllRelated: true,
         }),
@@ -421,16 +457,113 @@ export default function AdminPaymentStatusPage() {
         throw new Error(errData.error || "Failed to save jama entries");
       }
 
-      setJamaSuccess("જમા રકમ અને ખાતાવહી સફળતાપૂર્વક સાચવવામાં આવી છે!");
+      setJamaSuccess("જમા રકમ સાચવવામાં આવી છે અને કેલેન્ડર સ્થિતિ આપોઆપ અપડેટ થઈ ગઈ!");
       setTimeout(() => {
         setSelectedPartyForJama(null);
         refreshBookings();
-      }, 1000);
+      }, 900);
     } catch (err: any) {
       console.error("Save Jama error:", err);
       setJamaError(err.message || "Failed to save jama entries");
     } finally {
       setSavingJama(false);
+    }
+  };
+
+  // Open Manual Audit Modal
+  const handleOpenManualAuditModal = (target: { booking?: any; party?: PartyBookingGroup }) => {
+    const isParty = !target.booking && !!target.party;
+    const party = target.party || (target.booking ? bookingPartyMap.get(target.booking.id) : undefined);
+    const b = target.booking;
+
+    setAuditTarget({
+      booking: b,
+      party,
+      isPartyAudit: isParty,
+    });
+
+    const currentStatus = b ? b.paymentStatus : party ? party.paymentStatus : "PENDING";
+    setManualAuditStatus(currentStatus || "PAID");
+    setManualAuditMethod(b?.paymentMethod || party?.bookings[0]?.paymentMethod || "CASH_AT_OFFICE");
+    setManualAuditRefNo(b?.paymentRefNo || party?.bookings[0]?.paymentRefNo || "");
+    setManualAuditNotes(b?.notes ? b.notes.replace(/<!--JAMA_ENTRIES:[\s\S]*?-->/g, "").trim() : "");
+    setApplyToAllPartyBookings(true);
+    setAuditSuccessMsg("");
+    setAuditErrorMsg("");
+  };
+
+  // Save Manual Audit with instant optimistic update
+  const handleSaveManualAudit = async () => {
+    if (!auditTarget) return;
+    setSavingAudit(true);
+    setAuditErrorMsg("");
+    setAuditSuccessMsg("");
+
+    let targetIds: string[] = [];
+    if (applyToAllPartyBookings && auditTarget.party) {
+      targetIds = auditTarget.party.bookingIds;
+    } else if (auditTarget.booking) {
+      targetIds = [auditTarget.booking.id];
+    } else if (auditTarget.party) {
+      targetIds = auditTarget.party.bookingIds;
+    }
+
+    if (targetIds.length === 0) {
+      setAuditErrorMsg("કોઈ બુકિંગ પસંદ થયેલ નથી.");
+      setSavingAudit(false);
+      return;
+    }
+
+    const idSet = new Set(targetIds);
+
+    // Optimistic local update
+    setBookings((prev) =>
+      prev.map((item) =>
+        idSet.has(item.id)
+          ? {
+              ...item,
+              paymentStatus: manualAuditStatus,
+              paymentMethod: manualAuditMethod,
+              paymentRefNo: manualAuditRefNo,
+              notes: manualAuditNotes
+                ? (item.notes?.includes("<!--JAMA_ENTRIES:")
+                    ? `${manualAuditNotes}\n${item.notes.match(/<!--JAMA_ENTRIES:[\s\S]*?-->/)?.[0] || ""}`
+                    : manualAuditNotes)
+                : item.notes,
+            }
+          : item
+      )
+    );
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: targetIds,
+          paymentStatus: manualAuditStatus,
+          paymentMethod: manualAuditMethod,
+          paymentRefNo: manualAuditRefNo,
+          notes: manualAuditNotes,
+          updateAllRelated: applyToAllPartyBookings,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to update payment audit");
+      }
+
+      setAuditSuccessMsg("મેન્યુઅલ ઓડિટ સફળતાપૂર્વક સાચવવામાં આવ્યું!");
+      setTimeout(() => {
+        setAuditTarget(null);
+        refreshBookings();
+      }, 700);
+    } catch (err: any) {
+      console.error("Save manual audit error:", err);
+      setAuditErrorMsg(err.message || "Failed to update payment audit");
+    } finally {
+      setSavingAudit(false);
     }
   };
 
@@ -479,6 +612,10 @@ export default function AdminPaymentStatusPage() {
     return getBookingsForDate(new Date(year, month, dayNum));
   };
 
+  // AUTOMATED CALENDAR EVALUATION:
+  // Green (FULL_PAID): All bookings on this day are fully paid (via full Jama OR manual audit)
+  // Yellow (PENDING/PARTIAL): At least 1 booking has pending balance or partial payment
+  // Blank: No bookings
   const getDayPaymentEvaluation = (dayNum: number) => {
     const dayBookings = getBookingsForDay(dayNum);
     if (dayBookings.length === 0) {
@@ -489,6 +626,7 @@ export default function AdminPaymentStatusPage() {
         paidAmount: 0,
         pendingAmount: 0,
         pendingCount: 0,
+        partialCount: 0,
       };
     }
 
@@ -496,26 +634,40 @@ export default function AdminPaymentStatusPage() {
     let paidAmount = 0;
     let pendingAmount = 0;
     let pendingCount = 0;
+    let partialCount = 0;
 
     for (const b of dayBookings) {
-      const bTotal = Number(b.totalAmount || 0);
+      const bTotal = Number(b.totalAmount || b.facilityAmount || 0);
       totalAmount += bTotal;
-      if (isBookingFullyPaid(b)) {
+      const info = getBookingEffectivePaymentInfo(b);
+
+      if (info.isPaid) {
         paidAmount += bTotal;
-      } else {
-        pendingAmount += bTotal;
+      } else if (info.isPartial && info.party) {
+        partialCount += 1;
         pendingCount += 1;
+        // Allocate proportionate Jama payment
+        const partyTotal = Math.max(1, info.party.net);
+        const partyJama = info.party.totalJama;
+        const bShare = Math.min(bTotal, Math.round((bTotal / partyTotal) * partyJama));
+        paidAmount += bShare;
+        pendingAmount += Math.max(0, bTotal - bShare);
+      } else {
+        pendingCount += 1;
+        pendingAmount += bTotal;
       }
     }
 
+    // AUTOMATION: If pendingCount is 0, this day AUTOMATICALLY becomes FULL_PAID (Green)!
     if (pendingCount === 0) {
       return {
         type: "FULL_PAID" as const,
         bookings: dayBookings,
         totalAmount,
-        paidAmount,
-        pendingAmount,
+        paidAmount: totalAmount,
+        pendingAmount: 0,
         pendingCount: 0,
+        partialCount: 0,
       };
     }
 
@@ -526,6 +678,7 @@ export default function AdminPaymentStatusPage() {
       paidAmount,
       pendingAmount,
       pendingCount,
+      partialCount,
     };
   };
 
@@ -533,7 +686,11 @@ export default function AdminPaymentStatusPage() {
 
   // All Pending Bookings across the entire system
   const allPendingBookings = bookings
-    .filter((b) => b.status !== "CANCELLED" && !isBookingFullyPaid(b))
+    .filter((b) => {
+      if (b.status === "CANCELLED") return false;
+      const info = getBookingEffectivePaymentInfo(b);
+      return !info.isPaid;
+    })
     .filter((b) => {
       if (!pendingSearchQuery.trim()) return true;
       const q = pendingSearchQuery.toLowerCase();
@@ -546,99 +703,38 @@ export default function AdminPaymentStatusPage() {
     })
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-  // Handle Quick Edit Modal
-  const handleOpenEditModal = (b: any) => {
-    setEditingBooking(b);
-    setEditStatus(isBookingFullyPaid(b) ? "PAID" : b.paymentStatus || "PENDING");
-    setEditMethod(b.paymentMethod || "CASH_AT_OFFICE");
-    setEditRefNo(b.paymentRefNo || "");
-    setEditNotes(b.notes || "");
-    setSaveSuccessMsg("");
-    setSaveErrorMsg("");
-  };
-
-  const handleSavePayment = async () => {
-    if (!editingBooking) return;
-    setSavingPayment(true);
-    setSaveErrorMsg("");
-    setSaveSuccessMsg("");
-
-    setBookings((prev) =>
-      prev.map((item) =>
-        item.id === editingBooking.id
-          ? {
-              ...item,
-              paymentStatus: editStatus,
-              paymentMethod: editMethod,
-              paymentRefNo: editRefNo,
-              notes: editNotes,
-            }
-          : item
-      )
-    );
-
-    try {
-      const res = await fetch("/api/bookings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editingBooking.id,
-          paymentStatus: editStatus,
-          paymentMethod: editMethod,
-          paymentRefNo: editRefNo,
-          notes: editNotes,
-          updateAllRelated: true,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "Failed to update payment");
-      }
-
-      setSaveSuccessMsg("પેમેન્ટ સ્થિતિ સફળતાપૂર્વક અપડેટ થઈ ગઈ!");
-      setTimeout(() => {
-        setEditingBooking(null);
-        refreshBookings();
-      }, 700);
-    } catch (err: any) {
-      console.error("Save payment error:", err);
-      setSaveErrorMsg(err.message || "Failed to update payment status");
-    } finally {
-      setSavingPayment(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-slate-50/50 pb-16">
-      {/* Top Banner & Header */}
+      {/* Top Banner & Header - Polished for zero overlapping on all screen sizes */}
       <div className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs backdrop-blur-md bg-white/95">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3.5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-700 flex items-center justify-center text-white shadow-sm shadow-amber-600/30">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 py-3.5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-700 flex items-center justify-center text-white shadow-sm shadow-amber-600/30 shrink-0">
                 <Banknote className="w-5 h-5" />
               </div>
-              <div>
-                <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                  <span>પેમેન્ટ સ્થિતિ અને જમા ખાતાવહી</span>
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight whitespace-nowrap">
+                    પેમેન્ટ સ્થિતિ અને જમા ખાતાવહી
+                  </h1>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
                     Accounts & Jama Ledger
                   </span>
-                </h1>
-                <p className="text-xs text-slate-500 font-medium">
-                  પાર્ટી વાઇઝ બુકિંગ ખાતું, ડિપોઝિટ, જમા રકમ અને કેલેન્ડર સ્થિતિ
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium truncate">
+                  પાર્ટી વાઇઝ બુકિંગ ખાતું, ડિપોઝિટ, ઓટો-જમા સ્થિતિ અને કેલેન્ડર
                 </p>
               </div>
             </div>
 
             {/* View Switcher Tabs (iOS Segmented Style) */}
-            <div className="flex items-center gap-2">
-              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 shrink-0">
+              <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
                 <button
                   type="button"
                   onClick={() => setActiveTab("PARTY_LEDGER")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                     activeTab === "PARTY_LEDGER"
                       ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
                       : "text-slate-600 hover:text-slate-900"
@@ -654,7 +750,7 @@ export default function AdminPaymentStatusPage() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("CALENDAR")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                     activeTab === "CALENDAR"
                       ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
                       : "text-slate-600 hover:text-slate-900"
@@ -667,7 +763,7 @@ export default function AdminPaymentStatusPage() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("PENDING_LIST")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                     activeTab === "PENDING_LIST"
                       ? "bg-white text-slate-900 shadow-xs border border-slate-200/80"
                       : "text-slate-600 hover:text-slate-900"
@@ -687,7 +783,7 @@ export default function AdminPaymentStatusPage() {
                 type="button"
                 onClick={() => refreshBookings()}
                 title="Refresh data"
-                className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                className="p-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer shrink-0"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
@@ -866,8 +962,8 @@ export default function AdminPaymentStatusPage() {
                           </div>
                         </div>
 
-                        {/* Top Action Buttons */}
-                        <div className="flex items-center gap-2 self-start lg:self-center">
+                        {/* Top Action Buttons (with Manual Audit) */}
+                        <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
                           <button
                             type="button"
                             onClick={() => handleOpenJamaModal(party)}
@@ -875,6 +971,15 @@ export default function AdminPaymentStatusPage() {
                           >
                             <Plus className="w-4 h-4" />
                             <span>+ જમા કરો (Add Jama)</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenManualAuditModal({ party })}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <Shield className="w-3.5 h-3.5 text-slate-600" />
+                            <span>ઓડિટ (Audit)</span>
                           </button>
 
                           <button
@@ -1018,6 +1123,10 @@ export default function AdminPaymentStatusPage() {
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">
                                   ✓ ચુકતે
                                 </span>
+                              ) : party.totalJama > 0 ? (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                                  આંશિક જમા
+                                </span>
                               ) : (
                                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800">
                                   બાકી
@@ -1039,7 +1148,7 @@ export default function AdminPaymentStatusPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: 📅 CALENDAR VIEW                                                   */}
+        {/* TAB 2: 📅 CALENDAR VIEW (AUTOMATED GREEN / YELLOW WITH JAMA LEDGER)       */}
         {/* ========================================================================= */}
         {activeTab === "CALENDAR" && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1088,7 +1197,7 @@ export default function AdminPaymentStatusPage() {
                 <span>શનિ</span>
               </div>
 
-              {/* Calendar Grid */}
+              {/* Calendar Grid - Automatically Green if Full Paid, Yellow if Partial/Pending */}
               <div className="grid grid-cols-7 gap-1.5">
                 {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                   <div key={`blank-${i}`} className="min-h-[70px] rounded-xl bg-slate-50/50 opacity-40" />
@@ -1113,15 +1222,17 @@ export default function AdminPaymentStatusPage() {
                     <div
                       key={`day-${dayNum}`}
                       onClick={() => setSelectedDate(thisDate)}
-                      className={`min-h-[75px] p-1.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
+                      className={`min-h-[78px] p-1.5 rounded-xl border text-left cursor-pointer transition flex flex-col justify-between ${
                         isSelected
                           ? "ring-2 ring-blue-600 border-blue-500 shadow-xs"
                           : "border-slate-200 hover:border-slate-300"
                       } ${
                         dayEval.type === "FULL_PAID"
-                          ? "bg-emerald-50/60 border-emerald-200"
+                          ? "bg-emerald-50/70 border-emerald-300"
                           : dayEval.type === "PENDING"
-                          ? "bg-amber-50/60 border-amber-200"
+                          ? dayEval.partialCount > 0
+                            ? "bg-amber-50/80 border-amber-300"
+                            : "bg-rose-50/40 border-rose-200"
                           : "bg-white"
                       }`}
                     >
@@ -1137,7 +1248,7 @@ export default function AdminPaymentStatusPage() {
                         </span>
                         {dayEval.type !== "BLANK" && (
                           <span
-                            className="w-2 h-2 rounded-full"
+                            className="w-2.5 h-2.5 rounded-full"
                             style={{
                               backgroundColor:
                                 dayEval.type === "FULL_PAID" ? "#10b981" : "#f59e0b",
@@ -1160,6 +1271,19 @@ export default function AdminPaymentStatusPage() {
                           >
                             ₹{dayEval.totalAmount.toLocaleString("en-IN")}
                           </span>
+                          {dayEval.type === "FULL_PAID" ? (
+                            <span className="text-[9px] font-bold text-emerald-800 block">
+                              ✓ પૂર્ણ ચુકતે
+                            </span>
+                          ) : dayEval.paidAmount > 0 ? (
+                            <span className="text-[9px] font-bold text-amber-800 block truncate">
+                              જમા: ₹{dayEval.paidAmount.toLocaleString("en-IN")}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold text-rose-700 block">
+                              બાકી
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <div className="text-[10px] text-slate-300">ખાલી</div>
@@ -1173,11 +1297,11 @@ export default function AdminPaymentStatusPage() {
               <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center gap-4 text-xs text-slate-600">
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full bg-emerald-500" />
-                  <span>સંપૂર્ણ ચુકતે (Full Paid)</span>
+                  <span className="font-bold text-emerald-900">🟢 પૂર્ણ ચુકવણી (Full Paid by Jama/Audit)</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full bg-amber-500" />
-                  <span>ચુકવણી બાકી / આંશિક (Pending)</span>
+                  <span className="font-bold text-amber-900">🟡 આંશિક જમા / બાકી (Partial/Pending)</span>
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-md border border-slate-200 bg-white" />
@@ -1213,14 +1337,14 @@ export default function AdminPaymentStatusPage() {
               ) : (
                 <div className="space-y-3">
                   {selectedDayBookings.map((b) => {
-                    const badge = getPaymentBadge(b.paymentStatus);
-                    const matchingParty = partyGroups.find((g) =>
-                      g.bookingIds.includes(b.id)
-                    );
+                    const info = getBookingEffectivePaymentInfo(b);
+                    const badge = getPaymentBadge(info.status);
+                    const matchingParty = info.party;
+
                     return (
                       <div
                         key={b.id}
-                        className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2 text-xs"
+                        className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2 text-xs"
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -1238,26 +1362,44 @@ export default function AdminPaymentStatusPage() {
                           </span>
                         </div>
 
+                        {/* Party financial context preview */}
+                        {matchingParty && (
+                          <div className="p-2 rounded-lg bg-white border border-slate-200/80 text-[10px] space-y-0.5 font-mono">
+                            <div className="flex justify-between text-slate-600">
+                              <span>પાર્ટી નેટ:</span>
+                              <span className="font-bold">₹{matchingParty.net.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="flex justify-between text-emerald-700">
+                              <span>કુલ જમા:</span>
+                              <span className="font-bold">₹{matchingParty.totalJama.toLocaleString("en-IN")}</span>
+                            </div>
+                            <div className="flex justify-between text-rose-700 font-bold">
+                              <span>બાકી રકમ:</span>
+                              <span>₹{matchingParty.netRemaining.toLocaleString("en-IN")}</span>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-200/60">
                           <span className="font-bold text-slate-700">
-                            રકમ: ₹{Number(b.totalAmount || 0).toLocaleString("en-IN")}
+                            ભાડું: ₹{Number(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
                           </span>
                           <div className="flex items-center gap-1.5">
                             {matchingParty && (
                               <button
                                 type="button"
                                 onClick={() => handleOpenJamaModal(matchingParty)}
-                                className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-600 text-white hover:bg-amber-700"
+                                className="text-[10px] font-bold px-2 py-1 rounded-md bg-amber-600 text-white hover:bg-amber-700 transition"
                               >
                                 + જમા
                               </button>
                             )}
                             <button
                               type="button"
-                              onClick={() => handleOpenEditModal(b)}
-                              className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
+                              onClick={() => handleOpenManualAuditModal({ booking: b, party: matchingParty || undefined })}
+                              className="text-[10px] font-bold px-2 py-1 rounded-md bg-white text-slate-700 hover:bg-slate-100 border border-slate-300 transition"
                             >
-                              એડિટ
+                              ઓડિટ
                             </button>
                           </div>
                         </div>
@@ -1308,16 +1450,15 @@ export default function AdminPaymentStatusPage() {
                         <th className="py-3 px-4">પાર્ટીનું નામ / ફોન</th>
                         <th className="py-3 px-4">સુવિધા</th>
                         <th className="py-3 px-4">તારીખ</th>
-                        <th className="py-3 px-4">કુલ રકમ</th>
+                        <th className="py-3 px-4">કુલ ભાડું</th>
                         <th className="py-3 px-4">સ્થિતિ</th>
                         <th className="py-3 px-4 text-right">ક્રિયા</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
                       {allPendingBookings.map((b) => {
-                        const matchingParty = partyGroups.find((g) =>
-                          g.bookingIds.includes(b.id)
-                        );
+                        const matchingParty = bookingPartyMap.get(b.id);
+                        const info = getBookingEffectivePaymentInfo(b);
                         return (
                           <tr key={b.id} className="hover:bg-slate-50/70 transition">
                             <td className="py-3 px-4 font-mono font-bold text-blue-700">
@@ -1338,14 +1479,20 @@ export default function AdminPaymentStatusPage() {
                               })}
                             </td>
                             <td className="py-3 px-4 font-bold text-slate-900 tabular-nums">
-                              ₹{Number(b.totalAmount || 0).toLocaleString("en-IN")}
+                              ₹{Number(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
                             </td>
                             <td className="py-3 px-4">
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-800 border border-rose-200">
-                                બાકી
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                  info.isPartial
+                                    ? "bg-amber-50 text-amber-800 border-amber-200"
+                                    : "bg-rose-50 text-rose-800 border-rose-200"
+                                }`}
+                              >
+                                {info.isPartial ? "આંશિક જમા" : "બાકી"}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-right space-x-1.5">
+                            <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                               {matchingParty && (
                                 <button
                                   type="button"
@@ -1357,10 +1504,10 @@ export default function AdminPaymentStatusPage() {
                               )}
                               <button
                                 type="button"
-                                onClick={() => handleOpenEditModal(b)}
-                                className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-[11px] hover:bg-slate-200 border border-slate-200"
+                                onClick={() => handleOpenManualAuditModal({ booking: b, party: matchingParty || undefined })}
+                                className="px-2.5 py-1 rounded-lg bg-white text-slate-700 font-bold text-[11px] hover:bg-slate-100 border border-slate-300"
                               >
-                                એડિટ
+                                ઓડિટ
                               </button>
                             </td>
                           </tr>
@@ -1452,7 +1599,6 @@ export default function AdminPaymentStatusPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Amount Input */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1">
                       જમા રકમ (₹ Amount) *
@@ -1473,7 +1619,6 @@ export default function AdminPaymentStatusPage() {
                     </div>
                   </div>
 
-                  {/* Date Input */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1">
                       જમા તારીખ (Jama Date) *
@@ -1488,7 +1633,6 @@ export default function AdminPaymentStatusPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Payment Mode */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1">
                       ચુકવણી પદ્ધતિ (Mode)
@@ -1505,7 +1649,6 @@ export default function AdminPaymentStatusPage() {
                     </select>
                   </div>
 
-                  {/* Cheque / Ref No */}
                   <div>
                     <label className="text-[11px] font-bold text-slate-700 block mb-1">
                       ચેક / રેફરન્સ નંબર (Ref No)
@@ -1520,7 +1663,6 @@ export default function AdminPaymentStatusPage() {
                   </div>
                 </div>
 
-                {/* Notes Input */}
                 <div>
                   <label className="text-[11px] font-bold text-slate-700 block mb-1">
                     નોંધ / વિગત (Note / Remarks)
@@ -1534,7 +1676,6 @@ export default function AdminPaymentStatusPage() {
                   />
                 </div>
 
-                {/* Add Entry Button */}
                 <div className="flex justify-end pt-1">
                   <button
                     type="button"
@@ -1642,6 +1783,168 @@ export default function AdminPaymentStatusPage() {
       )}
 
       {/* ========================================================================= */}
+      {/* MODAL: 🛡️ MANUAL PAYMENT AUDIT MODAL (PRESERVES MANUAL OVERRIDE)          */}
+      {/* ========================================================================= */}
+      {auditTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center text-amber-400">
+                  <Shield className="w-4 h-4" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">
+                    મેન્યુઅલ પેમેન્ટ ઓડિટ (Manual Audit)
+                  </span>
+                  <h3 className="text-sm sm:text-base font-black text-white">
+                    {auditTarget.party?.customerName || auditTarget.booking?.customerName}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAuditTarget(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {/* Automated Jama Insight Box */}
+              {auditTarget.party && (
+                <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-900 space-y-1">
+                  <div className="flex items-center justify-between font-bold">
+                    <span>ઓટોમેટેડ ગણતરી (Auto Calculation):</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-200 text-blue-950">
+                      નેટ ₹{auditTarget.party.net.toLocaleString("en-IN")} • જમા ₹{auditTarget.party.totalJama.toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-blue-800 flex items-center justify-between">
+                    <span>સિસ્ટમ ઓટો સ્ટેટસ:</span>
+                    <span className="font-black">
+                      {auditTarget.party.netRemaining <= 0
+                        ? "🟢 આપોઆપ પૂર્ણ ચુકતે (AUTO PAID)"
+                        : auditTarget.party.totalJama > 0
+                        ? "🟡 આપોઆપ આંશિક જમા (AUTO PARTIAL)"
+                        : "🔴 આપોઆપ બાકી (AUTO PENDING)"}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Selector */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  ઓડિટ સ્થિતિ પસંદ કરો (Manual Audit Status) *
+                </label>
+                <select
+                  value={manualAuditStatus}
+                  onChange={(e) => setManualAuditStatus(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:bg-white focus:outline-none"
+                >
+                  <option value="PAID">🟢 પૂર્ણ ચુકવણી (PAID - Mark Fully Paid)</option>
+                  <option value="PARTIAL">🟡 આંશિક ચુકવણી (PARTIAL - Mark Partial)</option>
+                  <option value="PENDING">🔴 ચુકવણી બાકી (PENDING - Mark Unpaid)</option>
+                </select>
+              </div>
+
+              {/* Payment Method */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  ચુકવણી પદ્ધતિ (Method)
+                </label>
+                <select
+                  value={manualAuditMethod}
+                  onChange={(e) => setManualAuditMethod(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900 focus:bg-white focus:outline-none"
+                >
+                  <option value="CASH_AT_OFFICE">રોકડ (Cash at Office)</option>
+                  <option value="UPI_BANK_TRANSFER">UPI / બેંક ટ્રાન્સફર (NEFT/IMPS)</option>
+                  <option value="CHEQUE">ચેક (Cheque)</option>
+                  <option value="ONLINE">ઓનલાઈન પોર્ટલ (Online)</option>
+                </select>
+              </div>
+
+              {/* Reference / Cheque No */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  ચેક / રેફરન્સ નંબર (Reference No)
+                </label>
+                <input
+                  type="text"
+                  value={manualAuditRefNo}
+                  onChange={(e) => setManualAuditRefNo(e.target.value)}
+                  placeholder="e.g. Verified Cheque #4455"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              {/* Audit Notes */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">
+                  ઓડિટ નોંધ / રિમાર્કસ (Audit Remarks)
+                </label>
+                <input
+                  type="text"
+                  value={manualAuditNotes}
+                  onChange={(e) => setManualAuditNotes(e.target.value)}
+                  placeholder="e.g. ટ્રસ્ટીશ્રી દ્વારા વેરિફાઈડ અને મંજૂર"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 focus:bg-white focus:outline-none"
+                />
+              </div>
+
+              {/* Checkbox: Apply to all related bookings of this party */}
+              {auditTarget.party && auditTarget.party.bookings.length > 1 && (
+                <label className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={applyToAllPartyBookings}
+                    onChange={(e) => setApplyToAllPartyBookings(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-slate-800 font-bold text-[11px]">
+                    આ પાર્ટીના તમામ {auditTarget.party.bookings.length} સંબંધિત બુકિંગ્સ પર ઓડિટ લાગુ કરો
+                  </span>
+                </label>
+              )}
+
+              {auditErrorMsg && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+                  {auditErrorMsg}
+                </div>
+              )}
+              {auditSuccessMsg && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+                  {auditSuccessMsg}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setAuditTarget(null)}
+                className="px-4 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-200 text-xs transition"
+              >
+                રદ કરો (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveManualAudit}
+                disabled={savingAudit}
+                className="px-5 py-2.5 rounded-xl font-black text-white bg-slate-900 hover:bg-slate-800 text-xs disabled:opacity-50 transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{savingAudit ? "સાચવી રહ્યું છે..." : "ઓડિટ સાચવો (Save Audit)"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: 📄 VIEW PARTY DETAILS & OFFICIAL AUDIT BREAKDOWN                   */}
       {/* ========================================================================= */}
       {viewingParty && (
@@ -1739,99 +2042,6 @@ export default function AdminPaymentStatusPage() {
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200"
               >
                 બંધ કરો (Close)
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL: QUICK EDIT PAYMENT FOR A SINGLE BOOKING                            */}
-      {/* ========================================================================= */}
-      {editingBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase">પેમેન્ટ સ્થિતિ એડિટ</span>
-                <h3 className="text-base font-black text-slate-900">{editingBooking.customerName}</h3>
-                <div className="text-[11px] text-slate-500 font-mono">{editingBooking.bookingNumber}</div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setEditingBooking(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-5 space-y-4 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">સ્થિતિ (Payment Status)</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
-                >
-                  <option value="PAID">🟢 પૂર્ણ ચુકવણી (PAID)</option>
-                  <option value="PARTIAL">🟡 આંશિક ચુકવણી (PARTIAL)</option>
-                  <option value="PENDING">🔴 ચુકવણી બાકી (PENDING)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">ચુકવણી પદ્ધતિ (Method)</label>
-                <select
-                  value={editMethod}
-                  onChange={(e) => setEditMethod(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-900"
-                >
-                  <option value="CASH_AT_OFFICE">રોકડ (Cash at Office)</option>
-                  <option value="UPI_BANK_TRANSFER">UPI / બેંક ટ્રાન્સફર</option>
-                  <option value="CHEQUE">ચેક (Cheque)</option>
-                  <option value="ONLINE">ઓનલાઈન પોર્ટલ</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 block mb-1">ચેક / રેફરન્સ નંબર</label>
-                <input
-                  type="text"
-                  value={editRefNo}
-                  onChange={(e) => setEditRefNo(e.target.value)}
-                  placeholder="Reference number"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 font-mono"
-                />
-              </div>
-
-              {saveErrorMsg && (
-                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
-                  {saveErrorMsg}
-                </div>
-              )}
-              {saveSuccessMsg && (
-                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
-                  {saveSuccessMsg}
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setEditingBooking(null)}
-                className="px-4 py-2 rounded-xl font-bold text-slate-600 hover:bg-slate-200 text-xs"
-              >
-                રદ કરો
-              </button>
-              <button
-                type="button"
-                onClick={handleSavePayment}
-                disabled={savingPayment}
-                className="px-5 py-2 rounded-xl font-black text-white bg-slate-900 hover:bg-slate-800 text-xs disabled:opacity-50"
-              >
-                {savingPayment ? "સાચવી રહ્યું છે..." : "સાચવો"}
               </button>
             </div>
           </div>
