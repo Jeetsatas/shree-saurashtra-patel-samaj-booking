@@ -933,7 +933,8 @@ export async function PUT(req: NextRequest) {
         sumDisc += Number(tb.discountAmount ?? 0);
         if (tb.facility) facsList.push(tb.facility);
       }
-      const eventDeposit = calculateEventDeposit(facsList);
+      const explicitDep = targetBookings.reduce((max, tb) => Math.max(max, Number(tb.depositAmount || 0)), 0);
+      const eventDeposit = explicitDep > 0 ? explicitDep : calculateEventDeposit(facsList);
       const partyNet = Math.max(0, sumBase - sumDisc) + eventDeposit;
 
       // Automated status evaluation:

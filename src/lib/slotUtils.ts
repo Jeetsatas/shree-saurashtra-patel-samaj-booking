@@ -630,8 +630,9 @@ export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
     g.discountAmount = sumDiscounts;
     g.totalWithDiscount = Math.max(0, g.total - g.discountAmount);
 
-    // Calculate caution deposit
-    g.deposit = calculateEventDeposit(facilitiesList);
+    // Calculate caution deposit (Use explicit booking deposit if set by trustee)
+    const explicitDep = g.bookings.reduce((max, b) => Math.max(max, Number(b.depositAmount || 0)), 0);
+    g.deposit = explicitDep > 0 ? explicitDep : calculateEventDeposit(facilitiesList);
 
     // Net = Total with discount + Deposit
     g.net = g.totalWithDiscount + g.deposit;

@@ -252,6 +252,7 @@ function BookingsManagementContent() {
     eventType: "Wedding",
     facilityId: "",
     facilityAmount: 0,
+    depositAmount: 0,
     totalAmount: 0,
     startDate: "",
     slot: WHOLE_DAY_SLOT_LABEL,
@@ -1431,6 +1432,7 @@ function BookingsManagementContent() {
     const bStart = b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : "";
     const bFacAmt = Number(b.facilityAmount ?? b.totalAmount ?? 0);
     const bTotalAmt = Number(b.totalAmount ?? b.facilityAmount ?? 0);
+    const bDepositAmt = Number(b.depositAmount !== undefined && b.depositAmount !== null ? b.depositAmount : (b.facility?.cautionDeposit || 25000));
 
     setEditFormData({
       customerName: b.customerName || "",
@@ -1441,6 +1443,7 @@ function BookingsManagementContent() {
       eventType: b.eventType || "Wedding",
       facilityId: b.facilityId || "",
       facilityAmount: bFacAmt,
+      depositAmount: bDepositAmt,
       totalAmount: bTotalAmt,
       startDate: bStart,
       slot: b.slot || WHOLE_DAY_SLOT_LABEL,
@@ -1494,6 +1497,7 @@ function BookingsManagementContent() {
           eventType: editFormData.eventType.trim(),
           facilityId: editFormData.facilityId,
           facilityAmount: Number(editFormData.facilityAmount),
+          depositAmount: Number(editFormData.depositAmount),
           totalAmount: Number(editFormData.totalAmount),
           startDate: editFormData.startDate,
           slot: editFormData.slot.trim(),
@@ -1534,6 +1538,7 @@ function BookingsManagementContent() {
                 facilityId: editFormData.facilityId,
                 facility: updatedFac,
                 facilityAmount: Number(editFormData.facilityAmount),
+                depositAmount: Number(editFormData.depositAmount),
                 totalAmount: Number(editFormData.totalAmount),
                 startDate: editFormData.startDate,
                 slot: editFormData.slot.trim(),
@@ -1563,6 +1568,7 @@ function BookingsManagementContent() {
             facilityId: editFormData.facilityId,
             facility: facilities.find((f) => f.id === editFormData.facilityId) || prev.facility,
             facilityAmount: Number(editFormData.facilityAmount),
+            depositAmount: Number(editFormData.depositAmount),
             totalAmount: Number(editFormData.totalAmount),
             startDate: editFormData.startDate,
             slot: editFormData.slot.trim(),
@@ -2851,6 +2857,33 @@ function BookingsManagementContent() {
                     </div>
                   </div>
 
+                  {/* Security Deposit Amount Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
+                      <span>ડિપોઝિટ રકમ (Security Deposit) <span className="text-rose-500">*</span></span>
+                      <span className="text-[10px] text-emerald-700 font-bold">રિફંડેબલ ડિપોઝિટ</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-600 text-sm">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        required
+                        value={editFormData.depositAmount}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setEditFormData({
+                            ...editFormData,
+                            depositAmount: val,
+                          });
+                        }}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black text-slate-950 text-sm shadow-2xs bg-white"
+                        placeholder="દા.ત. 25000"
+                      />
+                    </div>
+                  </div>
+
                   {/* Event Date Input */}
                   <div>
                     <label className="block text-[11px] font-bold text-slate-800 mb-1">
@@ -2866,10 +2899,10 @@ function BookingsManagementContent() {
                   </div>
 
                   {/* Time Slot Selection */}
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
                       <span>સમયગાળો / સ્લોટ (Timing Slot) <span className="text-rose-500">*</span></span>
-                      <span className="text-[10px] text-slate-500 font-normal">સમાજ મુજબ સ્લોટ પસંદ કરો</span>
+                      <span className="text-[10px] text-slate-500 font-normal">સમાજ મુજબ</span>
                     </label>
                     <div className="space-y-1.5">
                       <select
@@ -2893,12 +2926,12 @@ function BookingsManagementContent() {
                         className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 text-xs shadow-2xs cursor-pointer bg-white"
                       >
                         <option value={WHOLE_DAY_SLOT_LABEL}>આખો દિવસ: {WHOLE_DAY_SLOT_LABEL}</option>
-                        <option value="07:00 AM to 03:00 PM">સવાર / બપોર સ્લોટ: 07:00 AM to 03:00 PM</option>
-                        <option value="03:00 PM to 11:00 PM">સાંજ / રાત્રિ સ્લોટ: 03:00 PM to 11:00 PM</option>
-                        <option value="11:00 PM to 07:00 AM Next Day">મધ્યરાત્રિ સ્લોટ: 11:00 PM to 07:00 AM Next Day</option>
-                        <option value="01:00 AM to 02:00 PM">રાત્રિ 01:00 AM થી બપોરે 02:00 PM</option>
-                        <option value="03:00 PM to 12:00 AM">બપોરે 03:00 PM થી મધ્યરાત્રિ 12:00 AM</option>
-                        <option value="CUSTOM">અન્ય કસ્ટમ સમય (Custom Timing)</option>
+                        <option value="07:00 AM to 03:00 PM">સવાર / બપોર: 07:00 AM to 03:00 PM</option>
+                        <option value="03:00 PM to 11:00 PM">સાંજ / રાત્રિ: 03:00 PM to 11:00 PM</option>
+                        <option value="11:00 PM to 07:00 AM Next Day">મધ્યરાત્રિ: 11:00 PM to 07:00 AM</option>
+                        <option value="01:00 AM to 02:00 PM">01:00 AM થી 02:00 PM</option>
+                        <option value="03:00 PM to 12:00 AM">03:00 PM થી 12:00 AM</option>
+                        <option value="CUSTOM">અન્ય કસ્ટમ સમય</option>
                       </select>
 
                       <input
@@ -2906,7 +2939,7 @@ function BookingsManagementContent() {
                         value={editFormData.slot}
                         onChange={(e) => setEditFormData({ ...editFormData, slot: e.target.value })}
                         placeholder="દા.ત. 07:00 AM to 03:00 PM"
-                        className="w-full px-3.5 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-medium text-slate-800 text-[11px] shadow-2xs bg-slate-50"
+                        className="w-full px-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-medium text-slate-800 text-[11px] shadow-2xs bg-slate-50"
                       />
                     </div>
                   </div>
