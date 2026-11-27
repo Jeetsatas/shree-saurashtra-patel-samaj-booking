@@ -23,6 +23,7 @@ import {
   ChevronDown,
   Plus,
   CreditCard,
+  MessageSquarePlus,
 } from "lucide-react";
 
 interface AdminUser {
@@ -154,6 +155,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     "/admin/activity",
     "/admin/users",
     "/admin/settings",
+    "/admin/feedback",
   ].includes(pathname);
 
   const getRoleBadge = (role: string) => {
@@ -371,6 +373,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                             <div className="text-[10px] text-slate-400">સામાન્ય નિયમો અને સેટિંગ્સ</div>
                           </div>
                         </Link>
+                        <Link
+                          href="/admin/feedback"
+                          onClick={() => setTrustMenuOpen(false)}
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
+                        >
+                          <MessageSquarePlus className="w-4 h-4 mr-2.5 text-blue-600" />
+                          <div>
+                            <div className="font-bold">ફીડબેક અને સૂચનો (Feedback & Ideas)</div>
+                            <div className="text-[10px] text-slate-400">એપ સુધારો અને નવા ફીચર માટે સૂચન</div>
+                          </div>
+                        </Link>
                       </div>
                     </div>
                   </>
@@ -555,6 +568,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   >
                     <Settings className="w-4 h-4 mr-3 text-blue-600" />
                     <span>ટ્રસ્ટ સેટિંગ્સ (Trust Settings)</span>
+                  </Link>
+                  <Link
+                    href="/admin/feedback"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-slate-100 min-h-[44px]"
+                  >
+                    <MessageSquarePlus className="w-4 h-4 mr-3 text-blue-600" />
+                    <span>ફીડબેક અને સૂચનો (Feedback & Ideas)</span>
                   </Link>
                 </div>
               )}

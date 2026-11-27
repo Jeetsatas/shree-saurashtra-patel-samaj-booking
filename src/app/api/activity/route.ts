@@ -23,6 +23,8 @@ export async function GET(req: NextRequest) {
     const where: any = {};
     if (action && action !== "ALL") {
       where.action = action;
+    } else {
+      where.action = { not: "APP_FEEDBACK" };
     }
 
     const logs = await prisma.activityLog.findMany({
