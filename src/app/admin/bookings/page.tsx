@@ -18,6 +18,7 @@ import {
   getBookingGroundHallOption,
   getStandardFacilityRate,
 } from "@/lib/slotUtils";
+import { InteractiveClockModal } from "@/components/InteractiveClockModal";
 import {
   Plus,
   Search,
@@ -268,6 +269,12 @@ function BookingsManagementContent() {
   const [selectedBookingIds, setSelectedBookingIds] = useState<string[]>([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  // Interactive 24-Hour Clock Modal State (સમાજ સમયપત્રક મુજબ)
+  const [clockModalOpen, setClockModalOpen] = useState(false);
+  const [clockModalDate, setClockModalDate] = useState<string>("");
+  const [clockModalFacId, setClockModalFacId] = useState<string | null>(null);
+  const [clockModalFacName, setClockModalFacName] = useState<string>("");
 
   // Pagination State (Fast 25/50/100 records per page to eliminate DOM lag)
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -927,6 +934,32 @@ function BookingsManagementContent() {
   const addFacilityCustomTimingSlot = (facId: string, from: string, to: string) => {
     if (!currentActiveDate) return;
     addFacilityCustomTimingSlotForDate(currentActiveDate, facId, from, to);
+  };
+
+  const openClockForDate = (dateStr: string) => {
+    setClockModalDate(dateStr);
+    setClockModalFacId(null);
+    setClockModalFacName("બધી સુવિધાઓ (All Facilities)");
+    setClockModalOpen(true);
+  };
+
+  const openClockForFacility = (dateStr: string, facId: string, facName: string) => {
+    setClockModalDate(dateStr);
+    setClockModalFacId(facId);
+    setClockModalFacName(facName);
+    setClockModalOpen(true);
+  };
+
+  const handleClockAddSlot = (slotString: string) => {
+    if (!clockModalDate) return;
+    const parts = slotString.split(" - ");
+    const from = parts[0]?.trim() || "09:00 AM";
+    const to = parts[1]?.trim() || "01:00 PM";
+    if (clockModalFacId) {
+      addFacilityCustomTimingSlotForDate(clockModalDate, clockModalFacId, from, to);
+    } else {
+      addDateCustomSlot(clockModalDate, from, to);
+    }
   };
 
   const getNextDateStr = (dateStr: string) => {
@@ -4164,32 +4197,43 @@ function BookingsManagementContent() {
 
                                     {/* Option 2: Custom Hourly Timing */}
                                     <div className="p-2.5 rounded-xl border border-blue-200 bg-white space-y-2">
-                                      <div className="flex flex-wrap items-center justify-between gap-1">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
                                         <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
-                                          <Clock className="w-3 h-3 text-blue-700" />
-                                          ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો:
+                                          <Clock className="w-3.5 h-3.5 text-blue-700" />
+                                          ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો (Custom Timing):
                                         </span>
-                                        {/* Presets */}
-                                        <div className="flex flex-wrap items-center gap-1">
-                                          <span className="text-[10px] font-bold text-slate-500 uppercase">ઝડપી સ્લોટ:</span>
-                                          {TIMING_PRESETS.map((preset) => {
-                                            const presetStr = `${preset.from} - ${preset.to}`;
-                                            const isChecked = dtTimings.includes(presetStr);
-                                            return (
-                                              <button
-                                                key={`${dateStr}-${preset.label}`}
-                                                type="button"
-                                                onClick={() => toggleDateTimingSlot(dateStr, presetStr)}
-                                                className={`text-[10px] font-bold px-2 py-0.5 rounded border transition cursor-pointer ${isChecked
-                                                  ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
-                                                  : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
-                                                  }`}
-                                              >
-                                                {isChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
-                                              </button>
-                                            );
-                                          })}
-                                        </div>
+
+                                        {/* Prominent 24-Hour Interactive Clock Button */}
+                                        <button
+                                          type="button"
+                                          onClick={() => openClockForDate(dateStr)}
+                                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-800 via-red-700 to-amber-900 hover:from-red-700 hover:to-amber-800 active:scale-95 text-white font-extrabold text-[11px] shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+                                        >
+                                          <Clock className="w-3.5 h-3.5 text-amber-300 stroke-[2.5]" />
+                                          <span>🕒 ૨૪ કલાક ઘડિયાળમાંથી પસંદ કરો (Open 24h Clock)</span>
+                                        </button>
+                                      </div>
+
+                                      {/* Quick Presets */}
+                                      <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-slate-100">
+                                        <span className="text-[10px] font-bold text-slate-500 uppercase">ઝડપી સ્લોટ:</span>
+                                        {TIMING_PRESETS.map((preset) => {
+                                          const presetStr = `${preset.from} - ${preset.to}`;
+                                          const isChecked = dtTimings.includes(presetStr);
+                                          return (
+                                            <button
+                                              key={`${dateStr}-${preset.label}`}
+                                              type="button"
+                                              onClick={() => toggleDateTimingSlot(dateStr, presetStr)}
+                                              className={`text-[10px] font-bold px-2 py-0.5 rounded border transition cursor-pointer ${isChecked
+                                                ? "bg-blue-600 text-white border-blue-700 shadow-2xs"
+                                                : "bg-slate-50 hover:bg-blue-100 text-slate-700 border-slate-200"
+                                                }`}
+                                            >
+                                              {isChecked ? "✓ " : "+ "}{preset.from} - {preset.to}
+                                            </button>
+                                          );
+                                        })}
                                       </div>
 
                                       {/* From / To dropdowns */}
@@ -4319,12 +4363,22 @@ function BookingsManagementContent() {
                                               })}
                                             </div>
 
-                                            {/* Custom Timing Dropdowns for this Facility */}
-                                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
-                                              <span className="text-[10px] font-bold text-blue-950 flex items-center gap-1">
-                                                <Clock className="w-3 h-3 text-blue-700" />
-                                                ચોક્કસ સમય:
-                                              </span>
+                                            {/* Custom Timing Dropdowns & Interactive Clock for this Facility */}
+                                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+                                              <div className="flex items-center gap-1.5">
+                                                <span className="text-[10px] font-bold text-blue-950 flex items-center gap-1">
+                                                  <Clock className="w-3 h-3 text-blue-700" />
+                                                  ચોક્કસ સમય:
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => openClockForFacility(dateStr, fac.id, fac.name)}
+                                                  className="px-2 py-0.5 rounded-lg bg-red-800 hover:bg-red-700 active:scale-95 text-white font-extrabold text-[10px] shadow-2xs transition flex items-center gap-1 cursor-pointer"
+                                                >
+                                                  <Clock className="w-3 h-3 text-amber-300 stroke-[2.5]" />
+                                                  <span>🕒 ૨૪ કલાક ઘડિયાળ</span>
+                                                </button>
+                                              </div>
                                               <div className="flex items-center gap-1">
                                                 <span className="text-[10px] text-slate-500 font-bold">શરૂ:</span>
                                                 <select
@@ -4969,6 +5023,15 @@ function BookingsManagementContent() {
           </div>
         </div>
       )}
+
+      {/* 24-Hour Interactive Clock Modal for Custom Timings (સમાજ સમયપત્રક મુજબ) */}
+      <InteractiveClockModal
+        isOpen={clockModalOpen}
+        onClose={() => setClockModalOpen(false)}
+        onAddSlot={handleClockAddSlot}
+        dateStr={clockModalDate}
+        facilityName={clockModalFacName}
+      />
     </div>
   );
 }
