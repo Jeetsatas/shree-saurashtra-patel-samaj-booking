@@ -304,8 +304,8 @@ export async function POST(req: NextRequest) {
         let itemBaseRent = fac.baseRent || 0;
         const isFull = isFullDaySlot(itSlot);
         if (fac.code === "PLOT-OUTSIDE" || fac.type === "PLOT") {
-          const ev = (eventType || "").toLowerCase();
-          if (ev.includes("wedding") || ev.includes("lagna") || ev.includes("wedd") || ev.includes("marriage")) {
+          const itemEv = ((it as any).eventType || eventType || "").toLowerCase();
+          if (itemEv.includes("wedding") || itemEv.includes("lagna") || itemEv.includes("wedd") || itemEv.includes("marriage")) {
             itemBaseRent = fac.weddingRent || fac.baseRent || 51000;
           } else {
             itemBaseRent = fac.familyRent || fac.baseRent || 21000;
@@ -395,7 +395,7 @@ export async function POST(req: NextRequest) {
               customerEmail: customerEmail || null,
               customerAddress: customerAddress || null,
               customerAadhar: customerAadhar || null,
-              eventType: eventType || "General Function",
+              eventType: (item as any).eventType || eventType || "General Function",
               startDate: item.startDate,
               endDate: item.endDate,
               slot: item.slot,

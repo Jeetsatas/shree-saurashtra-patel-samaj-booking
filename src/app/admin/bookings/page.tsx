@@ -153,6 +153,63 @@ function BookingsManagementContent() {
     setDateTimingScopeMap((prev) => ({ ...prev, [dateStr]: scope }));
   };
 
+  // Facility-specific Function / Event Type selector (Wedding, Family Function, Besnu, Other)
+  const [dateFacilityFunctionMap, setDateFacilityFunctionMap] = useState<
+    Record<string, Record<string, "WEDDING" | "FAMILY" | "BESNU" | "OTHER">>
+  >({});
+
+  const getDateFacilityFunction = (
+    dateStr: string,
+    facId: string
+  ): "WEDDING" | "FAMILY" | "BESNU" | "OTHER" => {
+    if (dateFacilityFunctionMap[dateStr]?.[facId]) {
+      return dateFacilityFunctionMap[dateStr][facId];
+    }
+    const plotP = datePlotPurposeMap[dateStr];
+    if (plotP) {
+      if (plotP === "WEDDING") return "WEDDING";
+      if (plotP === "FAMILY") return "FAMILY";
+    }
+    const ev = (formData.eventType || "").toLowerCase();
+    if (ev.includes("wedding") || ev.includes("lagna") || ev.includes("wedd")) return "WEDDING";
+    if (ev.includes("besnu") || ev.includes("shok") || ev.includes("prarthana")) return "BESNU";
+    if (ev.includes("family") || ev.includes("sagai")) return "FAMILY";
+    return "OTHER";
+  };
+
+  const setDateFacilityFunction = (
+    dateStr: string,
+    facId: string,
+    fn: "WEDDING" | "FAMILY" | "BESNU" | "OTHER"
+  ) => {
+    setDateFacilityFunctionMap((prev) => ({
+      ...prev,
+      [dateStr]: {
+        ...(prev[dateStr] || {}),
+        [facId]: fn,
+      },
+    }));
+    const fac = facilities.find((f) => f.id === facId);
+    if (fac?.code === "PLOT-OUTSIDE" || fac?.type === "PLOT") {
+      setDatePlotPurpose(dateStr, fn === "WEDDING" ? "WEDDING" : "FAMILY");
+    }
+  };
+
+  const getFunctionLabel = (fn: "WEDDING" | "FAMILY" | "BESNU" | "OTHER"): string => {
+    switch (fn) {
+      case "WEDDING":
+        return "Wedding";
+      case "FAMILY":
+        return "Family Function";
+      case "BESNU":
+        return "Besnu";
+      case "OTHER":
+        return "Other";
+      default:
+        return "Wedding";
+    }
+  };
+
   // Active Date Resolution Helpers
   const currentActiveDate = activeDate && selectedDates.includes(activeDate)
     ? activeDate
@@ -545,6 +602,14 @@ function BookingsManagementContent() {
       }
       return next;
     });
+    const sourceFunctions = dateFacilityFunctionMap[sourceDateStr] || {};
+    setDateFacilityFunctionMap((prev) => {
+      const next = { ...prev };
+      for (const d of selectedDates) {
+        if (d !== sourceDateStr) next[d] = { ...sourceFunctions };
+      }
+      return next;
+    });
     setDateCopySuccess(true);
     setTimeout(() => setDateCopySuccess(false), 3000);
   };
@@ -930,6 +995,7 @@ function BookingsManagementContent() {
       cautionDeposit: number;
       conflict: { isConflict: boolean; reason?: string; bookedBy?: string };
       groundHallOption?: "AC" | "NON_AC";
+      eventType?: string;
     }> = [];
 
     for (const dateStr of selectedDates) {
@@ -940,13 +1006,15 @@ function BookingsManagementContent() {
         const fac = facilities.find((f) => f.id === facId);
         if (!fac) continue;
 
+        const facFn = getDateFacilityFunction(dateStr, fac.id);
+        const facFnLabel = getFunctionLabel(facFn);
+
         let baseRent = fac.baseRent || 0;
         if (fac.code === "PLOT-OUTSIDE" || fac.type === "PLOT") {
-          const dtPurpose = datePlotPurposeMap[dateStr] || plotPurpose;
           baseRent =
-            dtPurpose === "WEDDING"
-              ? fac.weddingRent || fac.baseRent || 0
-              : fac.familyRent || fac.baseRent || 0;
+            facFn === "WEDDING"
+              ? fac.weddingRent || fac.baseRent || 51000
+              : fac.familyRent || fac.baseRent || 21000;
         }
         const cautionDeposit = fac.cautionDeposit || 0;
 
@@ -1020,6 +1088,8 @@ function BookingsManagementContent() {
 
           const isGround = isGroundFloorHall(fac);
           const hallAcOpt = isGround ? getDateGroundHallAc(dateStr) : undefined;
+          const facFn = getDateFacilityFunction(dateStr, fac.id);
+          const facFnLabel = getFunctionLabel(facFn);
 
           items.push({
             facilityId: fac.id,
@@ -1034,6 +1104,7 @@ function BookingsManagementContent() {
             cautionDeposit,
             conflict: conflictInfo,
             groundHallOption: hallAcOpt,
+            eventType: facFnLabel,
           });
         }
       }
@@ -1050,6 +1121,7 @@ function BookingsManagementContent() {
     datePlotPurposeMap,
     dateGroundHallAcMap,
     groundHallAc,
+    dateFacilityFunctionMap,
   ]);
 
   const totalFacilityRent = useMemo(() => {
@@ -1165,6 +1237,7 @@ function BookingsManagementContent() {
       facilityAmount: item.baseRent,
       depositAmount: item.cautionDeposit,
       groundHallOption: (item as any).groundHallOption,
+      eventType: (item as any).eventType || formData.eventType || "General Function",
     }));
 
     try {
@@ -2710,12 +2783,33 @@ function BookingsManagementContent() {
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
                       પ્રસંગનો પ્રકાર (Function / Event Type) <span className="text-rose-500">*</span>
                     </label>
+                    <div className="flex flex-wrap gap-1 mb-1.5">
+                      {[
+                        { id: "Wedding", label: "💍 Wedding" },
+                        { id: "Family Function", label: "👨‍👩‍👧‍👦 Family Function" },
+                        { id: "Besnu", label: "🙏 Besnu" },
+                        { id: "Other", label: "✨ Other" },
+                      ].map((fOpt) => (
+                        <button
+                          key={fOpt.id}
+                          type="button"
+                          onClick={() => setEditFormData({ ...editFormData, eventType: fOpt.id })}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                            editFormData.eventType === fOpt.id
+                              ? "bg-blue-700 text-white border-blue-800 shadow-2xs"
+                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                          }`}
+                        >
+                          {fOpt.label}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       type="text"
                       required
                       value={editFormData.eventType}
                       onChange={(e) => setEditFormData({ ...editFormData, eventType: e.target.value })}
-                      placeholder="દા.ત. Wedding, લગ્ન પ્રસંગ, સગાઈ"
+                      placeholder="દા.ત. Wedding, Family Function, Besnu"
                       className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-semibold text-slate-900 text-xs shadow-2xs"
                     />
                   </div>
@@ -3381,10 +3475,31 @@ function BookingsManagementContent() {
                           <label className="block text-xs font-bold text-slate-700 mb-1">
                             પ્રસંગનો પ્રકાર (Function Type) *
                           </label>
+                          <div className="flex flex-wrap gap-1 mb-1.5">
+                            {[
+                              { id: "Wedding", label: "💍 Wedding" },
+                              { id: "Family Function", label: "👨‍👩‍👧‍👦 Family" },
+                              { id: "Besnu", label: "🙏 Besnu" },
+                              { id: "Other", label: "✨ Other" },
+                            ].map((fOpt) => (
+                              <button
+                                key={fOpt.id}
+                                type="button"
+                                onClick={() => setFormData((prev) => ({ ...prev, eventType: fOpt.id }))}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                  formData.eventType === fOpt.id
+                                    ? "bg-red-800 text-white border-red-900 shadow-2xs"
+                                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                }`}
+                              >
+                                {fOpt.label}
+                              </button>
+                            ))}
+                          </div>
                           <input
                             type="text"
                             required
-                            placeholder="Wedding, Sagai, Birthday..."
+                            placeholder="Wedding, Family Function, Besnu, Other..."
                             value={formData.eventType}
                             onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
                             className="w-full text-xs bg-white border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold focus:ring-2 focus:ring-red-700 outline-none"
@@ -3536,8 +3651,9 @@ function BookingsManagementContent() {
                                       .filter((f) => f.type === "PLOT")
                                       .map((fac) => {
                                         const isChecked = facIds.includes(fac.id);
+                                        const currentFn = getDateFacilityFunction(dateStr, fac.id);
                                         const currentRent =
-                                          dtPlotPurpose === "WEDDING"
+                                          currentFn === "WEDDING"
                                             ? fac.weddingRent || fac.baseRent || 51000
                                             : fac.familyRent || fac.baseRent || 21000;
                                         return (
@@ -3574,7 +3690,7 @@ function BookingsManagementContent() {
                                                   {currentRent > 0 ? `₹${currentRent.toLocaleString("en-IN")}` : "Rate Pending"}
                                                 </span>
                                                 <span className="text-[10px] font-bold text-slate-500">
-                                                  {dtPlotPurpose === "WEDDING" ? "Wedding Tariff" : "Family Tariff"}
+                                                  {currentFn === "WEDDING" ? "Wedding Tariff" : `${getFunctionLabel(currentFn)} Tariff`}
                                                 </span>
                                               </div>
                                             </label>
@@ -3582,37 +3698,41 @@ function BookingsManagementContent() {
                                             {/* Outside Party Plot Purpose Selector for this Date */}
                                             {isChecked && (
                                               <div className="mt-2.5 pt-2.5 border-t border-red-200/60 bg-white/80 p-2 rounded-lg space-y-1.5">
-                                                <span className="text-[10px] font-bold text-amber-950 block">
-                                                  આ તારીખ માટે પાર્ટી પ્લોટ ઉપયોગનો પ્રકાર:
-                                                </span>
-                                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setDatePlotPurpose(dateStr, "WEDDING")}
-                                                    className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${dtPlotPurpose === "WEDDING"
-                                                      ? "bg-red-800 text-white border-red-900 shadow-xs"
-                                                      : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
-                                                      }`}
-                                                  >
-                                                    <div className="font-bold text-[11px]">💍 Wedding Function (લગ્ન)</div>
-                                                    <div className="text-[10px] opacity-90">
-                                                      ₹{(fac.weddingRent || fac.baseRent || 0).toLocaleString("en-IN")}
-                                                    </div>
-                                                  </button>
-
-                                                  <button
-                                                    type="button"
-                                                    onClick={() => setDatePlotPurpose(dateStr, "FAMILY")}
-                                                    className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${dtPlotPurpose === "FAMILY"
-                                                      ? "bg-red-800 text-white border-red-900 shadow-xs"
-                                                      : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
-                                                      }`}
-                                                  >
-                                                    <div className="font-bold text-[11px]">👨‍👩‍👧‍👦 Family Function (પારિવારિક)</div>
-                                                    <div className="text-[10px] opacity-90">
-                                                      ₹{(fac.familyRent || fac.baseRent || 0).toLocaleString("en-IN")}
-                                                    </div>
-                                                  </button>
+                                                <div className="flex items-center justify-between">
+                                                  <span className="text-[10px] font-bold text-amber-950 block">
+                                                    આ તારીખ માટે પાર્ટી પ્લોટ ઉપયોગનો પ્રકાર:
+                                                  </span>
+                                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                                                    {getFunctionLabel(currentFn)}
+                                                  </span>
+                                                </div>
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs">
+                                                  {[
+                                                    { id: "WEDDING", label: "💍 Wedding", gu: "લગ્ન પ્રસંગ", rent: fac.weddingRent || 51000 },
+                                                    { id: "FAMILY", label: "👨‍👩‍👧‍👦 Family", gu: "પારિવારિક", rent: fac.familyRent || 21000 },
+                                                    { id: "BESNU", label: "🙏 Besnu", gu: "બેસણું", rent: fac.familyRent || 21000 },
+                                                    { id: "OTHER", label: "✨ Other", gu: "અન્ય પ્રસંગ", rent: fac.familyRent || 21000 },
+                                                  ].map((fOpt) => {
+                                                    const isSel = currentFn === fOpt.id;
+                                                    return (
+                                                      <button
+                                                        key={fOpt.id}
+                                                        type="button"
+                                                        onClick={() => setDateFacilityFunction(dateStr, fac.id, fOpt.id as any)}
+                                                        className={`p-1.5 rounded-lg border text-left transition cursor-pointer ${
+                                                          isSel
+                                                            ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                                            : "bg-white text-slate-800 border-slate-200 hover:bg-slate-100"
+                                                        }`}
+                                                      >
+                                                        <div className="font-bold text-[11px] truncate">{fOpt.label}</div>
+                                                        <div className="text-[9px] opacity-80">{fOpt.gu}</div>
+                                                        <div className="text-[10px] opacity-90 font-mono mt-0.5 font-bold">
+                                                          ₹{fOpt.rent.toLocaleString("en-IN")}
+                                                        </div>
+                                                      </button>
+                                                    );
+                                                  })}
                                                 </div>
                                               </div>
                                             )}
@@ -3681,51 +3801,136 @@ function BookingsManagementContent() {
                                                 </div>
                                               </label>
 
-                                              {/* Ground Floor Hall AC / Non-AC Option Selector */}
+                                              {/* Ground Floor Hall AC / Non-AC & Function Selector */}
                                               {isGroundHall && isChecked && (
+                                                <div className="mt-2.5 pt-2 border-t border-red-200/70 bg-white/95 p-2 rounded-xl space-y-2 shadow-2xs">
+                                                  <div>
+                                                    <div className="flex items-center justify-between mb-1">
+                                                      <span className="text-[10px] font-bold text-slate-700">
+                                                        હોલ સુવિધા પ્રકાર (Hall Option):
+                                                      </span>
+                                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                                        {dtGroundHallAc === "AC" ? "❄️ AC પસંદિત" : "🍃 Non-AC પસંદિત"}
+                                                      </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.preventDefault();
+                                                          e.stopPropagation();
+                                                          setDateGroundHallAc(dateStr, "AC");
+                                                        }}
+                                                        className={`py-1.5 px-2 rounded-lg border text-center font-bold text-[11px] transition cursor-pointer flex items-center justify-center gap-1 ${
+                                                          dtGroundHallAc === "AC"
+                                                            ? "bg-blue-700 text-white border-blue-800 shadow-xs"
+                                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                                        }`}
+                                                      >
+                                                        <span>❄️ AC</span>
+                                                        {dtGroundHallAc === "AC" && <span className="text-[9px]">✓</span>}
+                                                      </button>
+
+                                                      <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                          e.preventDefault();
+                                                          e.stopPropagation();
+                                                          setDateGroundHallAc(dateStr, "NON_AC");
+                                                        }}
+                                                        className={`py-1.5 px-2 rounded-lg border text-center font-bold text-[11px] transition cursor-pointer flex items-center justify-center gap-1 ${
+                                                          dtGroundHallAc === "NON_AC"
+                                                            ? "bg-emerald-700 text-white border-emerald-800 shadow-xs"
+                                                            : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                                        }`}
+                                                      >
+                                                        <span>🍃 Non-AC</span>
+                                                        {dtGroundHallAc === "NON_AC" && <span className="text-[9px]">✓</span>}
+                                                      </button>
+                                                    </div>
+                                                  </div>
+
+                                                  <div className="pt-1.5 border-t border-slate-200">
+                                                    <div className="flex items-center justify-between mb-1">
+                                                      <span className="text-[10px] font-bold text-slate-700">
+                                                        પ્રસંગ પ્રકાર (Function Type):
+                                                      </span>
+                                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                                        {getFunctionLabel(getDateFacilityFunction(dateStr, fac.id))}
+                                                      </span>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-xs">
+                                                      {[
+                                                        { id: "WEDDING", label: "💍 Wedding", gu: "લગ્ન" },
+                                                        { id: "FAMILY", label: "👨‍👩‍👧‍👦 Family", gu: "પારિવારિક" },
+                                                        { id: "BESNU", label: "🙏 Besnu", gu: "બેસણું" },
+                                                        { id: "OTHER", label: "✨ Other", gu: "અન્ય" },
+                                                      ].map((fOpt) => {
+                                                        const isSel = getDateFacilityFunction(dateStr, fac.id) === fOpt.id;
+                                                        return (
+                                                          <button
+                                                            key={fOpt.id}
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                              e.preventDefault();
+                                                              e.stopPropagation();
+                                                              setDateFacilityFunction(dateStr, fac.id, fOpt.id as any);
+                                                            }}
+                                                            className={`py-1 px-1.5 rounded-lg border text-center font-bold text-[10px] transition cursor-pointer ${
+                                                              isSel
+                                                                ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                                                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                                            }`}
+                                                          >
+                                                            <div>{fOpt.label}</div>
+                                                            <div className="text-[8px] opacity-80">{fOpt.gu}</div>
+                                                          </button>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              )}
+
+                                              {/* Multipurpose Hall Function Selector */}
+                                              {!isGroundHall && isChecked && (
                                                 <div className="mt-2.5 pt-2 border-t border-red-200/70 bg-white/95 p-2 rounded-xl space-y-1.5 shadow-2xs">
-                                                  <div className="flex items-center justify-between">
+                                                  <div className="flex items-center justify-between mb-1">
                                                     <span className="text-[10px] font-bold text-slate-700">
-                                                      હોલ સુવિધા પ્રકાર (Hall Option):
+                                                      પ્રસંગ પ્રકાર (Function Type):
                                                     </span>
                                                     <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                                                      {dtGroundHallAc === "AC" ? "❄️ AC પસંદિત" : "🍃 Non-AC પસંદિત"}
+                                                      {getFunctionLabel(getDateFacilityFunction(dateStr, fac.id))}
                                                     </span>
                                                   </div>
-                                                  <div className="grid grid-cols-2 gap-1.5 text-xs">
-                                                    <button
-                                                      type="button"
-                                                      onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setDateGroundHallAc(dateStr, "AC");
-                                                      }}
-                                                      className={`py-1.5 px-2 rounded-lg border text-center font-bold text-[11px] transition cursor-pointer flex items-center justify-center gap-1 ${
-                                                        dtGroundHallAc === "AC"
-                                                          ? "bg-blue-700 text-white border-blue-800 shadow-xs"
-                                                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                                                      }`}
-                                                    >
-                                                      <span>❄️ AC</span>
-                                                      {dtGroundHallAc === "AC" && <span className="text-[9px]">✓</span>}
-                                                    </button>
-
-                                                    <button
-                                                      type="button"
-                                                      onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        setDateGroundHallAc(dateStr, "NON_AC");
-                                                      }}
-                                                      className={`py-1.5 px-2 rounded-lg border text-center font-bold text-[11px] transition cursor-pointer flex items-center justify-center gap-1 ${
-                                                        dtGroundHallAc === "NON_AC"
-                                                          ? "bg-emerald-700 text-white border-emerald-800 shadow-xs"
-                                                          : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                                                      }`}
-                                                    >
-                                                      <span>🍃 Non-AC</span>
-                                                      {dtGroundHallAc === "NON_AC" && <span className="text-[9px]">✓</span>}
-                                                    </button>
+                                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 text-xs">
+                                                    {[
+                                                      { id: "WEDDING", label: "💍 Wedding", gu: "લગ્ન" },
+                                                      { id: "FAMILY", label: "👨‍👩‍👧‍👦 Family", gu: "પારિવારિક" },
+                                                      { id: "BESNU", label: "🙏 Besnu", gu: "બેસણું" },
+                                                      { id: "OTHER", label: "✨ Other", gu: "અન્ય" },
+                                                    ].map((fOpt) => {
+                                                      const isSel = getDateFacilityFunction(dateStr, fac.id) === fOpt.id;
+                                                      return (
+                                                        <button
+                                                          key={fOpt.id}
+                                                          type="button"
+                                                          onClick={(e) => {
+                                                            e.preventDefault();
+                                                            e.stopPropagation();
+                                                            setDateFacilityFunction(dateStr, fac.id, fOpt.id as any);
+                                                          }}
+                                                          className={`py-1 px-1.5 rounded-lg border text-center font-bold text-[10px] transition cursor-pointer ${
+                                                            isSel
+                                                              ? "bg-red-800 text-white border-red-900 shadow-xs"
+                                                              : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                                                          }`}
+                                                        >
+                                                          <div>{fOpt.label}</div>
+                                                          <div className="text-[8px] opacity-80">{fOpt.gu}</div>
+                                                        </button>
+                                                      );
+                                                    })}
                                                   </div>
                                                 </div>
                                               )}
@@ -3773,7 +3978,7 @@ function BookingsManagementContent() {
                                               </div>
                                               <div className="text-right shrink-0">
                                                 <span className="text-xs font-black text-slate-800 block">
-                                                  ₹${(fac.baseRent || (fac.code === "DORM-42-BEDS" ? 16000 : 11000)).toLocaleString("en-IN")}
+                                                  ₹{(fac.baseRent || (fac.code === "DORM-42-BEDS" ? 16000 : 11000)).toLocaleString("en-IN")}
                                                 </span>
                                               </div>
                                             </label>
@@ -3820,7 +4025,7 @@ function BookingsManagementContent() {
                                               </div>
                                               <div className="text-right shrink-0">
                                                 <span className="text-[11px] font-black text-slate-800 block">
-                                                  ₹${(fac.baseRent || (fac.code === "ROOM-6BED" ? 2500 : 3000)).toLocaleString("en-IN")}
+                                                  ₹{(fac.baseRent || (fac.code === "ROOM-6BED" ? 2500 : 3000)).toLocaleString("en-IN")}
                                                 </span>
                                               </div>
                                             </label>
