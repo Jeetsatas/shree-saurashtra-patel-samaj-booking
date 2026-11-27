@@ -34,7 +34,9 @@ import {
 export default function AdminCalendarPage() {
   const [facilities, setFacilities] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [currentUser, setCurrentUser] = useState<any | null>(() => {
+    return getAdminCachedData<any>("/api/auth/me")?.user || null;
+  });
   const [selectedFacilityId, setSelectedFacilityId] = useState<string>("ALL");
   const [filterType, setFilterType] = useState<string>("ALL");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -49,8 +51,10 @@ export default function AdminCalendarPage() {
     const y = currentDate.getFullYear();
     const m = currentDate.getMonth() + 1;
     const url = `/api/bookings?month=${m}&year=${y}`;
+    const cachedUser = getAdminCachedData<any>("/api/auth/me");
     const cachedFacilities = getAdminCachedData<any>("/api/facilities");
     const cachedBookings = getAdminCachedData<any>(url);
+    if (cachedUser?.user) setCurrentUser(cachedUser.user);
     if (cachedFacilities?.facilities) setFacilities(cachedFacilities.facilities);
     if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
     if (cachedFacilities || cachedBookings) setLoading(false);

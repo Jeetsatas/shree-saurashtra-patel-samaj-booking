@@ -68,7 +68,12 @@ export default function BookingsManagementPage() {
 
 function BookingsManagementContent() {
   const searchParams = useSearchParams();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => {
+    return getAdminCachedData<any>("/api/auth/me")?.user || null;
+  });
+  const [authLoading, setAuthLoading] = useState<boolean>(() => {
+    return !getAdminCachedData<any>("/api/auth/me")?.user;
+  });
   const [bookings, setBookings] = useState<any[]>([]);
   const [facilities, setFacilities] = useState<any[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -329,6 +334,10 @@ function BookingsManagementContent() {
       const facParam = searchParams.get("facilityId");
       openNewBookingModal(dateParam, facParam);
     }
+
+    // Wait until authentication has loaded so Super Admin role is properly resolved
+    if (authLoading || !currentUser) return;
+
     if (searchParams && searchParams.get("edit") && bookings.length > 0) {
       const editId = searchParams.get("edit");
       const target = bookings.find((b) => b.id === editId || b.bookingNumber === editId);
@@ -341,7 +350,7 @@ function BookingsManagementContent() {
         }
       }
     }
-  }, [searchParams, bookings]);
+  }, [searchParams, bookings, currentUser, authLoading]);
 
   // React to custom event (handles clicking "+ નવું બુકિંગ" in navbar while already on /admin/bookings)
   useEffect(() => {
@@ -366,10 +375,15 @@ function BookingsManagementContent() {
   }, [showCreateModal]);
 
   useEffect(() => {
+    const cachedUser = getAdminCachedData<any>("/api/auth/me");
     const cachedBookings = getAdminCachedData<any>("/api/bookings");
     const cachedFacilities = getAdminCachedData<any>("/api/facilities");
     const cachedDiscounts = getAdminCachedData<any>("/api/discounts");
     const cachedServices = getAdminCachedData<any>("/api/services");
+    if (cachedUser?.user) {
+      setCurrentUser(cachedUser.user);
+      setAuthLoading(false);
+    }
     if (cachedBookings?.bookings) setBookings(cachedBookings.bookings);
     if (cachedFacilities?.facilities) setFacilities(cachedFacilities.facilities);
     if (cachedDiscounts?.discounts) setDiscounts(cachedDiscounts.discounts);
@@ -417,6 +431,7 @@ function BookingsManagementContent() {
       if (userRes.status === "fulfilled" && userRes.value?.user) {
         setCurrentUser(userRes.value.user);
       }
+      setAuthLoading(false);
       if (bookRes.status === "fulfilled" && bookRes.value?.bookings) {
         setBookings(bookRes.value.bookings);
       }
@@ -1382,6 +1397,7 @@ function BookingsManagementContent() {
   };
 
   const handleOpenEdit = (b: any, bulkIds?: string[]) => {
+    if (authLoading) return;
     if (!isSuperAdmin) {
       alert("Only the Super Admin is authorized to edit booking details.");
       return;
