@@ -673,6 +673,14 @@ function BookingsManagementContent() {
     return `${d} ${mName} ${y} (${dayGu} / ${dayEn})`;
   };
 
+  const formatDateGuShort = (dateStr: string) => {
+    if (!dateStr) return "";
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const monthsEn = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const mName = monthsEn[m - 1] || "";
+    return `${d} ${mName} ${y}`;
+  };
+
   const toggleDate = (dateStr: string) => {
     setSelectedDates((prev) => {
       if (prev.includes(dateStr)) {
@@ -4025,7 +4033,7 @@ function BookingsManagementContent() {
                             }`}
                             title="એક તારીખ પસંદગી મોડ (Single Date Mode)"
                           >
-                            ૧ તારીખ
+                            સિંગલ તારીખ
                           </button>
                           <button
                             type="button"
@@ -4479,7 +4487,7 @@ function BookingsManagementContent() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-1">
                         <span className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                           <Calendar className="w-4 h-4 text-red-800" />
-                          ૨. તારીખ મુજબ સુવિધાઓ અને સમય પસંદ કરો ({selectedDates.length} તારીખ)
+                          ૨. તારીખ મુજબ સુવિધાઓ અને સમય પસંદ કરો ({selectedDates.length === 1 ? formatDateGuShort(selectedDates[0]) : `${selectedDates.length} દિવસ`})
                         </span>
                         {dateCopySuccess && (
                           <span className="text-xs font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 animate-in fade-in">
@@ -5624,7 +5632,13 @@ function BookingsManagementContent() {
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:px-6 bg-slate-50 border-t border-slate-200 shrink-0 shadow-lg">
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <span className="font-extrabold px-2.5 py-1 rounded-lg bg-red-100 text-red-900 border border-red-200">
-                    📅 {selectedDates.length} તારીખ
+                    📅 {selectedDates.length === 0
+                      ? "તારીખ પસંદ કરો"
+                      : selectedDates.length === 1
+                      ? formatDateGu(selectedDates[0])
+                      : selectedDates.length === 2
+                      ? `${formatDateGuShort(selectedDates[0])} & ${formatDateGuShort(selectedDates[1])} (૨ દિવસ)`
+                      : `${formatDateGuShort(selectedDates[0])} થી ${formatDateGuShort(selectedDates[selectedDates.length - 1])} (${selectedDates.length} દિવસ)`}
                   </span>
                   <span className="font-extrabold px-2.5 py-1 rounded-lg bg-slate-200 text-slate-800">
                     🏢 {Array.from(new Set(bookingItems.map((it) => it.facilityId))).length} સુવિધા
