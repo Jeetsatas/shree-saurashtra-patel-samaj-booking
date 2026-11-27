@@ -19,6 +19,7 @@ import {
   Shield,
   Layers,
   History,
+  Edit3,
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
@@ -294,10 +295,18 @@ export default function AdminDashboardPage() {
                     <Link
                       href={`/admin/bookings/${b.id}/receipt`}
                       target="_blank"
-                      className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 transition flex items-center"
+                      className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold px-2.5 py-1.5 rounded-lg border border-slate-300 transition flex items-center shadow-2xs"
                     >
                       <FileText className="w-3.5 h-3.5 mr-1 text-slate-600" />
                       Slip
+                    </Link>
+                    <Link
+                      href={`/admin/bookings?edit=${b.id}`}
+                      className="text-xs bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold px-2.5 py-1.5 rounded-lg border border-amber-300 transition flex items-center shadow-2xs"
+                      title="બુકિંગ સુધારો (Edit Booking)"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 mr-1 text-amber-700" />
+                      Edit
                     </Link>
                   </div>
                 </div>

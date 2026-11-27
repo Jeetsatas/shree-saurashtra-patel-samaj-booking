@@ -691,6 +691,9 @@ export async function PUT(req: NextRequest) {
       eventType,
       status,
       slot,
+      facilityId,
+      startDate,
+      endDate,
       facilityAmount,
       discountCode,
       discountPercent,
@@ -763,22 +766,110 @@ export async function PUT(req: NextRequest) {
       lastUpdatedByName: user.name,
     };
 
-    // If updating a single booking, allow tariff and slot fields as well
-    if (targetIds.length === 1) {
-      if (slot) updateData.slot = slot.trim();
-      if (facilityAmount !== undefined) updateData.facilityAmount = Number(facilityAmount);
-      if (discountCode !== undefined) updateData.discountCode = discountCode;
-      if (discountPercent !== undefined) updateData.discountPercent = Number(discountPercent);
-      if (discountAmount !== undefined) updateData.discountAmount = Number(discountAmount);
-      if (discountOverridden !== undefined) updateData.discountOverridden = Boolean(discountOverridden);
-      if (discountOverrideReason !== undefined) updateData.discountOverrideReason = discountOverrideReason;
+    // Primary booking specific fields (Facility, Tariff Amount, Dates & Slots)
+    const primaryId = id || targetIds[0];
+    const primarySpecificData: any = {};
+
+    const primaryBooking = await prisma.booking.findUnique({
+      where: { id: primaryId },
+      include: { facility: true },
+    });
+
+    if (primaryBooking) {
+      const newFacilityId = facilityId || primaryBooking.facilityId;
+      const newSlot = slot ? slot.trim() : primaryBooking.slot;
+      const newStartDate = startDate ? new Date(startDate) : primaryBooking.startDate;
+      const newEndDate = endDate
+        ? new Date(endDate)
+        : startDate
+        ? new Date(startDate)
+        : primaryBooking.endDate;
+
+      const facilityChanged = Boolean(facilityId && facilityId !== primaryBooking.facilityId);
+      const dateChanged = Boolean(
+        startDate &&
+          new Date(startDate).toISOString().slice(0, 10) !==
+            new Date(primaryBooking.startDate).toISOString().slice(0, 10)
+      );
+      const slotChanged = Boolean(slot && slot.trim() !== primaryBooking.slot);
+
+      if (facilityChanged || dateChanged || slotChanged) {
+        const targetFac = await prisma.facility.findUnique({
+          where: { id: newFacilityId },
+        });
+        if (!targetFac) {
+          return NextResponse.json({ error: "પસંદ કરેલ સુવિધા ઉપલબ્ધ નથી (Selected facility not found)" }, { status: 400 });
+        }
+
+        const facGroup = targetFac.resourceGroup || targetFac.code;
+
+        // Check for conflicts with existing confirmed bookings (excluding this booking and cancelled ones)
+        const potentialConflicts = await prisma.booking.findMany({
+          where: {
+            id: { not: primaryBooking.id },
+            status: { notIn: ["CANCELLED"] },
+            OR: [
+              { facilityId: newFacilityId },
+              ...(facGroup ? [{ facility: { resourceGroup: facGroup } }] : []),
+              ...(facGroup ? [{ facility: { code: facGroup } }] : []),
+            ],
+          },
+          include: { facility: true },
+        });
+
+        const conflict = potentialConflicts.find((existing) =>
+          doBookingsConflict(
+            { startDate: existing.startDate, slot: existing.slot },
+            { startDate: newStartDate, slot: newSlot }
+          )
+        );
+
+        if (conflict) {
+          const cDate = new Date(conflict.startDate).toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          });
+          return NextResponse.json(
+            {
+              error: `વિરોધાભાસ (Conflict): આ તારીખે (${cDate}) ${targetFac.name} સુવિધા સ્લોટ "${conflict.slot}" પર પહેલેથી બુક થયેલ છે (બુકિંગ #${conflict.bookingNumber} - ${conflict.customerName}). કૃપા કરીને અન્ય તારીખ, સમય અથવા સુવિધા પસંદ કરો.`,
+            },
+            { status: 409 }
+          );
+        }
+
+        primarySpecificData.facilityId = newFacilityId;
+        primarySpecificData.startDate = newStartDate;
+        primarySpecificData.endDate = newEndDate;
+        primarySpecificData.slot = newSlot;
+      }
+
+      if (facilityAmount !== undefined) {
+        const fAmt = Number(facilityAmount);
+        primarySpecificData.facilityAmount = fAmt;
+        if (totalAmount === undefined) {
+          const sAmt = Number(primaryBooking.servicesAmount || 0);
+          const dAmt = Number(primaryBooking.discountAmount || 0);
+          primarySpecificData.totalAmount = Math.max(0, fAmt + sAmt - dAmt);
+        }
+      }
+      if (totalAmount !== undefined) {
+        primarySpecificData.totalAmount = Number(totalAmount);
+      }
+      if (slot && !primarySpecificData.slot) {
+        primarySpecificData.slot = slot.trim();
+      }
+      if (discountCode !== undefined) primarySpecificData.discountCode = discountCode;
+      if (discountPercent !== undefined) primarySpecificData.discountPercent = Number(discountPercent);
+      if (discountAmount !== undefined) primarySpecificData.discountAmount = Number(discountAmount);
+      if (discountOverridden !== undefined) primarySpecificData.discountOverridden = Boolean(discountOverridden);
+      if (discountOverrideReason !== undefined) primarySpecificData.discountOverrideReason = discountOverrideReason;
       if (selectedServices !== undefined) {
-        updateData.selectedServices =
+        primarySpecificData.selectedServices =
           typeof selectedServices === "string" ? selectedServices : JSON.stringify(selectedServices);
       }
-      if (servicesAmount !== undefined) updateData.servicesAmount = Number(servicesAmount);
-      if (totalAmount !== undefined) updateData.totalAmount = Number(totalAmount);
-      if (depositAmount !== undefined) updateData.depositAmount = Number(depositAmount);
+      if (servicesAmount !== undefined) primarySpecificData.servicesAmount = Number(servicesAmount);
+      if (depositAmount !== undefined) primarySpecificData.depositAmount = Number(depositAmount);
     }
 
     // If groundHallOption is provided, update notes and selectedServices for Ground Floor Hall bookings
@@ -889,13 +980,25 @@ export async function PUT(req: NextRequest) {
       }
     }
 
-    // Execute atomic batch update across all target bookings
-    await withDbRetry(() =>
-      prisma.booking.updateMany({
-        where: { id: { in: targetIds } },
-        data: updateData,
-      })
-    );
+    // Execute atomic batch update across all target bookings (shared party fields)
+    if (Object.keys(updateData).length > 0) {
+      await withDbRetry(() =>
+        prisma.booking.updateMany({
+          where: { id: { in: targetIds } },
+          data: updateData,
+        })
+      );
+    }
+
+    // Apply primary booking specific fields (facilityId, amount, date, slot)
+    if (primaryId && Object.keys(primarySpecificData).length > 0) {
+      await withDbRetry(() =>
+        prisma.booking.update({
+          where: { id: primaryId },
+          data: primarySpecificData,
+        })
+      );
+    }
 
     // Fetch the updated bookings to return
     const updatedBookings = await withDbRetry(() =>

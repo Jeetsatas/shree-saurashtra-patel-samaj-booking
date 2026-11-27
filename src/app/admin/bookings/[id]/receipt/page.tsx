@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Printer, ArrowLeft, Building2 } from "lucide-react";
+import { Printer, ArrowLeft, Building2, Edit3 } from "lucide-react";
 import Link from "next/link";
 import { formatSlotLabel, isGroundFloorHall, getBookingGroundHallOption } from "@/lib/slotUtils";
 
@@ -63,13 +63,24 @@ export default function BookingReceiptPage() {
           Back to Bookings
         </Link>
 
-        <button
-          onClick={() => window.print()}
-          className="bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center min-h-[40px]"
-        >
-          <Printer className="w-4 h-4 mr-1.5" />
-          Print Official Booking Voucher (A4)
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/admin/bookings?edit=${booking.id}`}
+            className="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center min-h-[40px]"
+            title="આ બુકિંગની વિગતો સુધારો (Edit Booking)"
+          >
+            <Edit3 className="w-4 h-4 mr-1.5" />
+            બુકિંગ સુધારો (Edit)
+          </Link>
+
+          <button
+            onClick={() => window.print()}
+            className="bg-red-800 hover:bg-red-700 active:bg-red-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl shadow transition flex items-center justify-center min-h-[40px]"
+          >
+            <Printer className="w-4 h-4 mr-1.5" />
+            Print Official Booking Voucher (A4)
+          </button>
+        </div>
       </div>
 
       {/* A4 Sheet Card */}

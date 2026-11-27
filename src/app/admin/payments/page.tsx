@@ -962,8 +962,17 @@ export default function AdminPaymentStatusPage() {
                           </div>
                         </div>
 
-                        {/* Top Action Buttons (with Manual Audit) */}
+                        {/* Top Action Buttons (with Manual Audit & Edit) */}
                         <div className="flex flex-wrap items-center gap-2 self-start lg:self-center">
+                          <Link
+                            href={`/admin/bookings?edit=${party.bookings[0]?.id}`}
+                            className="px-3 py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-[0.98]"
+                            title="આ પાર્ટી અને સુવિધાઓની વિગતો સુધારો (Edit Party & Facilities)"
+                          >
+                            <Edit3 className="w-3.5 h-3.5 text-amber-700" />
+                            <span>સુધારો (Edit)</span>
+                          </Link>
+
                           <button
                             type="button"
                             onClick={() => handleOpenJamaModal(party)}
@@ -1011,6 +1020,14 @@ export default function AdminPaymentStatusPage() {
                             <span className="font-bold text-slate-900 tabular-nums">
                               ₹{(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
                             </span>
+                            <Link
+                              href={`/admin/bookings?edit=${b.id}`}
+                              className="ml-1 px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold flex items-center gap-0.5 transition"
+                              title="આ સુવિધા, તારીખ અથવા રકમ સુધારો (Edit Facility or Amount)"
+                            >
+                              <Edit3 className="w-2.5 h-2.5 text-amber-700" />
+                              <span>Edit</span>
+                            </Link>
                           </span>
                         ))}
                       </div>
@@ -1990,7 +2007,7 @@ export default function AdminPaymentStatusPage() {
                   {viewingParty.bookings.map((b) => (
                     <div
                       key={b.id}
-                      className="p-2.5 rounded-xl border border-slate-200 flex items-center justify-between"
+                      className="p-2.5 rounded-xl border border-slate-200 flex items-center justify-between gap-2"
                     >
                       <div>
                         <div className="font-bold text-slate-900">{b.facility?.name}</div>
@@ -1998,9 +2015,19 @@ export default function AdminPaymentStatusPage() {
                           {new Date(b.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} • {formatSlotLabel(b.slot)}
                         </div>
                       </div>
-                      <span className="font-mono font-bold text-slate-900">
-                        ₹{(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-slate-900">
+                          ₹{(b.facilityAmount || b.totalAmount || 0).toLocaleString("en-IN")}
+                        </span>
+                        <Link
+                          href={`/admin/bookings?edit=${b.id}`}
+                          className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-[11px] flex items-center gap-1 transition shadow-2xs"
+                          title="સુવિધા અને રકમ સુધારો (Edit Facility & Amount)"
+                        >
+                          <Edit3 className="w-3 h-3 text-amber-700" />
+                          <span>સુધારો</span>
+                        </Link>
+                      </div>
                     </div>
                   ))}
                 </div>

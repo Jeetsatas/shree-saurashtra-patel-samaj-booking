@@ -245,6 +245,11 @@ function BookingsManagementContent() {
     customerAddress: "",
     customerAadhar: "",
     eventType: "Wedding",
+    facilityId: "",
+    facilityAmount: 0,
+    totalAmount: 0,
+    startDate: "",
+    slot: WHOLE_DAY_SLOT_LABEL,
     notes: "",
     paymentStatus: "PENDING",
     paymentMethod: "CASH_AT_OFFICE",
@@ -1407,6 +1412,10 @@ function BookingsManagementContent() {
     setTargetBulkIds(isBulk ? bulkIds! : [b.id]);
 
     const initialGroundHallOpt = getBookingGroundHallOption(b) || "NON_AC";
+    const bStart = b.startDate ? new Date(b.startDate).toISOString().slice(0, 10) : "";
+    const bFacAmt = Number(b.facilityAmount ?? b.totalAmount ?? 0);
+    const bTotalAmt = Number(b.totalAmount ?? b.facilityAmount ?? 0);
+
     setEditFormData({
       customerName: b.customerName || "",
       customerPhone: b.customerPhone || "",
@@ -1414,6 +1423,11 @@ function BookingsManagementContent() {
       customerAddress: b.customerAddress || "",
       customerAadhar: b.customerAadhar || "",
       eventType: b.eventType || "Wedding",
+      facilityId: b.facilityId || "",
+      facilityAmount: bFacAmt,
+      totalAmount: bTotalAmt,
+      startDate: bStart,
+      slot: b.slot || WHOLE_DAY_SLOT_LABEL,
       notes: b.notes || "",
       paymentStatus: b.paymentStatus || "PENDING",
       paymentMethod: b.paymentMethod || "CASH_AT_OFFICE",
@@ -1454,6 +1468,7 @@ function BookingsManagementContent() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: editingBooking.id,
           ids: idsToUpdate,
           customerName: editFormData.customerName.trim(),
           customerPhone: editFormData.customerPhone.trim(),
@@ -1461,6 +1476,11 @@ function BookingsManagementContent() {
           customerAddress: editFormData.customerAddress.trim(),
           customerAadhar: editFormData.customerAadhar.trim(),
           eventType: editFormData.eventType.trim(),
+          facilityId: editFormData.facilityId,
+          facilityAmount: Number(editFormData.facilityAmount),
+          totalAmount: Number(editFormData.totalAmount),
+          startDate: editFormData.startDate,
+          slot: editFormData.slot.trim(),
           notes: editFormData.notes.trim(),
           paymentStatus: editFormData.paymentStatus,
           paymentMethod: editFormData.paymentMethod,
@@ -1482,15 +1502,26 @@ function BookingsManagementContent() {
       setBookings((prev) =>
         prev.map((b) => {
           if (updatedMap.has(b.id)) {
+            const up = updatedMap.get(b.id);
             return {
               ...b,
-              ...updatedMap.get(b.id),
-              facility: b.facility,
+              ...up,
+              facility: up.facility || facilities.find((f) => f.id === up.facilityId) || b.facility,
             };
           }
           if (idsToUpdate.includes(b.id)) {
+            const isTarget = b.id === editingBooking.id;
+            const updatedFac = isTarget && editFormData.facilityId ? (facilities.find((f) => f.id === editFormData.facilityId) || b.facility) : b.facility;
             return {
               ...b,
+              ...(isTarget ? {
+                facilityId: editFormData.facilityId,
+                facility: updatedFac,
+                facilityAmount: Number(editFormData.facilityAmount),
+                totalAmount: Number(editFormData.totalAmount),
+                startDate: editFormData.startDate,
+                slot: editFormData.slot.trim(),
+              } : {}),
               customerName: editFormData.customerName.trim(),
               customerPhone: editFormData.customerPhone.trim(),
               customerEmail: editFormData.customerEmail.trim() || null,
@@ -1512,6 +1543,14 @@ function BookingsManagementContent() {
       if (detailBooking && idsToUpdate.includes(detailBooking.id)) {
         setDetailBooking((prev: any) => ({
           ...prev,
+          ...(detailBooking.id === editingBooking.id ? {
+            facilityId: editFormData.facilityId,
+            facility: facilities.find((f) => f.id === editFormData.facilityId) || prev.facility,
+            facilityAmount: Number(editFormData.facilityAmount),
+            totalAmount: Number(editFormData.totalAmount),
+            startDate: editFormData.startDate,
+            slot: editFormData.slot.trim(),
+          } : {}),
           customerName: editFormData.customerName.trim(),
           customerPhone: editFormData.customerPhone.trim(),
           customerEmail: editFormData.customerEmail.trim() || null,
@@ -1527,6 +1566,7 @@ function BookingsManagementContent() {
       }
 
       clearAdminClientCache();
+      refreshBookings();
       setSelectedBookingIds([]);
 
       setEditSuccess(
@@ -2722,36 +2762,138 @@ function BookingsManagementContent() {
                 </div>
               )}
 
-              {/* Booking Context Pill (Readonly Summary) */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                <div>
-                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">સુવિધા (Facility)</span>
-                  <span className="font-bold text-slate-800 block truncate mt-0.5 flex items-center gap-1.5 flex-wrap">
-                    <span>{editingBooking.facility?.name || "Facility"}</span>
-                    {isGroundFloorHall(editingBooking.facility) && (
-                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
-                        editFormData.groundHallOption === "AC"
-                          ? "bg-blue-50 text-blue-800 border-blue-200"
-                          : "bg-emerald-50 text-emerald-800 border-emerald-200"
-                      }`}>
-                        {editFormData.groundHallOption === "AC" ? "❄️ AC" : "🍃 Non-AC"}
-                      </span>
-                    )}
+              {/* Facility, Date, Slot & Amount Editing Section */}
+              <div className="bg-gradient-to-br from-blue-50/70 to-indigo-50/50 border-2 border-blue-200 rounded-2xl p-4 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between pb-1.5 border-b border-blue-200/80">
+                  <div className="flex items-center gap-2">
+                    <Building className="w-4 h-4 text-blue-700" />
+                    <span className="font-extrabold text-blue-950 text-xs uppercase tracking-wide">
+                      સુવિધા, તારીખ, સમય અને ભાડું (Facility, Date & Amount)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-black px-2 py-0.5 rounded bg-blue-100 text-blue-900 border border-blue-300">
+                    {editingBooking.bookingNumber}
                   </span>
                 </div>
-                <div>
-                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">તારીખ (Date)</span>
-                  <span className="font-bold text-slate-800 block mt-0.5">
-                    {new Date(editingBooking.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">સમય (Slot)</span>
-                  <span className="font-bold text-slate-800 block mt-0.5">{editingBooking.slot}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 font-bold uppercase tracking-wider block text-[10px]">કુલ રકમ (Tariff)</span>
-                  <span className="font-black text-slate-900 block mt-0.5">₹{editingBooking.totalAmount?.toLocaleString("en-IN")}</span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Facility Dropdown */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
+                      <span>સુવિધા પસંદ કરો (Select Facility) <span className="text-rose-500">*</span></span>
+                      <span className="text-[10px] text-slate-500 font-normal">કોઈપણ સુવિધા બદલી શકાય છે</span>
+                    </label>
+                    <select
+                      value={editFormData.facilityId}
+                      onChange={(e) => {
+                        const newFacId = e.target.value;
+                        const selFac = facilities.find((f) => f.id === newFacId);
+                        setEditFormData({
+                          ...editFormData,
+                          facilityId: newFacId,
+                          ...(selFac && {
+                            facilityAmount: selFac.basePrice,
+                            totalAmount: selFac.basePrice,
+                          }),
+                        });
+                      }}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 text-xs shadow-2xs cursor-pointer bg-white"
+                    >
+                      {facilities.map((fac) => (
+                        <option key={fac.id} value={fac.id}>
+                          {fac.name} ({fac.code}) — મૂળ ભાડું: ₹{fac.basePrice?.toLocaleString("en-IN")}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Booking Amount / Tariff Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
+                      <span>બુકિંગ ભાડું / રકમ (Tariff Amount) <span className="text-rose-500">*</span></span>
+                      <span className="text-[10px] text-amber-700 font-bold">સીધી રકમ બદલો</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-600 text-sm">₹</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="100"
+                        required
+                        value={editFormData.facilityAmount}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 0;
+                          setEditFormData({
+                            ...editFormData,
+                            facilityAmount: val,
+                            totalAmount: val,
+                          });
+                        }}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-black text-slate-950 text-sm shadow-2xs bg-white"
+                        placeholder="દા.ત. 21000"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Event Date Input */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-800 mb-1">
+                      પ્રસંગની તારીખ (Event Date) <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={editFormData.startDate}
+                      onChange={(e) => setEditFormData({ ...editFormData, startDate: e.target.value })}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 text-xs shadow-2xs cursor-pointer bg-white"
+                    />
+                  </div>
+
+                  {/* Time Slot Selection */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-[11px] font-bold text-slate-800 mb-1 flex items-center justify-between">
+                      <span>સમયગાળો / સ્લોટ (Timing Slot) <span className="text-rose-500">*</span></span>
+                      <span className="text-[10px] text-slate-500 font-normal">સમાજ મુજબ સ્લોટ પસંદ કરો</span>
+                    </label>
+                    <div className="space-y-1.5">
+                      <select
+                        value={
+                          [
+                            WHOLE_DAY_SLOT_LABEL,
+                            "07:00 AM to 03:00 PM",
+                            "03:00 PM to 11:00 PM",
+                            "11:00 PM to 07:00 AM Next Day",
+                            "01:00 AM to 02:00 PM",
+                            "03:00 PM to 12:00 AM",
+                          ].includes(editFormData.slot)
+                            ? editFormData.slot
+                            : "CUSTOM"
+                        }
+                        onChange={(e) => {
+                          if (e.target.value !== "CUSTOM") {
+                            setEditFormData({ ...editFormData, slot: e.target.value });
+                          }
+                        }}
+                        className="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-900 text-xs shadow-2xs cursor-pointer bg-white"
+                      >
+                        <option value={WHOLE_DAY_SLOT_LABEL}>આખો દિવસ: {WHOLE_DAY_SLOT_LABEL}</option>
+                        <option value="07:00 AM to 03:00 PM">સવાર / બપોર સ્લોટ: 07:00 AM to 03:00 PM</option>
+                        <option value="03:00 PM to 11:00 PM">સાંજ / રાત્રિ સ્લોટ: 03:00 PM to 11:00 PM</option>
+                        <option value="11:00 PM to 07:00 AM Next Day">મધ્યરાત્રિ સ્લોટ: 11:00 PM to 07:00 AM Next Day</option>
+                        <option value="01:00 AM to 02:00 PM">રાત્રિ 01:00 AM થી બપોરે 02:00 PM</option>
+                        <option value="03:00 PM to 12:00 AM">બપોરે 03:00 PM થી મધ્યરાત્રિ 12:00 AM</option>
+                        <option value="CUSTOM">અન્ય કસ્ટમ સમય (Custom Timing)</option>
+                      </select>
+
+                      <input
+                        type="text"
+                        value={editFormData.slot}
+                        onChange={(e) => setEditFormData({ ...editFormData, slot: e.target.value })}
+                        placeholder="દા.ત. 07:00 AM to 03:00 PM"
+                        className="w-full px-3.5 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono font-medium text-slate-800 text-[11px] shadow-2xs bg-slate-50"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -2939,7 +3081,7 @@ function BookingsManagementContent() {
                 </div>
 
                 {/* Ground Floor Hall AC / Non-AC Selector in Edit Modal */}
-                {isGroundFloorHall(editingBooking.facility) && (
+                {isGroundFloorHall(facilities.find((f) => f.id === editFormData.facilityId) || editingBooking.facility) && (
                   <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-blue-950 flex items-center gap-1.5">

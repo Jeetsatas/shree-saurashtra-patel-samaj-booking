@@ -1109,7 +1109,7 @@ export default function AdminCalendarPage() {
                                   <Link
                                     href={`/admin/bookings?edit=${b.id}`}
                                     className="py-2 px-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs shadow-2xs transition flex items-center justify-center space-x-1"
-                                    title="પાર્ટીની વિગતો સુધારો"
+                                    title="સુવિધા, તારીખ, રકમ અને પાર્ટી સુધારો (Edit Facility, Date, Amount & Party)"
                                   >
                                     <Edit3 className="w-3.5 h-3.5 text-amber-700" />
                                     <span>સુધારો</span>
