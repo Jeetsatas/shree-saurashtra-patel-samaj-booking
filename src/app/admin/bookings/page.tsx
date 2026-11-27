@@ -7,6 +7,8 @@ import { fetchAdminJson, getAdminCachedData, clearAdminClientCache } from "@/lib
 import {
   doSlotsOverlap,
   parseSlotTimeRange,
+  AM_HOURS,
+  PM_HOURS,
   STANDARD_HOURS,
   TIMING_PRESETS,
   formatSlotLabel,
@@ -20,7 +22,6 @@ import {
   groupBookingsByParty,
   PartyBookingGroup,
 } from "@/lib/slotUtils";
-import { InteractiveClockModal } from "@/components/InteractiveClockModal";
 import {
   Plus,
   Search,
@@ -286,11 +287,6 @@ function BookingsManagementContent() {
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
-  // Interactive 24-Hour Clock Modal State (સમાજ સમયપત્રક મુજબ)
-  const [clockModalOpen, setClockModalOpen] = useState(false);
-  const [clockModalDate, setClockModalDate] = useState<string>("");
-  const [clockModalFacId, setClockModalFacId] = useState<string | null>(null);
-  const [clockModalFacName, setClockModalFacName] = useState<string>("");
 
   // Pagination State (Fast 25/50/100 records per page to eliminate DOM lag)
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -966,32 +962,6 @@ function BookingsManagementContent() {
   const addFacilityCustomTimingSlot = (facId: string, from: string, to: string) => {
     if (!currentActiveDate) return;
     addFacilityCustomTimingSlotForDate(currentActiveDate, facId, from, to);
-  };
-
-  const openClockForDate = (dateStr: string) => {
-    setClockModalDate(dateStr);
-    setClockModalFacId(null);
-    setClockModalFacName("બધી સુવિધાઓ (All Facilities)");
-    setClockModalOpen(true);
-  };
-
-  const openClockForFacility = (dateStr: string, facId: string, facName: string) => {
-    setClockModalDate(dateStr);
-    setClockModalFacId(facId);
-    setClockModalFacName(facName);
-    setClockModalOpen(true);
-  };
-
-  const handleClockAddSlot = (slotString: string) => {
-    if (!clockModalDate) return;
-    const parts = slotString.split(" - ");
-    const from = parts[0]?.trim() || "09:00 AM";
-    const to = parts[1]?.trim() || "01:00 PM";
-    if (clockModalFacId) {
-      addFacilityCustomTimingSlotForDate(clockModalDate, clockModalFacId, from, to);
-    } else {
-      addDateCustomSlot(clockModalDate, from, to);
-    }
   };
 
   const getNextDateStr = (dateStr: string) => {
@@ -4970,18 +4940,8 @@ function BookingsManagementContent() {
                                       <div className="flex flex-wrap items-center justify-between gap-2">
                                         <span className="text-xs font-bold text-blue-950 flex items-center gap-1">
                                           <Clock className="w-3.5 h-3.5 text-blue-700" />
-                                          ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો (Custom Timing):
+                                          ૨. ચોક્કસ કસ્ટમ સમય ઉમેરો (સમય મુજબ / Custom Timing):
                                         </span>
-
-                                        {/* Prominent 24-Hour Interactive Clock Button */}
-                                        <button
-                                          type="button"
-                                          onClick={() => openClockForDate(dateStr)}
-                                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-800 via-red-700 to-amber-900 hover:from-red-700 hover:to-amber-800 active:scale-95 text-white font-extrabold text-[11px] shadow-sm transition flex items-center gap-1.5 cursor-pointer"
-                                        >
-                                          <Clock className="w-3.5 h-3.5 text-amber-300 stroke-[2.5]" />
-                                          <span>🕒 ૨૪ કલાક ઘડિયાળમાંથી પસંદ કરો (Open 24h Clock)</span>
-                                        </button>
                                       </div>
 
                                       {/* Quick Presets */}
@@ -5006,30 +4966,44 @@ function BookingsManagementContent() {
                                         })}
                                       </div>
 
-                                      {/* From / To dropdowns */}
+                                      {/* From / To dropdowns with all AM to PM hours (30 min interval) */}
                                       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
                                         <div className="flex items-center gap-1">
                                           <span className="text-[10px] font-bold text-slate-600">શરૂ:</span>
                                           <select
                                             id={`dt-st-${dateStr}`}
-                                            defaultValue="12:00 PM"
-                                            className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
+                                            defaultValue="07:00 AM"
+                                            className="bg-slate-50 border border-slate-300 rounded px-2 py-1 font-bold outline-none text-xs text-slate-800"
                                           >
-                                            {STANDARD_HOURS.map((hr) => (
-                                              <option key={`st-${dateStr}-${hr}`} value={hr}>{hr}</option>
-                                            ))}
+                                            <optgroup label="☀️ AM કલાકો (સવાર / રાત્રિ)">
+                                              {AM_HOURS.map((hr) => (
+                                                <option key={`st-${dateStr}-${hr}`} value={hr}>{hr}</option>
+                                              ))}
+                                            </optgroup>
+                                            <optgroup label="🌙 PM કલાકો (બપોર / સાંજ)">
+                                              {PM_HOURS.map((hr) => (
+                                                <option key={`st-${dateStr}-${hr}`} value={hr}>{hr}</option>
+                                              ))}
+                                            </optgroup>
                                           </select>
                                         </div>
                                         <div className="flex items-center gap-1">
                                           <span className="text-[10px] font-bold text-slate-600">અંત:</span>
                                           <select
                                             id={`dt-en-${dateStr}`}
-                                            defaultValue="02:00 PM"
-                                            className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none"
+                                            defaultValue="03:00 PM"
+                                            className="bg-slate-50 border border-slate-300 rounded px-2 py-1 font-bold outline-none text-xs text-slate-800"
                                           >
-                                            {STANDARD_HOURS.map((hr) => (
-                                              <option key={`en-${dateStr}-${hr}`} value={hr}>{hr}</option>
-                                            ))}
+                                            <optgroup label="☀️ AM કલાકો (સવાર / રાત્રિ)">
+                                              {AM_HOURS.map((hr) => (
+                                                <option key={`en-${dateStr}-${hr}`} value={hr}>{hr}</option>
+                                              ))}
+                                            </optgroup>
+                                            <optgroup label="🌙 PM કલાકો (બપોર / સાંજ)">
+                                              {PM_HOURS.map((hr) => (
+                                                <option key={`en-${dateStr}-${hr}`} value={hr}>{hr}</option>
+                                              ))}
+                                            </optgroup>
                                           </select>
                                         </div>
                                         <button
@@ -5041,10 +5015,10 @@ function BookingsManagementContent() {
                                               addDateCustomSlot(dateStr, stEl.value, enEl.value);
                                             }
                                           }}
-                                          className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                          className="px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
                                         >
                                           <Plus className="w-3 h-3" />
-                                          <span>ઉમેરો</span>
+                                          <span>+ ઉમેરો</span>
                                         </button>
 
                                         {/* Display custom slots pills */}
@@ -5133,44 +5107,48 @@ function BookingsManagementContent() {
                                               })}
                                             </div>
 
-                                            {/* Custom Timing Dropdowns & Interactive Clock for this Facility */}
-                                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
-                                              <div className="flex items-center gap-1.5">
-                                                <span className="text-[10px] font-bold text-blue-950 flex items-center gap-1">
-                                                  <Clock className="w-3 h-3 text-blue-700" />
-                                                  ચોક્કસ સમય:
-                                                </span>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => openClockForFacility(dateStr, fac.id, fac.name)}
-                                                  className="px-2 py-0.5 rounded-lg bg-red-800 hover:bg-red-700 active:scale-95 text-white font-extrabold text-[10px] shadow-2xs transition flex items-center gap-1 cursor-pointer"
-                                                >
-                                                  <Clock className="w-3 h-3 text-amber-300 stroke-[2.5]" />
-                                                  <span>🕒 ૨૪ કલાક ઘડિયાળ</span>
-                                                </button>
-                                              </div>
+                                            {/* Custom Timing Dropdowns for this Facility (સમય મુજબ) */}
+                                            <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
+                                              <span className="text-[10px] font-bold text-blue-950 flex items-center gap-1">
+                                                <Clock className="w-3 h-3 text-blue-700" />
+                                                ચોક્કસ સમય:
+                                              </span>
                                               <div className="flex items-center gap-1">
                                                 <span className="text-[10px] text-slate-500 font-bold">શરૂ:</span>
                                                 <select
                                                   id={`fac-st-${dateStr}-${fac.id}`}
-                                                  defaultValue="12:00 PM"
-                                                  className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none text-xs text-slate-800"
+                                                  defaultValue="07:00 AM"
+                                                  className="bg-slate-50 border border-slate-300 rounded px-2 py-1 font-bold outline-none text-xs text-slate-800"
                                                 >
-                                                  {STANDARD_HOURS.map((hr) => (
-                                                    <option key={`st-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
-                                                  ))}
+                                                  <optgroup label="☀️ AM કલાકો (સવાર / રાત્રિ)">
+                                                    {AM_HOURS.map((hr) => (
+                                                      <option key={`st-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                                    ))}
+                                                  </optgroup>
+                                                  <optgroup label="🌙 PM કલાકો (બપોર / સાંજ)">
+                                                    {PM_HOURS.map((hr) => (
+                                                      <option key={`st-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                                    ))}
+                                                  </optgroup>
                                                 </select>
                                               </div>
                                               <div className="flex items-center gap-1">
                                                 <span className="text-[10px] text-slate-500 font-bold">અંત:</span>
                                                 <select
                                                   id={`fac-en-${dateStr}-${fac.id}`}
-                                                  defaultValue="02:00 PM"
-                                                  className="bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-bold outline-none text-xs text-slate-800"
+                                                  defaultValue="03:00 PM"
+                                                  className="bg-slate-50 border border-slate-300 rounded px-2 py-1 font-bold outline-none text-xs text-slate-800"
                                                 >
-                                                  {STANDARD_HOURS.map((hr) => (
-                                                    <option key={`en-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
-                                                  ))}
+                                                  <optgroup label="☀️ AM કલાકો (સવાર / રાત્રિ)">
+                                                    {AM_HOURS.map((hr) => (
+                                                      <option key={`en-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                                    ))}
+                                                  </optgroup>
+                                                  <optgroup label="🌙 PM કલાકો (બપોર / સાંજ)">
+                                                    {PM_HOURS.map((hr) => (
+                                                      <option key={`en-${dateStr}-${fac.id}-${hr}`} value={hr}>{hr}</option>
+                                                    ))}
+                                                  </optgroup>
                                                 </select>
                                               </div>
                                               <button
@@ -5182,7 +5160,7 @@ function BookingsManagementContent() {
                                                     addFacilityCustomTimingSlotForDate(dateStr, fac.id, stEl.value, enEl.value);
                                                   }
                                                 }}
-                                                className="px-2 py-0.5 rounded bg-blue-700 hover:bg-blue-800 active:scale-95 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
+                                                className="px-2.5 py-1 rounded bg-blue-700 hover:bg-blue-800 active:scale-95 text-white text-[11px] font-bold transition cursor-pointer flex items-center gap-1 shadow-2xs"
                                               >
                                                 <Plus className="w-3 h-3" />
                                                 <span>+ ઉમેરો</span>
@@ -5908,14 +5886,6 @@ function BookingsManagementContent() {
         </div>
       )}
 
-      {/* 24-Hour Interactive Clock Modal for Custom Timings (સમાજ સમયપત્રક મુજબ) */}
-      <InteractiveClockModal
-        isOpen={clockModalOpen}
-        onClose={() => setClockModalOpen(false)}
-        onAddSlot={handleClockAddSlot}
-        dateStr={clockModalDate}
-        facilityName={clockModalFacName}
-      />
     </div>
   );
 }
