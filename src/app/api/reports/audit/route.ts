@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withDbRetry } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { groupBookingsByParty, parseJamaEntries, PartyBookingGroup } from "@/lib/slotUtils";
+import {
+  groupBookingsByParty,
+  parseJamaEntries,
+  PartyBookingGroup,
+  parseDepositRecord,
+  getDepositStatusInfo,
+} from "@/lib/slotUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +76,10 @@ export async function GET(req: NextRequest) {
     let grossRent = 0;
     let totalDiscounts = 0;
     let netRevenue = 0;
+    let totalIncome = 0;
     let totalDepositsHeld = 0;
+    let totalDepositsRefunded = 0;
+    let totalDepositsForfeited = 0;
     let totalBilled = 0;
     let totalReceivedJama = 0;
     let pendingBalance = 0;
@@ -82,7 +91,14 @@ export async function GET(req: NextRequest) {
       grossRent += g.total;
       totalDiscounts += g.discountAmount;
       netRevenue += g.totalWithDiscount;
-      totalDepositsHeld += g.deposit;
+      totalIncome += (g.effectiveIncome ?? g.totalWithDiscount);
+      if (g.depositStatus === "REFUNDED" || g.depositStatus === "REVERSED_REFUND") {
+        totalDepositsRefunded += (g.depositRefundedAmount || g.deposit);
+      } else if (g.depositStatus === "FORFEITED_TO_INCOME") {
+        totalDepositsForfeited += (g.depositIncomeRecognized || g.deposit);
+      } else {
+        totalDepositsHeld += g.deposit;
+      }
       totalBilled += g.net;
       totalReceivedJama += g.totalJama;
       pendingBalance += g.netRemaining;
@@ -188,13 +204,23 @@ export async function GET(req: NextRequest) {
         eventCounts[ev].revenue += bNet;
       }
 
+      const depRecord = parseDepositRecord(b.notes);
+      const depStatus = depRecord?.status || "HELD";
+      let depIncome = 0;
+      if (depStatus === "FORFEITED_TO_INCOME") {
+        depIncome = bDep;
+      }
+      const singleEffectiveIncome = bNet + depIncome;
+
       return {
         ...b,
         grossAmount: bGross,
         discountAmount: bDisc,
-        incomeAmount: bNet,
+        incomeAmount: singleEffectiveIncome,
         netAmount: bNet,
         depositAmount: bDep,
+        depositStatus: depStatus,
+        depositRecord: depRecord,
         totalPayable,
       };
     });
@@ -208,8 +234,10 @@ export async function GET(req: NextRequest) {
         bookingNumbers: g.bookings.map((b) => b.bookingNumber).join(", "),
         facilityNames: g.bookings.map((b) => b.facility?.name).filter(Boolean).join(" + "),
         slotsCount: g.bookings.length,
-        incomeAmount: g.totalWithDiscount,
+        incomeAmount: g.effectiveIncome ?? g.totalWithDiscount,
         depositAmount: g.deposit,
+        depositStatus: g.depositStatus,
+        depositRecord: g.depositRecord,
       };
     });
 
@@ -233,6 +261,8 @@ export async function GET(req: NextRequest) {
         "CGST (INR)",
         "SGST (INR)",
         "Deposit - Caution Deposit (INR)",
+        "Deposit Status",
+        "Deposit Action / Reverse Details",
         "Net Billed Value (Income + Deposit) (INR)",
         "Total Jama Received (INR)",
         "Net Remaining Balance (INR)",
@@ -260,11 +290,21 @@ export async function GET(req: NextRequest) {
         escapeCsv(g.dateRange.label),
         g.total.toFixed(2),
         g.discountAmount.toFixed(2),
-        g.totalWithDiscount.toFixed(2),
+        g.incomeAmount.toFixed(2),
         escapeCsv("0% (Registration Pending)"),
         "0.00",
         "0.00",
         g.deposit.toFixed(2),
+        escapeCsv(
+          g.depositStatus === "FORFEITED_TO_INCOME"
+            ? "FORFEITED (Added to Income)"
+            : g.depositStatus === "REVERSED_REFUND"
+            ? "REVERSED_REFUND (Reversed from Income & Refunded)"
+            : g.depositStatus === "REFUNDED"
+            ? "REFUNDED (Returned to Party)"
+            : "HELD (Active Caution Deposit)"
+        ),
+        escapeCsv(g.depositRecord?.lastActionNote || g.depositRecord?.history?.[0]?.notes || "-"),
         g.net.toFixed(2),
         g.totalJama.toFixed(2),
         g.netRemaining.toFixed(2),
@@ -296,6 +336,8 @@ export async function GET(req: NextRequest) {
         "Income Amount - Booking Revenue (INR)",
         "Deposit Ledger (Caution Deposit)",
         "Deposit Amount - Caution Deposit (INR)",
+        "Deposit Status",
+        "Deposit Action / Reverse Narration",
         "Total Billed Amount (Income + Deposit)",
         "Total Jama Received",
         "Balance Due",
@@ -315,9 +357,27 @@ export async function GET(req: NextRequest) {
         escapeCsv(g.primaryBookingNumber),
         escapeCsv(`${g.customerName} (${g.customerPhone})`),
         escapeCsv(`Hall Rent Income - ${g.facilityNames}`),
-        g.totalWithDiscount.toFixed(2),
+        g.incomeAmount.toFixed(2),
         escapeCsv("Refundable Caution Deposit Liability"),
         g.deposit.toFixed(2),
+        escapeCsv(
+          g.depositStatus === "FORFEITED_TO_INCOME"
+            ? "FORFEITED_TO_INCOME"
+            : g.depositStatus === "REVERSED_REFUND"
+            ? "REVERSED_REFUND"
+            : g.depositStatus === "REFUNDED"
+            ? "REFUNDED"
+            : "HELD"
+        ),
+        escapeCsv(
+          g.depositStatus === "FORFEITED_TO_INCOME"
+            ? `Transferred ₹${g.deposit} Caution Deposit to Trust Income (Unclaimed/Forfeited)`
+            : g.depositStatus === "REVERSED_REFUND"
+            ? `Reverse Entry: Reversal of ₹${g.deposit} from Trust Income to Party Deposit Refund`
+            : g.depositStatus === "REFUNDED"
+            ? `Refunded ₹${g.deposit} Caution Deposit to Party`
+            : `Held ₹${g.deposit} Caution Deposit`
+        ),
         g.net.toFixed(2),
         g.totalJama.toFixed(2),
         g.netRemaining.toFixed(2),
@@ -366,8 +426,10 @@ export async function GET(req: NextRequest) {
         grossRent,
         totalDiscounts,
         netRevenue,
-        totalIncome: netRevenue,
+        totalIncome,
         totalDepositsHeld,
+        totalDepositsRefunded,
+        totalDepositsForfeited,
         totalBilled,
         totalReceivedJama,
         pendingBalance,

@@ -10,6 +10,9 @@ import {
   isGroundFloorHall,
   parseJamaEntries,
   setJamaEntriesInNotes,
+  parseDepositRecord,
+  setDepositRecordInNotes,
+  updateBookingNotesWithTags,
   calculateEventDeposit,
 } from "@/lib/slotUtils";
 import {
@@ -151,6 +154,7 @@ export async function POST(req: NextRequest) {
       notes,
       groundHallOption,
       jamaEntries,
+      depositRecord,
     } = body;
 
     if (!customerName || !customerPhone) {
@@ -712,6 +716,7 @@ export async function PUT(req: NextRequest) {
       notes,
       groundHallOption,
       jamaEntries,
+      depositRecord,
     } = body;
 
     let targetIds: string[] = [];
@@ -959,7 +964,10 @@ export async function PUT(req: NextRequest) {
       }
 
       for (const tb of targetBookings) {
-        const updatedNotes = setJamaEntriesInNotes(tb.notes, jamaEntries);
+        const updatedNotes = updateBookingNotesWithTags(tb.notes, {
+          jamaEntries,
+          ...(depositRecord !== undefined ? { depositRecord } : {}),
+        });
         await prisma.booking.update({
           where: { id: tb.id },
           data: {
@@ -971,16 +979,40 @@ export async function PUT(req: NextRequest) {
       }
 
       delete updateData.notes;
-    } else if (notes !== undefined && targetIds.length > 0) {
-      // If updating plain notes, preserve any existing Jama entries tag
-      const existing = await prisma.booking.findUnique({
-        where: { id: targetIds[0] },
-        select: { notes: true },
+    } else if (depositRecord !== undefined && targetIds.length > 0) {
+      // Standalone deposit action update (Refund / Forfeit / Reverse to Refund)
+      const targetBookings = await prisma.booking.findMany({
+        where: { id: { in: targetIds } },
+        select: { id: true, notes: true },
       });
-      const existingJama = parseJamaEntries(existing?.notes);
-      if (existingJama.length > 0) {
-        updateData.notes = setJamaEntriesInNotes(notes, existingJama);
+      for (const tb of targetBookings) {
+        const updatedNotes = updateBookingNotesWithTags(tb.notes, { depositRecord });
+        await prisma.booking.update({
+          where: { id: tb.id },
+          data: {
+            notes: updatedNotes,
+            lastUpdatedByName: user.name,
+          },
+        });
       }
+      delete updateData.notes;
+    } else if (notes !== undefined && targetIds.length > 0) {
+      // If updating plain notes, preserve any existing Jama entries & Deposit tags
+      const targetBookings = await prisma.booking.findMany({
+        where: { id: { in: targetIds } },
+        select: { id: true, notes: true },
+      });
+      for (const tb of targetBookings) {
+        const updatedNotes = updateBookingNotesWithTags(tb.notes, { plainNotes: notes });
+        await prisma.booking.update({
+          where: { id: tb.id },
+          data: {
+            notes: updatedNotes,
+            lastUpdatedByName: user.name,
+          },
+        });
+      }
+      delete updateData.notes;
     }
 
     // Execute atomic batch update across all target bookings (shared party fields)

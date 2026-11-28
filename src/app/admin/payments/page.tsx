@@ -36,6 +36,9 @@ import {
   ArrowUpRight,
   RefreshCw,
   BarChart3,
+  Undo2,
+  RotateCcw,
+  History,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -48,6 +51,13 @@ import {
   JamaEntry,
   parseJamaEntries,
   setJamaEntriesInNotes,
+  DepositStatus,
+  DepositLedgerEntry,
+  DepositRecord,
+  parseDepositRecord,
+  setDepositRecordInNotes,
+  updateBookingNotesWithTags,
+  getDepositStatusInfo,
   calculateEventDeposit,
   getCleanPartyName,
   getPartyIndexLetter,
@@ -171,6 +181,21 @@ function AdminPaymentStatusContent() {
   const [savingJama, setSavingJama] = useState(false);
   const [jamaError, setJamaError] = useState("");
   const [jamaSuccess, setJamaSuccess] = useState("");
+
+  // DEPOSIT MODAL (Refund / Forfeit to Income / Reverse Entry)
+  const [selectedPartyForDeposit, setSelectedPartyForDeposit] = useState<PartyBookingGroup | null>(null);
+  const [depositActionMode, setDepositActionMode] = useState<"REFUND" | "FORFEIT_TO_INCOME" | "REVERSE_TO_REFUND" | "RESET_HELD">("REFUND");
+  const [depositAmountInput, setDepositAmountInput] = useState<string>("");
+  const [depositDateInput, setDepositDateInput] = useState<string>(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  });
+  const [depositPaymentMode, setDepositPaymentMode] = useState<string>("CASH_AT_OFFICE");
+  const [depositRefNoInput, setDepositRefNoInput] = useState<string>("");
+  const [depositNotesInput, setDepositNotesInput] = useState<string>("");
+  const [savingDeposit, setSavingDeposit] = useState(false);
+  const [depositError, setDepositError] = useState("");
+  const [depositSuccess, setDepositSuccess] = useState("");
 
   // View Party Details Modal
   const [viewingParty, setViewingParty] = useState<PartyBookingGroup | null>(null);
@@ -518,6 +543,160 @@ function AdminPaymentStatusContent() {
       setJamaError(err.message || "Failed to save jama entries");
     } finally {
       setSavingJama(false);
+    }
+  };
+
+  // Open Deposit Management & Refund Modal
+  const handleOpenDepositModal = (party: PartyBookingGroup) => {
+    setSelectedPartyForDeposit(party);
+    const currentStatus = party.depositStatus || "HELD";
+
+    // Smart initial action selection based on current status:
+    // If already in FORFEITED_TO_INCOME, default to REVERSE_TO_REFUND (Party came later to claim)
+    // If already REFUNDED or REVERSED_REFUND, allow RESET_HELD
+    // Otherwise default to REFUND
+    if (currentStatus === "FORFEITED_TO_INCOME") {
+      setDepositActionMode("REVERSE_TO_REFUND");
+    } else if (currentStatus === "REFUNDED" || currentStatus === "REVERSED_REFUND") {
+      setDepositActionMode("RESET_HELD");
+    } else {
+      setDepositActionMode("REFUND");
+    }
+
+    setDepositAmountInput(String(party.deposit || 25000));
+    const today = new Date();
+    setDepositDateInput(
+      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+    );
+    setDepositPaymentMode("CASH_AT_OFFICE");
+    setDepositRefNoInput("");
+    setDepositNotesInput("");
+    setDepositError("");
+    setDepositSuccess("");
+  };
+
+  // Save Deposit Action (Refund / Forfeit to Income / Reverse Entry)
+  const handleSaveDepositAction = async () => {
+    if (!selectedPartyForDeposit) return;
+    setSavingDeposit(true);
+    setDepositError("");
+    setDepositSuccess("");
+
+    try {
+      const amt = Number(depositAmountInput) || selectedPartyForDeposit.deposit;
+      const nowIso = new Date().toISOString();
+      const dateStr = depositDateInput || nowIso.slice(0, 10);
+
+      let targetStatus: DepositStatus = "HELD";
+      let entryType: DepositLedgerEntry["type"] = "COLLECTED";
+      let incomeRecognized = 0;
+      let refundedAmount = 0;
+
+      if (depositActionMode === "REFUND") {
+        targetStatus = "REFUNDED";
+        entryType = "REFUND";
+        refundedAmount = amt;
+        incomeRecognized = 0; // NOT recognized in income
+      } else if (depositActionMode === "FORFEIT_TO_INCOME") {
+        targetStatus = "FORFEITED_TO_INCOME";
+        entryType = "ADD_TO_INCOME";
+        incomeRecognized = amt; // ADDED TO TRUST INCOME
+        refundedAmount = 0;
+      } else if (depositActionMode === "REVERSE_TO_REFUND") {
+        targetStatus = "REVERSED_REFUND";
+        entryType = "REVERSE_TO_REFUND";
+        refundedAmount = amt;
+        incomeRecognized = 0; // REMOVED FROM INCOME (Reverse entry)
+      } else if (depositActionMode === "RESET_HELD") {
+        targetStatus = "HELD";
+        entryType = "RESET";
+        refundedAmount = 0;
+        incomeRecognized = 0;
+      }
+
+      const defaultNotes =
+        depositActionMode === "REFUND"
+          ? `કાર્યક્રમ પૂર્ણ થયા બાદ પાર્ટીને ₹${amt.toLocaleString("en-IN")} ડિપોઝિટ પરત આપેલ.`
+          : depositActionMode === "FORFEIT_TO_INCOME"
+          ? `પાર્ટીનો કોઈ સંપર્ક કે દાવો ન હોવાથી ₹${amt.toLocaleString("en-IN")} ડિપોઝિટ ટ્રસ્ટ આવકમાં જમા કરેલ.`
+          : depositActionMode === "REVERSE_TO_REFUND"
+          ? `[REVERSE ENTRY] પાર્ટી પાછળથી ડિપોઝિટ લેવા આવતા આવકમાંથી ₹${amt.toLocaleString("en-IN")} રિવર્સ એન્ટ્રી કરી રિફંડ આપેલ.`
+          : `ડિપોઝિટ સ્થિતિ અનામત તરીકે રીસેટ કરેલ.`;
+
+      const newLedgerEntry: DepositLedgerEntry = {
+        id: `dep-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        type: entryType,
+        status: targetStatus,
+        amount: amt,
+        date: dateStr,
+        paymentMode: depositPaymentMode,
+        refNo: depositRefNoInput.trim() || undefined,
+        notes: depositNotesInput.trim() || defaultNotes,
+        performedByName: currentUser?.name || "Admin",
+        createdAt: nowIso,
+      };
+
+      const existingHistory = selectedPartyForDeposit.depositRecord?.history || [];
+      const updatedHistory = [newLedgerEntry, ...existingHistory];
+
+      const updatedRecord: DepositRecord = {
+        status: targetStatus,
+        originalDeposit: selectedPartyForDeposit.deposit,
+        refundedAmount,
+        incomeRecognized,
+        lastUpdatedDate: dateStr,
+        lastActionNote: newLedgerEntry.notes,
+        history: updatedHistory,
+      };
+
+      // Optimistic local state update
+      const partyIdSet = new Set(selectedPartyForDeposit.bookingIds);
+      setBookings((prev) =>
+        prev.map((b) => {
+          if (partyIdSet.has(b.id)) {
+            return {
+              ...b,
+              notes: updateBookingNotesWithTags(b.notes, { depositRecord: updatedRecord }),
+            };
+          }
+          return b;
+        })
+      );
+
+      const res = await fetch("/api/bookings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedPartyForDeposit.bookingIds,
+          depositRecord: updatedRecord,
+          updateAllRelated: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to update deposit record");
+      }
+
+      setDepositSuccess(
+        depositActionMode === "REFUND"
+          ? "ડિપોઝિટ પાર્ટીને સફળતાપૂર્વક રિફંડ કરવામાં આવી છે!"
+          : depositActionMode === "FORFEIT_TO_INCOME"
+          ? "ડિપોઝિટ સફળતાપૂર્વક ટ્રસ્ટ આવકમાં જમા કરવામાં આવી છે!"
+          : depositActionMode === "REVERSE_TO_REFUND"
+          ? "આવકમાંથી રિવર્સ એન્ટ્રી કરીને પાર્ટીને રિફંડ સફળતાપૂર્વક અપડેટ થયું!"
+          : "ડિપોઝિટ સ્થિતિ અનામત તરીકે રીસેટ થઈ ગઈ છે!"
+      );
+
+      setTimeout(() => {
+        setSelectedPartyForDeposit(null);
+        refreshBookings();
+      }, 900);
+    } catch (err: any) {
+      console.error("Save deposit error:", err);
+      setDepositError(err.message || "Failed to update deposit record");
+    } finally {
+      setSavingDeposit(false);
     }
   };
 
@@ -1235,6 +1414,16 @@ function AdminPaymentStatusContent() {
 
                           <button
                             type="button"
+                            onClick={() => handleOpenDepositModal(activeParty)}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-amber-950 bg-amber-100/90 hover:bg-amber-200 border border-amber-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-[0.98]"
+                            title="ડિપોઝિટ રિફંડ / આવકમાં જમા / રિવર્સ એન્ટ્રી વ્યવસ્થાપન"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-amber-800" />
+                            <span>ડિપોઝિટ એક્શન</span>
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => handleOpenManualAuditModal({ party: activeParty })}
                             className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-300 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
                           >
@@ -1322,15 +1511,45 @@ function AdminPaymentStatusContent() {
                           </div>
 
                           {/* 3. Caution Deposit */}
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                              ૩. ડિપોઝિટ (Deposit)
-                            </span>
-                            <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
-                              ₹{activeParty.deposit.toLocaleString("en-IN")}
-                            </span>
-                            <span className="text-[10px] text-slate-500 block">રીફંડેબલ ડિપોઝિટ</span>
-                          </div>
+                          {(() => {
+                            const depInfo = getDepositStatusInfo(activeParty.depositStatus);
+                            return (
+                              <div className="flex flex-col justify-between">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                                    ૩. ડિપોઝિટ (Deposit)
+                                  </span>
+                                  <span
+                                    className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold border ${depInfo.badgeClass}`}
+                                  >
+                                    {depInfo.shortLabel}
+                                  </span>
+                                </div>
+                                <div className="flex items-baseline justify-between mt-1">
+                                  <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
+                                    ₹{activeParty.deposit.toLocaleString("en-IN")}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDepositModal(activeParty)}
+                                    className="text-[10px] font-bold text-amber-800 hover:text-amber-950 hover:underline cursor-pointer flex items-center gap-0.5"
+                                  >
+                                    <span>રિફંડ</span>
+                                    <ArrowRight className="w-2.5 h-2.5" />
+                                  </button>
+                                </div>
+                                <span className="text-[10px] text-slate-500 block truncate" title={depInfo.description}>
+                                  {activeParty.depositStatus === "FORFEITED_TO_INCOME"
+                                    ? "💰 આવકમાં જમા લીધેલ"
+                                    : activeParty.depositStatus === "REVERSED_REFUND"
+                                    ? "🔄 રિવર્સ રિફંડ આપેલ"
+                                    : activeParty.depositStatus === "REFUNDED"
+                                    ? "↩️ પાર્ટીને પરત કરેલ"
+                                    : "🛡️ અનામત ચાલુ"}
+                                </span>
+                              </div>
+                            );
+                          })()}
 
                           {/* 4. Net (After Deposit) */}
                           <div className="bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
@@ -2053,6 +2272,380 @@ function AdminPaymentStatusContent() {
               >
                 <Save className="w-4 h-4" />
                 <span>{savingJama ? "સાચવી રહ્યું છે..." : "ખાતાવહી સાચવો (Save Jama Ledger)"}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: 🛡️ PARTY DEPOSIT MANAGEMENT & REFUND / REVERSE ENTRY MODAL       */}
+      {/* ========================================================================= */}
+      {selectedPartyForDeposit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 text-white flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-amber-300 block">
+                  ડિપોઝિટ વ્યવસ્થાપન • રિફંડ / આવક એક્શન
+                </span>
+                <h3 className="text-base sm:text-lg font-black tracking-tight flex items-center gap-2">
+                  <span>{selectedPartyForDeposit.customerName}</span>
+                  {(() => {
+                    const info = getDepositStatusInfo(selectedPartyForDeposit.depositStatus);
+                    return (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${info.badgeClass}`}>
+                        {info.shortLabel}
+                      </span>
+                    );
+                  })()}
+                </h3>
+                <div className="text-xs text-amber-200 flex items-center gap-2 mt-0.5">
+                  <span>{selectedPartyForDeposit.customerPhone}</span>
+                  <span>•</span>
+                  <span>{selectedPartyForDeposit.dateRange.label}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPartyForDeposit(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-5">
+              {/* Deposit Overview Strip */}
+              <div className="grid grid-cols-3 gap-2 p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-center">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-600 uppercase block">
+                    કુલ અનામત ડિપોઝિટ
+                  </span>
+                  <span className="text-base sm:text-lg font-black text-slate-900 tabular-nums">
+                    ₹{selectedPartyForDeposit.deposit.toLocaleString("en-IN")}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-600 uppercase block">
+                    હાલની સ્થિતિ
+                  </span>
+                  <span className="text-xs sm:text-sm font-black text-amber-950 block mt-0.5">
+                    {selectedPartyForDeposit.depositStatus === "FORFEITED_TO_INCOME"
+                      ? "💰 આવકમાં જમા કરેલ"
+                      : selectedPartyForDeposit.depositStatus === "REVERSED_REFUND"
+                      ? "🔄 રિવર્સ રિફંડ આપેલ"
+                      : selectedPartyForDeposit.depositStatus === "REFUNDED"
+                      ? "↩️ પાર્ટીને પરત કરેલ"
+                      : "🛡️ અનામત ચાલુ"}
+                  </span>
+                </div>
+
+                <div>
+                  <span className="text-[10px] font-bold text-slate-600 uppercase block">
+                    ટ્રસ્ટ આવક અસર
+                  </span>
+                  <span className={`text-xs sm:text-sm font-black block mt-0.5 ${
+                    selectedPartyForDeposit.depositStatus === "FORFEITED_TO_INCOME"
+                      ? "text-emerald-700 font-bold"
+                      : "text-slate-600"
+                  }`}>
+                    {selectedPartyForDeposit.depositStatus === "FORFEITED_TO_INCOME"
+                      ? `+₹${selectedPartyForDeposit.deposit.toLocaleString("en-IN")} આવકમાં ઉમેરેલ`
+                      : "આવકમાંથી બાદ (રિફંડ/અનામત)"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Selection Tabs / Cards */}
+              <div className="space-y-2">
+                <label className="text-xs font-black text-slate-800 block">
+                  ડિપોઝિટ એક્શન પસંદ કરો (Select Action):
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {/* Action 1: Standard Refund */}
+                  <button
+                    type="button"
+                    onClick={() => setDepositActionMode("REFUND")}
+                    className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                      depositActionMode === "REFUND"
+                        ? "border-blue-500 bg-blue-50/80 ring-2 ring-blue-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-blue-900 flex items-center gap-1.5">
+                        <RotateCcw className="w-3.5 h-3.5 text-blue-600" />
+                        <span>૧. પાર્ટીને રિફંડ આપો</span>
+                      </span>
+                      {depositActionMode === "REFUND" && (
+                        <Check className="w-4 h-4 text-blue-600" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                      કાર્યક્રમ પૂર્ણ થયા બાદ ડિપોઝિટ પાર્ટીને પરત આપવી. (આવક ગણાશે નહીં)
+                    </p>
+                  </button>
+
+                  {/* Action 2: Forfeit / Add to Income */}
+                  <button
+                    type="button"
+                    onClick={() => setDepositActionMode("FORFEIT_TO_INCOME")}
+                    className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                      depositActionMode === "FORFEIT_TO_INCOME"
+                        ? "border-emerald-500 bg-emerald-50/80 ring-2 ring-emerald-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+                        <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>૨. આવકમાં જમા કરો (બિન-દાવો)</span>
+                      </span>
+                      {depositActionMode === "FORFEIT_TO_INCOME" && (
+                        <Check className="w-4 h-4 text-emerald-600" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                      પાર્ટીનો કોઈ સંપર્ક ન હોય કે દાવો ન કરે તો ડિપોઝિટ ટ્રસ્ટ આવકમાં જમા લેવી.
+                    </p>
+                  </button>
+
+                  {/* Action 3: Reverse Entry from Income to Refund */}
+                  <button
+                    type="button"
+                    onClick={() => setDepositActionMode("REVERSE_TO_REFUND")}
+                    className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                      depositActionMode === "REVERSE_TO_REFUND"
+                        ? "border-purple-500 bg-purple-50/80 ring-2 ring-purple-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-purple-900 flex items-center gap-1.5">
+                        <Undo2 className="w-3.5 h-3.5 text-purple-600" />
+                        <span>૩. આવકમાંથી રિવર્સ એન્ટ્રી & રિફંડ</span>
+                      </span>
+                      {depositActionMode === "REVERSE_TO_REFUND" && (
+                        <Check className="w-4 h-4 text-purple-600" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                      જો ડિપોઝિટ પહેલા આવકમાં જમા લીધી હોય અને પાછળથી પાર્ટી લેવા આવે, તો આવકમાંથી રિવર્સ એન્ટ્રી કરી રિફંડ આપવું.
+                    </p>
+                  </button>
+
+                  {/* Action 4: Reset to Held */}
+                  <button
+                    type="button"
+                    onClick={() => setDepositActionMode("RESET_HELD")}
+                    className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between cursor-pointer ${
+                      depositActionMode === "RESET_HELD"
+                        ? "border-amber-500 bg-amber-50/80 ring-2 ring-amber-500/20"
+                        : "border-slate-200 hover:border-slate-300 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+                        <Shield className="w-3.5 h-3.5 text-amber-600" />
+                        <span>૪. અનામત ચાલુ (Reset to Held)</span>
+                      </span>
+                      {depositActionMode === "RESET_HELD" && (
+                        <Check className="w-4 h-4 text-amber-600" />
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                      સામાન્ય અનામત ડિપોઝિટ સ્થિતિમાં પરત લાવો (હજુ કોઈ નિર્ણય ન લીધો હોય ત્યારે).
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Action Form Fields */}
+              <div className="p-4 rounded-2xl border-2 border-slate-200 bg-slate-50/60 space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      ડિપોઝિટ રકમ (₹ Amount) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">
+                        ₹
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={depositAmountInput}
+                        onChange={(e) => setDepositAmountInput(e.target.value)}
+                        className="w-full pl-8 pr-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-600"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      એક્શન તારીખ (Action Date) *
+                    </label>
+                    <input
+                      type="date"
+                      value={depositDateInput}
+                      onChange={(e) => setDepositDateInput(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-600"
+                    />
+                  </div>
+                </div>
+
+                {(depositActionMode === "REFUND" || depositActionMode === "REVERSE_TO_REFUND") && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                        રિફંડ પદ્ધતિ (Refund Mode)
+                      </label>
+                      <select
+                        value={depositPaymentMode}
+                        onChange={(e) => setDepositPaymentMode(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-800 focus:outline-none"
+                      >
+                        <option value="CASH_AT_OFFICE">રોકડ (Cash at Office)</option>
+                        <option value="UPI_BANK_TRANSFER">UPI / બેંક ટ્રાન્સફર (NEFT/IMPS)</option>
+                        <option value="CHEQUE">ચેક (Cheque)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                        ચેક / ટ્રાન્ઝેક્શન રેફરન્સ (Ref No)
+                      </label>
+                      <input
+                        type="text"
+                        value={depositRefNoInput}
+                        onChange={(e) => setDepositRefNoInput(e.target.value)}
+                        placeholder="e.g. UTR12345 / CHQ-9988"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                    નોંધ / કારણ (Remarks / Reason) *
+                  </label>
+                  <input
+                    type="text"
+                    value={depositNotesInput}
+                    onChange={(e) => setDepositNotesInput(e.target.value)}
+                    placeholder={
+                      depositActionMode === "REFUND"
+                        ? "કાર્યક્રમ પૂર્ણ થયા બાદ ડિપોઝિટ પાર્ટીને રોકડ/બેંકથી પરત આપેલ."
+                        : depositActionMode === "FORFEIT_TO_INCOME"
+                        ? "પાર્ટીનો કોઈ સંપર્ક કે દાવો ન હોવાથી ટ્રસ્ટ આવકમાં જમા."
+                        : depositActionMode === "REVERSE_TO_REFUND"
+                        ? "પાર્ટી પાછળથી ડિપોઝિટ લેવા આવતા આવકમાંથી રિવર્સ એન્ટ્રી કરીને રિફંડ આપેલ."
+                        : "અનામત ચાલુ તરીકે સેટ કરેલ."
+                    }
+                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-600"
+                  />
+                </div>
+              </div>
+
+              {/* Deposit History Log (Audit Trail) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span className="flex items-center gap-1.5">
+                    <History className="w-3.5 h-3.5 text-amber-700" />
+                    <span>ડિપોઝિટ ઇતિહાસ અને ઓડિટ ટ્રેક (Deposit History)</span>
+                  </span>
+                  <span className="text-[11px] font-mono text-slate-500">
+                    {selectedPartyForDeposit.depositRecord?.history?.length || 0} એન્ટ્રીઓ
+                  </span>
+                </div>
+
+                {!selectedPartyForDeposit.depositRecord?.history || selectedPartyForDeposit.depositRecord.history.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
+                    હજુ સુધી આ ડિપોઝિટ માટે કોઈ અગાઉની એક્શન નોંધાયેલ નથી (અનામત ચાલુ છે).
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {selectedPartyForDeposit.depositRecord.history.map((h, i) => (
+                      <div
+                        key={h.id || i}
+                        className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-start justify-between gap-2 text-xs"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900 tabular-nums">
+                              ₹{h.amount.toLocaleString("en-IN")}
+                            </span>
+                            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-mono">
+                              {h.date}
+                            </span>
+                            <span className="text-[10px] font-bold text-amber-900">
+                              {h.status === "FORFEITED_TO_INCOME"
+                                ? "💰 આવકમાં જમા"
+                                : h.status === "REVERSED_REFUND"
+                                ? "🔄 રિવર્સ રિફંડ"
+                                : h.status === "REFUNDED"
+                                ? "↩️ રિફંડ"
+                                : "🛡️ અનામત"}
+                            </span>
+                          </div>
+                          {h.notes && (
+                            <p className="text-[11px] text-slate-600">
+                              {h.notes}
+                            </p>
+                          )}
+                          <div className="text-[10px] text-slate-400">
+                            નોંધણીકર્તા: {h.performedByName || "Admin"}
+                            {h.paymentMode ? ` • ${formatPaymentMode(h.paymentMode)}` : ""}
+                            {h.refNo ? ` • Ref: ${h.refNo}` : ""}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Error & Success Messages */}
+              {depositError && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{depositError}</span>
+                </div>
+              )}
+              {depositSuccess && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{depositSuccess}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 bg-slate-50 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setSelectedPartyForDeposit(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+              >
+                રદ કરો (Cancel)
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveDepositAction}
+                disabled={savingDeposit}
+                className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-black text-white bg-gradient-to-r from-amber-700 to-amber-900 hover:from-amber-800 hover:to-amber-950 shadow-md shadow-amber-900/20 transition cursor-pointer flex items-center gap-2 disabled:opacity-60 active:scale-95"
+              >
+                <Save className="w-4 h-4" />
+                <span>{savingDeposit ? "સાચવી રહ્યું છે..." : "સાચવો અને લાગુ કરો (Save Deposit Action)"}</span>
               </button>
             </div>
           </div>

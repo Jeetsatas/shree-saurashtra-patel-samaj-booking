@@ -143,8 +143,8 @@ function AuditReportsContent() {
     for (const g of filteredParties) {
       gross += Number(g.total || 0);
       disc += Number(g.discountAmount || 0);
-      income += Number(g.totalWithDiscount || 0);
-      dep += Number(g.deposit || 0);
+      income += Number(g.incomeAmount ?? g.totalWithDiscount ?? 0);
+      dep += Number(g.depositAmount ?? g.deposit ?? 0);
       billed += Number(g.net || 0);
       jama += Number(g.totalJama || 0);
       rem += Number(g.netRemaining || 0);
@@ -161,7 +161,7 @@ function AuditReportsContent() {
     for (const b of filteredBookings) {
       gross += Number(b.grossAmount || 0);
       disc += Number(b.discountAmount || 0);
-      income += Number(b.netAmount || 0);
+      income += Number(b.incomeAmount ?? b.netAmount ?? 0);
       dep += Number(b.depositAmount || 0);
     }
     return { gross, disc, income, dep, total: income + dep };
@@ -369,10 +369,12 @@ function AuditReportsContent() {
             <Wallet className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-xl sm:text-2xl font-black text-emerald-950 font-mono mt-1 tabular-nums">
-            ₹{(data?.summary?.netRevenue || 0).toLocaleString("en-IN")}
+            ₹{(data?.summary?.totalIncome ?? data?.summary?.netRevenue ?? 0).toLocaleString("en-IN")}
           </div>
           <div className="text-[10px] text-emerald-700 mt-1 font-bold">
-            બધા બુકિંગ્સની ચોખ્ખી આવક
+            {data?.summary?.totalDepositsForfeited > 0
+              ? `(ડિપોઝિટ આવક: +₹${Number(data.summary.totalDepositsForfeited).toLocaleString("en-IN")})`
+              : "બધા બુકિંગ્સની ચોખ્ખી આવક"}
           </div>
         </div>
 
@@ -386,7 +388,9 @@ function AuditReportsContent() {
             ₹{(data?.summary?.totalDepositsHeld || 0).toLocaleString("en-IN")}
           </div>
           <div className="text-[10px] text-amber-800 mt-1 font-bold">
-            પરત મળવાપાત્ર અનામત
+            {data?.summary?.totalDepositsRefunded > 0
+              ? `રિફંડ થયેલ: ₹${Number(data.summary.totalDepositsRefunded).toLocaleString("en-IN")}`
+              : "પરત મળવાપાત્ર અનામત"}
           </div>
         </div>
 
@@ -713,12 +717,38 @@ function AuditReportsContent() {
 
                       {/* 1. DISTINCT VALUE: INCOME (TOTAL REVENUE FROM BOOKINGS FOR PARTY) */}
                       <td className="p-2.5 text-right font-mono font-black text-emerald-950 bg-emerald-50/90 border-r-2 border-emerald-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
-                        ₹{g.totalWithDiscount.toLocaleString("en-IN")}
+                        ₹{Number(g.incomeAmount ?? g.totalWithDiscount ?? 0).toLocaleString("en-IN")}
+                        {g.depositStatus === "FORFEITED_TO_INCOME" && (
+                          <span className="block text-[9px] font-sans font-bold text-emerald-700">
+                            (+₹{(Number(g.deposit) || 0).toLocaleString("en-IN")} ડિપોઝિટ આવક)
+                          </span>
+                        )}
                       </td>
 
                       {/* 2. DISTINCT VALUE: DEPOSIT (CAUTION DEPOSIT FOR PARTY) */}
                       <td className="p-2.5 text-right font-mono font-black text-amber-950 bg-amber-50/90 border-r-2 border-amber-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
-                        ₹{(Number(g.deposit) || 0).toLocaleString("en-IN")}
+                        <div>₹{(Number(g.deposit) || 0).toLocaleString("en-IN")}</div>
+                        <div className="mt-0.5">
+                          <span
+                            className={`text-[9px] font-sans font-bold px-1.5 py-0.2 rounded-full border inline-block ${
+                              g.depositStatus === "REFUNDED"
+                                ? "bg-blue-100 text-blue-900 border-blue-300"
+                                : g.depositStatus === "FORFEITED_TO_INCOME"
+                                ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                                : g.depositStatus === "REVERSED_REFUND"
+                                ? "bg-purple-100 text-purple-900 border-purple-300"
+                                : "bg-amber-100 text-amber-900 border-amber-300"
+                            }`}
+                          >
+                            {g.depositStatus === "REFUNDED"
+                              ? "↩️ રિફંડ"
+                              : g.depositStatus === "FORFEITED_TO_INCOME"
+                              ? "💰 આવકમાં જમા"
+                              : g.depositStatus === "REVERSED_REFUND"
+                              ? "🔄 રિવર્સ રિફંડ"
+                              : "🛡️ અનામત"}
+                          </span>
+                        </div>
                       </td>
 
                       {/* TOTAL BILLED (INCOME + DEPOSIT) */}
@@ -751,6 +781,13 @@ function AuditReportsContent() {
                         </span>
                       </td>
                       <td className="p-2 text-center whitespace-nowrap no-print space-x-1">
+                        <Link
+                          href={`/admin/payments?party=${encodeURIComponent(g.customerPhone || g.customerName)}`}
+                          className="px-2 py-1 rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-[10px] font-bold inline-flex items-center gap-0.5 transition"
+                          title="આ પાર્ટીની ડિપોઝિટ રિફંડ / રિવર્સ એન્ટ્રી વ્યવસ્થાપન"
+                        >
+                          <span>↩️ ડિપોઝિટ</span>
+                        </Link>
                         <Link
                           href={`/admin/payments?party=${encodeURIComponent(g.customerPhone || g.customerName)}`}
                           className="px-2 py-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-800 text-[10px] font-bold inline-flex items-center gap-0.5 transition"
@@ -896,12 +933,34 @@ function AuditReportsContent() {
 
                       {/* 1. DISTINCT VALUE: INCOME (SINGLE ENTRY REVENUE) */}
                       <td className="p-2.5 text-right font-mono font-black text-emerald-950 bg-emerald-50/90 border-r-2 border-emerald-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
-                        ₹{b.netAmount.toLocaleString("en-IN")}
+                        ₹{Number(b.incomeAmount ?? b.netAmount ?? 0).toLocaleString("en-IN")}
+                        {b.depositStatus === "FORFEITED_TO_INCOME" && (
+                          <span className="block text-[9px] font-sans font-bold text-emerald-700">
+                            (+₹{(Number(b.depositAmount) || 0).toLocaleString("en-IN")} ડિપોઝિટ આવક)
+                          </span>
+                        )}
                       </td>
 
                       {/* 2. DISTINCT VALUE: DEPOSIT (SINGLE ENTRY DEPOSIT) */}
                       <td className="p-2.5 text-right font-mono font-black text-amber-950 bg-amber-50/90 border-r-2 border-amber-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
-                        ₹{(Number(b.depositAmount) || 0).toLocaleString("en-IN")}
+                        <div>₹{(Number(b.depositAmount) || 0).toLocaleString("en-IN")}</div>
+                        {b.depositStatus && b.depositStatus !== "HELD" && (
+                          <span
+                            className={`text-[9px] font-sans font-bold px-1.5 py-0.2 rounded-full border inline-block mt-0.5 ${
+                              b.depositStatus === "REFUNDED"
+                                ? "bg-blue-100 text-blue-900 border-blue-300"
+                                : b.depositStatus === "FORFEITED_TO_INCOME"
+                                ? "bg-emerald-100 text-emerald-900 border-emerald-300"
+                                : "bg-purple-100 text-purple-900 border-purple-300"
+                            }`}
+                          >
+                            {b.depositStatus === "REFUNDED"
+                              ? "↩️ રિફંડ"
+                              : b.depositStatus === "FORFEITED_TO_INCOME"
+                              ? "💰 આવકમાં"
+                              : "🔄 રિવર્સ"}
+                          </span>
+                        )}
                       </td>
 
                       {/* TOTAL (INCOME + DEPOSIT) */}

@@ -418,6 +418,35 @@ export interface JamaEntry {
   createdAt?: string;
 }
 
+export type DepositStatus =
+  | "HELD"
+  | "REFUNDED"
+  | "FORFEITED_TO_INCOME"
+  | "REVERSED_REFUND";
+
+export interface DepositLedgerEntry {
+  id: string;
+  type: "COLLECTED" | "REFUND" | "ADD_TO_INCOME" | "REVERSE_TO_REFUND" | "RESET";
+  status: DepositStatus;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  paymentMode?: string; // CASH_AT_OFFICE | UPI_BANK_TRANSFER | CHEQUE
+  refNo?: string;
+  notes?: string;
+  performedByName?: string;
+  createdAt: string;
+}
+
+export interface DepositRecord {
+  status: DepositStatus;
+  originalDeposit: number;
+  refundedAmount: number;
+  incomeRecognized: number;
+  lastUpdatedDate: string;
+  lastActionNote?: string;
+  history: DepositLedgerEntry[];
+}
+
 export function parseJamaEntries(notesText?: string | null): JamaEntry[] {
   if (!notesText) return [];
   const match = notesText.match(/<!--JAMA_ENTRIES:([\s\S]*?)-->/);
@@ -440,12 +469,123 @@ export function setJamaEntriesInNotes(
   return current ? `${current}\n${tag}` : tag;
 }
 
+export function parseDepositRecord(notesText?: string | null): DepositRecord | null {
+  if (!notesText) return null;
+  const match = notesText.match(/<!--DEPOSIT_RECORD:([\s\S]*?)-->/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[1]);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setDepositRecordInNotes(
+  notesText: string | null | undefined,
+  record: DepositRecord | null
+): string {
+  const current = (notesText || "").replace(/<!--DEPOSIT_RECORD:[\s\S]*?-->/g, "").trim();
+  if (!record) return current;
+  const tag = `<!--DEPOSIT_RECORD:${JSON.stringify(record)}-->`;
+  return current ? `${current}\n${tag}` : tag;
+}
+
+export function updateBookingNotesWithTags(
+  currentNotes: string | null | undefined,
+  updates: {
+    jamaEntries?: JamaEntry[];
+    depositRecord?: DepositRecord | null;
+    plainNotes?: string;
+  }
+): string {
+  let base = currentNotes || "";
+
+  // Extract or update plain notes & ground floor hall option tag
+  if (updates.plainNotes !== undefined) {
+    const gfMatch = base.match(/\[Ground Floor Hall: (?:AC|Non-AC)\]/);
+    base = updates.plainNotes.trim();
+    if (gfMatch && !base.includes(gfMatch[0])) {
+      base = `${base}\n${gfMatch[0]}`.trim();
+    }
+  } else {
+    // Keep current plain notes by stripping tag metadata
+    base = base
+      .replace(/<!--JAMA_ENTRIES:[\s\S]*?-->/g, "")
+      .replace(/<!--DEPOSIT_RECORD:[\s\S]*?-->/g, "")
+      .trim();
+  }
+
+  // Handle Jama entries
+  let jamaList = updates.jamaEntries;
+  if (jamaList === undefined) {
+    jamaList = parseJamaEntries(currentNotes);
+  }
+  if (jamaList && jamaList.length > 0) {
+    base = `${base}\n<!--JAMA_ENTRIES:${JSON.stringify(jamaList)}-->`.trim();
+  }
+
+  // Handle Deposit record
+  let depRec = updates.depositRecord;
+  if (depRec === undefined) {
+    depRec = parseDepositRecord(currentNotes);
+  }
+  if (depRec) {
+    base = `${base}\n<!--DEPOSIT_RECORD:${JSON.stringify(depRec)}-->`.trim();
+  }
+
+  return base;
+}
+
 export function getCleanNotesWithoutTags(notesText?: string | null): string {
   if (!notesText) return "";
   return notesText
     .replace(/<!--JAMA_ENTRIES:[\s\S]*?-->/g, "")
+    .replace(/<!--DEPOSIT_RECORD:[\s\S]*?-->/g, "")
     .replace(/\[Ground Floor Hall: (AC|Non-AC)\]/g, "")
     .trim();
+}
+
+export function getDepositStatusInfo(status?: string | null) {
+  const s = (status || "HELD").toUpperCase().trim();
+  if (s === "REFUNDED") {
+    return {
+      status: "REFUNDED" as DepositStatus,
+      label: "↩️ પાર્ટીને પરત કરેલ (Deposit Refunded)",
+      shortLabel: "પરત / રિફંડ",
+      badgeClass: "bg-blue-100 text-blue-900 border-blue-300",
+      dotColor: "#2563eb",
+      description: "કાર્યક્રમ પૂર્ણ થયા બાદ ડિપોઝિટ પાર્ટીને પરત કરી દીધેલ છે (આવક ગણાતી નથી).",
+    };
+  }
+  if (s === "FORFEITED_TO_INCOME") {
+    return {
+      status: "FORFEITED_TO_INCOME" as DepositStatus,
+      label: "💰 આવકમાં જમા લીધેલ (Added to Trust Income)",
+      shortLabel: "આવકમાં જમા",
+      badgeClass: "bg-emerald-100 text-emerald-950 border-emerald-400 font-black",
+      dotColor: "#059669",
+      description: "પાર્ટીનો કોઈ સંપર્ક કે દાવો ન હોવાથી ડિપોઝિટ ટ્રસ્ટ આવકમાં જમા કરેલ છે.",
+    };
+  }
+  if (s === "REVERSED_REFUND") {
+    return {
+      status: "REVERSED_REFUND" as DepositStatus,
+      label: "🔄 આવકમાંથી રિવર્સ રિફંડ (Reversed from Income & Refunded)",
+      shortLabel: "રિવર્સ રિફંડ",
+      badgeClass: "bg-purple-100 text-purple-950 border-purple-400 font-black",
+      dotColor: "#7c3aed",
+      description: "આવકમાંથી રિવર્સ એન્ટ્રી કરીને પાછળથી આવેલ અરજદારને ડિપોઝિટ પરત આપેલ.",
+    };
+  }
+  return {
+    status: "HELD" as DepositStatus,
+    label: "🛡️ અનામત જમા (Caution Deposit Held)",
+    shortLabel: "અનામત ચાલુ",
+    badgeClass: "bg-amber-100 text-amber-950 border-amber-300",
+    dotColor: "#d97706",
+    description: "ડિપોઝિટ ટ્રસ્ટ પાસે સુરક્ષિત અનામત જમા છે.",
+  };
 }
 
 /**
@@ -515,6 +655,11 @@ export interface PartyBookingGroup {
   discountAmount: number;
   totalWithDiscount: number;
   deposit: number;
+  depositStatus: DepositStatus;
+  depositRecord?: DepositRecord | null;
+  depositIncomeRecognized: number;
+  depositRefundedAmount: number;
+  effectiveIncome: number;
   net: number;
   jamaEntries: JamaEntry[];
   totalJama: number;
@@ -603,6 +748,11 @@ export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
         discountAmount: 0,
         totalWithDiscount: 0,
         deposit: 0,
+        depositStatus: "HELD",
+        depositRecord: null,
+        depositIncomeRecognized: 0,
+        depositRefundedAmount: 0,
+        effectiveIncome: 0,
         net: 0,
         jamaEntries: [],
         totalJama: 0,
@@ -657,6 +807,35 @@ export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
     // Calculate caution deposit (Use explicit booking deposit if set by trustee)
     const explicitDep = g.bookings.reduce((max, b) => Math.max(max, Number(b.depositAmount || 0)), 0);
     g.deposit = explicitDep > 0 ? explicitDep : calculateEventDeposit(facilitiesList);
+
+    // Look for deposit record in notes across party bookings
+    let foundDepRecord: DepositRecord | null = null;
+    for (const b of g.bookings) {
+      const rec = parseDepositRecord(b.notes);
+      if (rec) {
+        foundDepRecord = rec;
+        break;
+      }
+    }
+
+    g.depositRecord = foundDepRecord;
+    g.depositStatus = (foundDepRecord?.status as DepositStatus) || "HELD";
+
+    if (g.depositStatus === "FORFEITED_TO_INCOME") {
+      g.depositIncomeRecognized = Number(foundDepRecord?.incomeRecognized ?? g.deposit);
+      g.depositRefundedAmount = 0;
+    } else if (g.depositStatus === "REFUNDED" || g.depositStatus === "REVERSED_REFUND") {
+      g.depositIncomeRecognized = 0;
+      g.depositRefundedAmount = Number(foundDepRecord?.refundedAmount ?? g.deposit);
+    } else {
+      g.depositIncomeRecognized = 0;
+      g.depositRefundedAmount = 0;
+    }
+
+    // Effective income recognized for trust:
+    // If deposit forfeited to income, effectiveIncome = totalWithDiscount + deposit
+    // If refunded or reversed to refund, deposit is REMOVED from income: effectiveIncome = totalWithDiscount
+    g.effectiveIncome = g.totalWithDiscount + g.depositIncomeRecognized;
 
     // Net = Total with discount + Deposit
     g.net = g.totalWithDiscount + g.deposit;
