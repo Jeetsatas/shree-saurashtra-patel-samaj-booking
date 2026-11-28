@@ -131,6 +131,42 @@ function AuditReportsContent() {
     });
   }, [data, searchQuery]);
 
+  // Recalculated dynamic sums for Party Groups Table Footer
+  const partyTotals = useMemo(() => {
+    let gross = 0;
+    let disc = 0;
+    let income = 0;
+    let dep = 0;
+    let billed = 0;
+    let jama = 0;
+    let rem = 0;
+    for (const g of filteredParties) {
+      gross += Number(g.total || 0);
+      disc += Number(g.discountAmount || 0);
+      income += Number(g.totalWithDiscount || 0);
+      dep += Number(g.deposit || 0);
+      billed += Number(g.net || 0);
+      jama += Number(g.totalJama || 0);
+      rem += Number(g.netRemaining || 0);
+    }
+    return { gross, disc, income, dep, billed, jama, rem };
+  }, [filteredParties]);
+
+  // Recalculated dynamic sums for Single Bookings Table Footer
+  const singleTotals = useMemo(() => {
+    let gross = 0;
+    let disc = 0;
+    let income = 0;
+    let dep = 0;
+    for (const b of filteredBookings) {
+      gross += Number(b.grossAmount || 0);
+      disc += Number(b.discountAmount || 0);
+      income += Number(b.netAmount || 0);
+      dep += Number(b.depositAmount || 0);
+    }
+    return { gross, disc, income, dep, total: income + dep };
+  }, [filteredBookings]);
+
   const maxMonthlyRevenue = useMemo(() => {
     if (!data?.monthlyTrends) return 10000;
     return Math.max(...data.monthlyTrends.map((m: any) => m.revenue || 0), 10000);
@@ -158,7 +194,7 @@ function AuditReportsContent() {
             વાર્ષિક ઓડિટ અને એનાલિટિક્સ રિપોર્ટ
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ - નરોડા) • પેમેન્ટ સ્થિતિ સાથે સંપૂર્ણ સિંક થયેલ ઓડિટ રજિસ્ટર
+            શ્રી સૌરાષ્ટ્ર પટેલ સમાજ (નિકોલ - નરોડા) • આવક (Income) અને ડિપોઝિટ (Deposit) ઓડિટ રજિસ્ટર
           </p>
         </div>
 
@@ -187,7 +223,7 @@ function AuditReportsContent() {
             type="button"
             onClick={() => handleDownloadCsv("ca")}
             className="px-3 py-2 rounded-xl text-xs font-bold bg-emerald-700 hover:bg-emerald-800 text-white shadow-sm transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
-            title="CA / Auditor માટે પેમેન્ટ સ્થિતિ મુજબનું પાર્ટી-વાઇઝ CSV એક્સપોર્ટ"
+            title="CA / Auditor માટે આવક અને ડિપોઝિટ CSV એક્સપોર્ટ"
           >
             <FileSpreadsheet className="w-4 h-4" />
             <span>CA ઓડિટ CSV</span>
@@ -247,14 +283,14 @@ function AuditReportsContent() {
               </span>
             </div>
             <p className="text-[11px] text-emerald-900/90 mt-0.5 font-medium leading-relaxed">
-              ઓડિટ પેજ અને પેમેન્ટ સ્થિતિ બંને એક જ સત્તાવાર ખાતાવહીનો ઉપયોગ કરે છે. તમામ <strong>{data?.summary?.totalParties || 0} પાર્ટીઓ</strong>, કુલ બિલિંગ, જમા અને બાકી રકમના આંકડા એકસમાન છે.
+              ઓડિટ પેજ અને પેમેન્ટ સ્થિતિ બંને એક જ સત્તાવાર ખાતાવહીનો ઉપયોગ કરે છે. તમામ <strong>{data?.summary?.totalParties || 0} પાર્ટીઓ</strong>, કુલ બુકિંગ આવક (Income), ડિપોઝિટ (Deposit), જમા અને બાકી રકમના આંકડા એકસમાન છે.
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
           <div className="bg-white/90 border border-emerald-200 rounded-xl px-3 py-1.5 text-right font-mono text-[11px]">
-            <span className="text-slate-500 block text-[9px] font-sans">કુલ ચોખ્ખી બિલિંગ</span>
+            <span className="text-slate-500 block text-[9px] font-sans">કુલ નેટ બિલિંગ</span>
             <span className="font-extrabold text-slate-900">₹{(data?.summary?.totalBilled || 0).toLocaleString("en-IN")}</span>
           </div>
           <Link
@@ -324,117 +360,90 @@ function AuditReportsContent() {
         </div>
       </div>
 
-      {/* 4 PRIMARY SYNCHRONIZED TOP KPI CARDS (EXACT MATCH WITH PAYMENT STITHI) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-        {/* 1. Total Parties */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-            <span>કુલ પાર્ટીઓ (Total Parties)</span>
-            <Building className="w-4 h-4 text-slate-400" />
+      {/* 6 TOP FINANCIAL KPI METRIC CARDS (FEATURING INCOME & DEPOSIT CLEARLY) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* 1. Total Booking Income (Revenue from bookings) */}
+        <div className="bg-white p-3.5 rounded-2xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50/50 via-white to-white shadow-2xs">
+          <div className="text-[11px] font-black text-emerald-900 uppercase tracking-wide flex items-center justify-between">
+            <span>૧. કુલ બુકિંગ આવક (INCOME)</span>
+            <Wallet className="w-4 h-4 text-emerald-600" />
           </div>
-          <div className="text-2xl font-black text-slate-900 mt-1 tabular-nums">
-            {data?.summary?.totalParties || 0}
-          </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1.5 flex-wrap">
-            <span className="text-emerald-700 font-bold">{data?.summary?.paidCount || 0} ચુકતે</span>
-            <span>•</span>
-            <span className="text-amber-700 font-bold">{data?.summary?.partialCount || 0} આંશિક</span>
-            <span>•</span>
-            <span className="text-rose-700 font-bold">{data?.summary?.pendingCount || 0} બાકી</span>
-          </div>
-        </div>
-
-        {/* 2. Total Net Billed */}
-        <div className="bg-white p-4 rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/30 to-white shadow-2xs">
-          <div className="text-[11px] font-bold text-blue-800 uppercase tracking-wider flex items-center justify-between">
-            <span>કુલ નેટ બિલિંગ (Net Billed)</span>
-            <Wallet className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-2xl font-black text-blue-950 mt-1 tabular-nums">
-            ₹{(data?.summary?.totalBilled || 0).toLocaleString("en-IN")}
-          </div>
-          <div className="text-[11px] text-blue-700 mt-1 font-medium">
-            ડિસ્કાઉન્ટ બાદ ભાડું + ડિપોઝિટ
-          </div>
-        </div>
-
-        {/* 3. Total Jama Collected */}
-        <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/30 to-white shadow-2xs">
-          <div className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider flex items-center justify-between">
-            <span>કુલ જમા મળેલ (Jama Collected)</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-2xl font-black text-emerald-900 mt-1 tabular-nums">
-            ₹{(data?.summary?.totalReceivedJama || 0).toLocaleString("en-IN")}
-          </div>
-          <div className="text-[11px] text-emerald-700 mt-1 font-medium">
-            ખાતાવહીમાં જમા થયેલ કુલ રકમ
-          </div>
-        </div>
-
-        {/* 4. Total Net Remaining */}
-        <div className="bg-white p-4 rounded-2xl border border-rose-200/80 bg-gradient-to-br from-rose-50/30 to-white shadow-2xs">
-          <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wider flex items-center justify-between">
-            <span>કુલ બાકી નેટ રકમ (Net Remaining)</span>
-            <Clock className="w-4 h-4 text-rose-600" />
-          </div>
-          <div className="text-2xl font-black text-rose-900 mt-1 tabular-nums">
-            ₹{(data?.summary?.pendingBalance || 0).toLocaleString("en-IN")}
-          </div>
-          <div className="text-[11px] text-rose-700 mt-1 font-bold">
-            {(data?.summary?.pendingBalance || 0) === 0 ? "સંપૂર્ણ ચુકતે (Zero Balance)" : "વસૂલવાપાત્ર બાકી રકમ"}
-          </div>
-        </div>
-      </div>
-
-      {/* 4 SECONDARY FINANCIAL BREAKDOWN CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-2xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
-            કુલ મૂળ સુવિધા ભાડું (Gross Rent)
-          </span>
-          <div className="text-base sm:text-lg font-black text-slate-900 font-mono mt-0.5 tabular-nums">
-            ₹{(data?.summary?.grossRent || 0).toLocaleString("en-IN")}
-          </div>
-          <span className="text-[10px] text-slate-500 font-medium block">
-            {data?.summary?.totalBookings || 0} સુવિધા સ્લોટ્સ
-          </span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-2xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
-            રાહત / ડિસ્કાઉન્ટ (Discounts)
-          </span>
-          <div className="text-base sm:text-lg font-black text-emerald-700 font-mono mt-0.5 tabular-nums">
-            - ₹{(data?.summary?.totalDiscounts || 0).toLocaleString("en-IN")}
-          </div>
-          <span className="text-[10px] text-emerald-600 font-medium block">
-            ટ્રસ્ટ ડિસ્કાઉન્ટ
-          </span>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-2xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
-            ચોખ્ખું સુવિધા ભાડું (Net Rent)
-          </span>
-          <div className="text-base sm:text-lg font-black text-red-900 font-mono mt-0.5 tabular-nums">
+          <div className="text-xl sm:text-2xl font-black text-emerald-950 font-mono mt-1 tabular-nums">
             ₹{(data?.summary?.netRevenue || 0).toLocaleString("en-IN")}
           </div>
-          <span className="text-[10px] text-slate-500 font-medium block">
-            ગ્રોસ ભાડું - ડિસ્કાઉન્ટ
-          </span>
+          <div className="text-[10px] text-emerald-700 mt-1 font-bold">
+            બધા બુકિંગ્સની ચોખ્ખી આવક
+          </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-2xl p-3 shadow-2xs">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
-            અનામત ડિપોઝિટ (Deposit Held)
-          </span>
-          <div className="text-base sm:text-lg font-black text-amber-700 font-mono mt-0.5 tabular-nums">
+        {/* 2. Total Caution Deposit */}
+        <div className="bg-white p-3.5 rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50/50 via-white to-white shadow-2xs">
+          <div className="text-[11px] font-black text-amber-900 uppercase tracking-wide flex items-center justify-between">
+            <span>૨. અનામત ડિપોઝિટ (DEPOSIT)</span>
+            <ShieldCheck className="w-4 h-4 text-amber-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-amber-950 font-mono mt-1 tabular-nums">
             ₹{(data?.summary?.totalDepositsHeld || 0).toLocaleString("en-IN")}
           </div>
-          <span className="text-[10px] text-amber-800 font-medium block">
+          <div className="text-[10px] text-amber-800 mt-1 font-bold">
             પરત મળવાપાત્ર અનામત
-          </span>
+          </div>
+        </div>
+
+        {/* 3. Total Billed (Income + Deposit) */}
+        <div className="bg-white p-3.5 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/30 to-white shadow-2xs">
+          <div className="text-[11px] font-bold text-blue-900 uppercase tracking-wide flex items-center justify-between">
+            <span>૩. કુલ બિલિંગ (NET BILLED)</span>
+            <FileText className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-blue-950 font-mono mt-1 tabular-nums">
+            ₹{(data?.summary?.totalBilled || 0).toLocaleString("en-IN")}
+          </div>
+          <div className="text-[10px] text-blue-700 mt-1 font-medium">
+            આવક + ડિપોઝિટ
+          </div>
+        </div>
+
+        {/* 4. Total Jama Collected */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wide flex items-center justify-between">
+            <span>૪. જમા રકમ (JAMA PAID)</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-emerald-900 font-mono mt-1 tabular-nums">
+            ₹{(data?.summary?.totalReceivedJama || 0).toLocaleString("en-IN")}
+          </div>
+          <div className="text-[10px] text-emerald-700 mt-1 font-medium">
+            ખાતાવહીમાં જમા થયેલ
+          </div>
+        </div>
+
+        {/* 5. Total Net Remaining */}
+        <div className="bg-white p-3.5 rounded-2xl border border-rose-200 shadow-2xs">
+          <div className="text-[11px] font-bold text-rose-800 uppercase tracking-wide flex items-center justify-between">
+            <span>૫. બાકી રકમ (BALANCE)</span>
+            <Clock className="w-4 h-4 text-rose-600" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-rose-900 font-mono mt-1 tabular-nums">
+            ₹{(data?.summary?.pendingBalance || 0).toLocaleString("en-IN")}
+          </div>
+          <div className="text-[10px] text-rose-700 mt-1 font-bold">
+            {(data?.summary?.pendingBalance || 0) === 0 ? "સંપૂર્ણ ચુકતે" : "વસૂલવાપાત્ર બાકી"}
+          </div>
+        </div>
+
+        {/* 6. Total Parties */}
+        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center justify-between">
+            <span>૬. પાર્ટીઓ (PARTIES)</span>
+            <Building className="w-4 h-4 text-slate-400" />
+          </div>
+          <div className="text-xl sm:text-2xl font-black text-slate-900 font-mono mt-1 tabular-nums">
+            {data?.summary?.totalParties || 0}
+          </div>
+          <div className="text-[10px] text-slate-500 mt-1 truncate">
+            {data?.summary?.totalBookings || 0} સુવિધા સ્લોટ્સ
+          </div>
         </div>
       </div>
 
@@ -447,7 +456,7 @@ function AuditReportsContent() {
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-red-800" />
                 <h2 className="font-extrabold text-sm text-slate-900">
-                  માસિક બુકિંગ અને આવક વલણ (Monthly Revenue & Booking Trend)
+                  માસિક બુકિંગ આવક વલણ (Monthly Booking Revenue Trend)
                 </h2>
               </div>
               <span className="text-[11px] font-semibold text-slate-500">
@@ -471,7 +480,7 @@ function AuditReportsContent() {
                   >
                     {/* Hover Tooltip */}
                     <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[9px] font-mono px-2 py-1 rounded shadow-lg pointer-events-none whitespace-nowrap z-20">
-                      ₹{m.revenue.toLocaleString("en-IN")} ({m.bookingsCount} બુકિંગ્સ)
+                      આવક: ₹{m.revenue.toLocaleString("en-IN")} ({m.bookingsCount} બુકિંગ્સ)
                     </div>
 
                     {/* Peak Season Flame Icon */}
@@ -516,7 +525,7 @@ function AuditReportsContent() {
               <div className="flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-blue-700" />
                 <h2 className="font-extrabold text-sm text-slate-900">
-                  સુવિધા-વાઇઝ લોકપ્રિયતા (Facility Income Share)
+                  સુવિધા-વાઇઝ બુકિંગ આવક (Facility Income Share)
                 </h2>
               </div>
               <span className="text-[11px] font-semibold text-slate-500">
@@ -568,14 +577,14 @@ function AuditReportsContent() {
         </div>
       </div>
 
-      {/* SYNCHRONIZED AUDIT LEDGER TABLE */}
+      {/* SYNCHRONIZED AUDIT LEDGER TABLE WITH DEDICATED INCOME & DEPOSIT COLUMNS */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-2xs overflow-hidden">
         {/* Table Header Controls */}
         <div className="p-3.5 sm:p-4 border-b border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-3 no-print">
           <div className="flex items-center gap-3">
             <FileText className="w-4 h-4 text-red-800" />
             <h3 className="font-extrabold text-sm text-slate-900">
-              સત્તાવાર ઓડિટ ખાતાવહી રજિસ્ટર (Official Audit Register)
+              સત્તાવાર ઓડિટ ખાતાવહી (Audit Register)
             </h3>
 
             {/* TAB SWITCHER: Party-Wise vs Single Slots */}
@@ -590,7 +599,7 @@ function AuditReportsContent() {
                 }`}
               >
                 <Users className="w-3.5 h-3.5 text-blue-600" />
-                <span>પાર્ટી-વાઇઝ ખાતાવહી ({filteredParties.length})</span>
+                <span>પાર્ટી-વાઇઝ એન્ટ્રી ({filteredParties.length})</span>
               </button>
 
               <button
@@ -603,7 +612,7 @@ function AuditReportsContent() {
                 }`}
               >
                 <FileText className="w-3.5 h-3.5 text-slate-600" />
-                <span>સિંગલ સ્લોટ્સ ({filteredBookings.length})</span>
+                <span>સિંગલ-સિંગલ એન્ટ્રી ({filteredBookings.length})</span>
               </button>
             </div>
           </div>
@@ -620,33 +629,43 @@ function AuditReportsContent() {
           </div>
         </div>
 
-        {/* VIEW 1: PARTY-WISE AUDIT LEDGER (100% IDENTICAL TO PAYMENT STITHI) */}
+        {/* VIEW 1: PARTY-WISE AUDIT LEDGER (WITH DISTINCT INCOME & DEPOSIT COLUMNS) */}
         {activeLedgerTab === "PARTY_WISE" && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left border-collapse">
               <thead className="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-700">
                 <tr>
-                  <th className="p-2.5 border-r border-slate-200">તારીખ ગાળો (Dates)</th>
-                  <th className="p-2.5 border-r border-slate-200">મુખ્ય બુકિંગ નં</th>
+                  <th className="p-2.5 border-r border-slate-200 whitespace-nowrap">તારીખ ગાળો (Dates)</th>
+                  <th className="p-2.5 border-r border-slate-200 whitespace-nowrap">મુખ્ય બુકિંગ નં</th>
                   <th className="p-2.5 border-r border-slate-200">અરજદાર અને ફોન (Party)</th>
                   <th className="p-2.5 border-r border-slate-200">સુવિધાઓ (Facilities)</th>
                   <th className="p-2.5 border-r border-slate-200">પ્રસંગ</th>
-                  <th className="p-2.5 text-right border-r border-slate-200">૧. ગ્રોસ ભાડું</th>
-                  <th className="p-2.5 text-right border-r border-slate-200">૨. ડિસ્કાઉન્ટ</th>
-                  <th className="p-2.5 text-right border-r border-slate-200">૩. ચોખ્ખું ભાડું</th>
-                  <th className="p-2.5 text-center border-r border-slate-200">GST</th>
-                  <th className="p-2.5 text-right border-r border-slate-200">૪. ડિપોઝિટ</th>
-                  <th className="p-2.5 text-right border-r border-slate-200 bg-blue-50/40">૫. નેટ બિલિંગ</th>
-                  <th className="p-2.5 text-right border-r border-slate-200 bg-emerald-50/40">૬. જમા રકમ</th>
-                  <th className="p-2.5 text-right border-r border-slate-200 bg-rose-50/30">૭. બાકી રકમ</th>
-                  <th className="p-2.5 text-center border-r border-slate-200">સ્થિતિ</th>
-                  <th className="p-2.5 text-center no-print">એક્શન્સ</th>
+                  <th className="p-2.5 text-right border-r border-slate-200 whitespace-nowrap">ગ્રોસ ભાડું</th>
+                  <th className="p-2.5 text-right border-r border-slate-200 whitespace-nowrap">ડિસ્કાઉન્ટ</th>
+
+                  {/* 1. DISTINCT COLUMN: INCOME (TOTAL REVENUE FROM BOOKINGS) */}
+                  <th className="p-2.5 text-right border-r-2 border-emerald-400 bg-emerald-100/80 text-emerald-950 font-black whitespace-nowrap">
+                    💰 આવક (INCOME)
+                  </th>
+
+                  {/* 2. DISTINCT COLUMN: DEPOSIT (CAUTION DEPOSIT) */}
+                  <th className="p-2.5 text-right border-r-2 border-amber-400 bg-amber-100/80 text-amber-950 font-black whitespace-nowrap">
+                    🛡️ ડિપોઝિટ (DEPOSIT)
+                  </th>
+
+                  <th className="p-2.5 text-right border-r border-slate-200 bg-blue-50/70 text-blue-950 font-black whitespace-nowrap">
+                    કુલ બિલિંગ (Net Billed)
+                  </th>
+                  <th className="p-2.5 text-right border-r border-slate-200 bg-emerald-50/40 whitespace-nowrap">જમા રકમ</th>
+                  <th className="p-2.5 text-right border-r border-slate-200 bg-rose-50/30 whitespace-nowrap">બાકી રકમ</th>
+                  <th className="p-2.5 text-center border-r border-slate-200 whitespace-nowrap">સ્થિતિ</th>
+                  <th className="p-2.5 text-center no-print whitespace-nowrap">એક્શન્સ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredParties.length === 0 ? (
                   <tr>
-                    <td colSpan={15} className="p-8 text-center text-slate-500 font-medium">
+                    <td colSpan={14} className="p-8 text-center text-slate-500 font-medium">
                       કોઈ પાર્ટી રેકોર્ડ મળેલ નથી.
                     </td>
                   </tr>
@@ -685,28 +704,31 @@ function AuditReportsContent() {
                       <td className="p-2.5 font-medium text-slate-700 border-r border-slate-100 whitespace-nowrap">
                         {g.eventType || "Wedding"}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-100 tabular-nums">
+                      <td className="p-2.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-100 tabular-nums whitespace-nowrap">
                         ₹{g.total.toLocaleString("en-IN")}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-semibold text-emerald-700 border-r border-slate-100 tabular-nums">
+                      <td className="p-2.5 text-right font-mono font-semibold text-emerald-700 border-r border-slate-100 tabular-nums whitespace-nowrap">
                         {g.discountAmount > 0 ? `- ₹${g.discountAmount.toLocaleString("en-IN")}` : "₹0"}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-bold text-slate-900 border-r border-slate-100 tabular-nums">
+
+                      {/* 1. DISTINCT VALUE: INCOME (TOTAL REVENUE FROM BOOKINGS FOR PARTY) */}
+                      <td className="p-2.5 text-right font-mono font-black text-emerald-950 bg-emerald-50/90 border-r-2 border-emerald-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
                         ₹{g.totalWithDiscount.toLocaleString("en-IN")}
                       </td>
-                      <td className="p-2.5 text-center font-mono text-[10px] text-slate-500 border-r border-slate-100 whitespace-nowrap">
-                        0% (Pending)
-                      </td>
-                      <td className="p-2.5 text-right font-mono font-semibold text-amber-800 border-r border-slate-100 tabular-nums">
+
+                      {/* 2. DISTINCT VALUE: DEPOSIT (CAUTION DEPOSIT FOR PARTY) */}
+                      <td className="p-2.5 text-right font-mono font-black text-amber-950 bg-amber-50/90 border-r-2 border-amber-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
                         ₹{(Number(g.deposit) || 0).toLocaleString("en-IN")}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-black text-blue-950 border-r border-slate-100 tabular-nums bg-blue-50/20">
+
+                      {/* TOTAL BILLED (INCOME + DEPOSIT) */}
+                      <td className="p-2.5 text-right font-mono font-black text-blue-950 border-r border-slate-100 tabular-nums bg-blue-50/30 whitespace-nowrap">
                         ₹{g.net.toLocaleString("en-IN")}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-bold text-emerald-800 border-r border-slate-100 tabular-nums bg-emerald-50/20">
+                      <td className="p-2.5 text-right font-mono font-bold text-emerald-800 border-r border-slate-100 tabular-nums bg-emerald-50/20 whitespace-nowrap">
                         ₹{g.totalJama.toLocaleString("en-IN")}
                       </td>
-                      <td className="p-2.5 text-right font-mono font-bold border-r border-slate-100 tabular-nums bg-rose-50/20">
+                      <td className="p-2.5 text-right font-mono font-bold border-r border-slate-100 tabular-nums bg-rose-50/20 whitespace-nowrap">
                         <span className={g.netRemaining > 0 ? "text-rose-700" : "text-emerald-700"}>
                           ₹{g.netRemaining.toLocaleString("en-IN")}
                         </span>
@@ -751,35 +773,39 @@ function AuditReportsContent() {
                   ))
                 )}
               </tbody>
+
               {/* Table Footer Totals */}
               <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
                 <tr>
                   <td colSpan={5} className="p-2.5 text-right border-r border-slate-200 font-black">
-                    કુલ ઓડિટ સરવાળો (Total Synchronized Summary):
+                    કુલ સરવાળો ({filteredParties.length} પાર્ટીઓ):
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black border-r border-slate-200 tabular-nums">
-                    ₹{(data?.summary?.grossRent || 0).toLocaleString("en-IN")}
+                  <td className="p-2.5 text-right font-mono font-black border-r border-slate-200 tabular-nums whitespace-nowrap">
+                    ₹{partyTotals.gross.toLocaleString("en-IN")}
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black text-emerald-800 border-r border-slate-200 tabular-nums">
-                    - ₹{(data?.summary?.totalDiscounts || 0).toLocaleString("en-IN")}
+                  <td className="p-2.5 text-right font-mono font-black text-emerald-800 border-r border-slate-200 tabular-nums whitespace-nowrap">
+                    - ₹{partyTotals.disc.toLocaleString("en-IN")}
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black text-red-900 border-r border-slate-200 tabular-nums">
-                    ₹{(data?.summary?.netRevenue || 0).toLocaleString("en-IN")}
+
+                  {/* 1. FOOTER TOTAL: INCOME */}
+                  <td className="p-2.5 text-right font-mono font-black text-emerald-950 border-r-2 border-emerald-400 tabular-nums bg-emerald-100/90 whitespace-nowrap">
+                    ₹{partyTotals.income.toLocaleString("en-IN")}
                   </td>
-                  <td className="p-2.5 text-center font-mono text-[10px] text-slate-600 border-r border-slate-200">
-                    ₹0.00
+
+                  {/* 2. FOOTER TOTAL: DEPOSIT */}
+                  <td className="p-2.5 text-right font-mono font-black text-amber-950 border-r-2 border-amber-400 tabular-nums bg-amber-100/90 whitespace-nowrap">
+                    ₹{partyTotals.dep.toLocaleString("en-IN")}
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black text-amber-800 border-r border-slate-200 tabular-nums">
-                    ₹{(data?.summary?.totalDepositsHeld || 0).toLocaleString("en-IN")}
+
+                  {/* FOOTER TOTAL: BILLED (INCOME + DEPOSIT) */}
+                  <td className="p-2.5 text-right font-mono font-black text-blue-950 border-r border-slate-200 tabular-nums bg-blue-100/60 whitespace-nowrap">
+                    ₹{partyTotals.billed.toLocaleString("en-IN")}
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black text-blue-950 border-r border-slate-200 tabular-nums bg-blue-100/50">
-                    ₹{(data?.summary?.totalBilled || 0).toLocaleString("en-IN")}
+                  <td className="p-2.5 text-right font-mono font-black text-emerald-800 border-r border-slate-200 tabular-nums bg-emerald-100/50 whitespace-nowrap">
+                    ₹{partyTotals.jama.toLocaleString("en-IN")}
                   </td>
-                  <td className="p-2.5 text-right font-mono font-black text-emerald-800 border-r border-slate-200 tabular-nums bg-emerald-100/50">
-                    ₹{(data?.summary?.totalReceivedJama || 0).toLocaleString("en-IN")}
-                  </td>
-                  <td className="p-2.5 text-right font-mono font-black text-rose-800 border-r border-slate-200 tabular-nums bg-rose-100/50">
-                    ₹{(data?.summary?.pendingBalance || 0).toLocaleString("en-IN")}
+                  <td className="p-2.5 text-right font-mono font-black text-rose-800 border-r border-slate-200 tabular-nums bg-rose-100/50 whitespace-nowrap">
+                    ₹{partyTotals.rem.toLocaleString("en-IN")}
                   </td>
                   <td></td>
                   <td className="no-print"></td>
@@ -789,78 +815,146 @@ function AuditReportsContent() {
           </div>
         )}
 
-        {/* VIEW 2: SINGLE FACILITY SLOTS TABLE */}
+        {/* VIEW 2: SINGLE FACILITY SLOTS TABLE (WITH DISTINCT INCOME & DEPOSIT COLUMNS) */}
         {activeLedgerTab === "SINGLE_SLOTS" && (
           <div className="overflow-x-auto">
             <table className="w-full text-xs text-left border-collapse">
               <thead className="bg-slate-100/90 border-b border-slate-200 text-[11px] font-bold text-slate-700">
                 <tr>
-                  <th className="p-2.5 border-r border-slate-200">બુકિંગ તારીખ</th>
-                  <th className="p-2.5 border-r border-slate-200">વાઉચર નં</th>
+                  <th className="p-2.5 border-r border-slate-200 whitespace-nowrap">બુકિંગ તારીખ</th>
+                  <th className="p-2.5 border-r border-slate-200 whitespace-nowrap">વાઉચર નં</th>
                   <th className="p-2.5 border-r border-slate-200">અરજદાર અને ફોન</th>
                   <th className="p-2.5 border-r border-slate-200">સુવિધા / હોલ</th>
                   <th className="p-2.5 border-r border-slate-200">પ્રસંગ</th>
-                  <th className="p-2.5 text-right border-r border-slate-200">મૂળ ભાડું</th>
-                  <th className="p-2.5 text-right border-r border-slate-200">ડિસ્કાઉન્ટ</th>
-                  <th className="p-2.5 text-right border-r border-slate-200">ચોખ્ખું ભાડું</th>
-                  <th className="p-2.5 text-center border-r border-slate-200">GST</th>
-                  <th className="p-2.5 text-center">સ્થિતિ</th>
+                  <th className="p-2.5 text-right border-r border-slate-200 whitespace-nowrap">મૂળ ભાડું</th>
+                  <th className="p-2.5 text-right border-r border-slate-200 whitespace-nowrap">ડિસ્કાઉન્ટ</th>
+
+                  {/* 1. DISTINCT COLUMN: INCOME (SINGLE BOOKING REVENUE) */}
+                  <th className="p-2.5 text-right border-r-2 border-emerald-400 bg-emerald-100/80 text-emerald-950 font-black whitespace-nowrap">
+                    💰 આવક (INCOME)
+                  </th>
+
+                  {/* 2. DISTINCT COLUMN: DEPOSIT (SINGLE BOOKING DEPOSIT) */}
+                  <th className="p-2.5 text-right border-r-2 border-amber-400 bg-amber-100/80 text-amber-950 font-black whitespace-nowrap">
+                    🛡️ ડિપોઝિટ (DEPOSIT)
+                  </th>
+
+                  <th className="p-2.5 text-right border-r border-slate-200 bg-blue-50/70 text-blue-950 font-black whitespace-nowrap">
+                    કુલ રકમ (Total)
+                  </th>
+                  <th className="p-2.5 text-center border-r border-slate-200 whitespace-nowrap">GST</th>
+                  <th className="p-2.5 text-center whitespace-nowrap">સ્થિતિ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredBookings.map((b: any, idx: number) => (
-                  <tr key={b.id || idx} className="hover:bg-slate-50/70 transition-colors">
-                    <td className="p-2.5 font-semibold text-slate-700 border-r border-slate-100 whitespace-nowrap">
-                      {new Date(b.startDate).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </td>
-                    <td className="p-2.5 font-mono font-bold text-red-900 border-r border-slate-100 whitespace-nowrap">
-                      <Link
-                        href={`/admin/bookings/${b.id}/receipt?mode=single`}
-                        target="_blank"
-                        className="hover:underline"
-                        title="સિંગલ સ્લિપ જુઓ"
-                      >
-                        {b.bookingNumber}
-                      </Link>
-                    </td>
-                    <td className="p-2.5 border-r border-slate-100">
-                      <div className="font-bold text-slate-900 leading-tight">
-                        {b.customerName}
-                      </div>
-                      <div className="text-[10px] text-slate-500 font-mono">
-                        {b.customerPhone}
-                      </div>
-                    </td>
-                    <td className="p-2.5 font-medium text-slate-800 border-r border-slate-100 whitespace-nowrap">
-                      {b.facility?.name}
-                    </td>
-                    <td className="p-2.5 font-medium text-slate-700 border-r border-slate-100 whitespace-nowrap">
-                      {b.eventType}
-                    </td>
-                    <td className="p-2.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-100 tabular-nums">
-                      ₹{b.grossAmount.toLocaleString("en-IN")}
-                    </td>
-                    <td className="p-2.5 text-right font-mono font-semibold text-emerald-700 border-r border-slate-100 tabular-nums">
-                      {b.discountAmount > 0 ? `- ₹${Number(b.discountAmount).toLocaleString("en-IN")}` : "₹0"}
-                    </td>
-                    <td className="p-2.5 text-right font-mono font-bold text-slate-900 border-r border-slate-100 tabular-nums">
-                      ₹{b.netAmount.toLocaleString("en-IN")}
-                    </td>
-                    <td className="p-2.5 text-center font-mono text-[10px] text-slate-500 border-r border-slate-100 whitespace-nowrap">
-                      0% (Pending)
-                    </td>
-                    <td className="p-2.5 text-center whitespace-nowrap">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
-                        {b.status}
-                      </span>
+                {filteredBookings.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="p-8 text-center text-slate-500 font-medium">
+                      કોઈ સિંગલ સ્લોટ રેકોર્ડ મળેલ નથી.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredBookings.map((b: any, idx: number) => (
+                    <tr key={b.id || idx} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="p-2.5 font-semibold text-slate-700 border-r border-slate-100 whitespace-nowrap">
+                        {new Date(b.startDate).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="p-2.5 font-mono font-bold text-red-900 border-r border-slate-100 whitespace-nowrap">
+                        <Link
+                          href={`/admin/bookings/${b.id}/receipt?mode=single`}
+                          target="_blank"
+                          className="hover:underline"
+                          title="સિંગલ સ્લિપ જુઓ"
+                        >
+                          {b.bookingNumber}
+                        </Link>
+                      </td>
+                      <td className="p-2.5 border-r border-slate-100">
+                        <div className="font-bold text-slate-900 leading-tight">
+                          {b.customerName}
+                        </div>
+                        <div className="text-[10px] text-slate-500 font-mono">
+                          {b.customerPhone}
+                        </div>
+                      </td>
+                      <td className="p-2.5 font-medium text-slate-800 border-r border-slate-100 whitespace-nowrap">
+                        {b.facility?.name}
+                      </td>
+                      <td className="p-2.5 font-medium text-slate-700 border-r border-slate-100 whitespace-nowrap">
+                        {b.eventType}
+                      </td>
+                      <td className="p-2.5 text-right font-mono font-semibold text-slate-900 border-r border-slate-100 tabular-nums whitespace-nowrap">
+                        ₹{b.grossAmount.toLocaleString("en-IN")}
+                      </td>
+                      <td className="p-2.5 text-right font-mono font-semibold text-emerald-700 border-r border-slate-100 tabular-nums whitespace-nowrap">
+                        {b.discountAmount > 0 ? `- ₹${Number(b.discountAmount).toLocaleString("en-IN")}` : "₹0"}
+                      </td>
+
+                      {/* 1. DISTINCT VALUE: INCOME (SINGLE ENTRY REVENUE) */}
+                      <td className="p-2.5 text-right font-mono font-black text-emerald-950 bg-emerald-50/90 border-r-2 border-emerald-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
+                        ₹{b.netAmount.toLocaleString("en-IN")}
+                      </td>
+
+                      {/* 2. DISTINCT VALUE: DEPOSIT (SINGLE ENTRY DEPOSIT) */}
+                      <td className="p-2.5 text-right font-mono font-black text-amber-950 bg-amber-50/90 border-r-2 border-amber-300 tabular-nums text-xs sm:text-[13px] whitespace-nowrap">
+                        ₹{(Number(b.depositAmount) || 0).toLocaleString("en-IN")}
+                      </td>
+
+                      {/* TOTAL (INCOME + DEPOSIT) */}
+                      <td className="p-2.5 text-right font-mono font-black text-blue-950 border-r border-slate-100 tabular-nums bg-blue-50/30 whitespace-nowrap">
+                        ₹{(b.netAmount + (Number(b.depositAmount) || 0)).toLocaleString("en-IN")}
+                      </td>
+
+                      <td className="p-2.5 text-center font-mono text-[10px] text-slate-500 border-r border-slate-100 whitespace-nowrap">
+                        0% (Pending)
+                      </td>
+                      <td className="p-2.5 text-center whitespace-nowrap">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
+                          {b.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
+
+              {/* Table Footer Totals for Single Slots */}
+              <tfoot className="bg-slate-100 font-bold border-t-2 border-slate-300 text-slate-900">
+                <tr>
+                  <td colSpan={5} className="p-2.5 text-right border-r border-slate-200 font-black">
+                    કુલ સરવાળો ({filteredBookings.length} સ્લોટ્સ):
+                  </td>
+                  <td className="p-2.5 text-right font-mono font-black border-r border-slate-200 tabular-nums whitespace-nowrap">
+                    ₹{singleTotals.gross.toLocaleString("en-IN")}
+                  </td>
+                  <td className="p-2.5 text-right font-mono font-black text-emerald-800 border-r border-slate-200 tabular-nums whitespace-nowrap">
+                    - ₹{singleTotals.disc.toLocaleString("en-IN")}
+                  </td>
+
+                  {/* 1. FOOTER TOTAL: INCOME */}
+                  <td className="p-2.5 text-right font-mono font-black text-emerald-950 border-r-2 border-emerald-400 tabular-nums bg-emerald-100/90 whitespace-nowrap">
+                    ₹{singleTotals.income.toLocaleString("en-IN")}
+                  </td>
+
+                  {/* 2. FOOTER TOTAL: DEPOSIT */}
+                  <td className="p-2.5 text-right font-mono font-black text-amber-950 border-r-2 border-amber-400 tabular-nums bg-amber-100/90 whitespace-nowrap">
+                    ₹{singleTotals.dep.toLocaleString("en-IN")}
+                  </td>
+
+                  {/* FOOTER TOTAL: TOTAL BILLED */}
+                  <td className="p-2.5 text-right font-mono font-black text-blue-950 border-r border-slate-200 tabular-nums bg-blue-100/60 whitespace-nowrap">
+                    ₹{singleTotals.total.toLocaleString("en-IN")}
+                  </td>
+                  <td className="p-2.5 text-center font-mono text-[10px] text-slate-600 border-r border-slate-200">
+                    ₹0.00
+                  </td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
