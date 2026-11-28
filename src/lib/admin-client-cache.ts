@@ -24,6 +24,20 @@ export function clearAdminClientCache(): void {
   inFlightRequests.clear();
 }
 
+/**
+ * Dispatch real-time booking update notification across browser tabs and components
+ */
+export function notifyBookingsUpdated(): void {
+  if (typeof window === "undefined") return;
+  clearAdminClientCache();
+  try {
+    localStorage.setItem("ps_bookings_version", Date.now().toString());
+  } catch {
+    // Ignore storage quota issues in strict private modes
+  }
+  window.dispatchEvent(new CustomEvent("ps_booking_changed"));
+}
+
 export async function fetchAdminJson<T>(
   url: string,
   options?: { forceRefresh?: boolean; ttlMs?: number; retries?: number }

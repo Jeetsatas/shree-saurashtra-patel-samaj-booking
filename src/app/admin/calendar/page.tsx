@@ -22,7 +22,7 @@ import {
   Edit3,
 } from "lucide-react";
 import Link from "next/link";
-import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
+import { fetchAdminJson, getAdminCachedData, clearAdminClientCache } from "@/lib/admin-client-cache";
 import {
   isFullDaySlot,
   formatSlotLabel,
@@ -63,19 +63,34 @@ export default function AdminCalendarPage() {
     const refreshWhileVisible = () => {
       if (document.visibilityState === "visible") {
         const now = Date.now();
-        // Smart Focus Revalidation: throttle to at most once every 10 seconds on tab focus
-        if (now - lastRefreshTime > 10000) {
+        // Smart Focus Revalidation: throttle to at most once every 5 seconds on tab focus
+        if (now - lastRefreshTime > 5000) {
           lastRefreshTime = now;
-          refreshBookings();
+          refreshBookings(currentDate.getFullYear(), currentDate.getMonth() + 1, true);
         }
       }
     };
     const refreshFacilitiesWhileVisible = () => {
       if (document.visibilityState === "visible") refreshFacilities();
     };
-    // Relax idle background polling: bookings every 45s, static facilities every 2 mins
-    const timer = window.setInterval(refreshWhileVisible, 45000);
-    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 120000);
+
+    // Cross-tab and local real-time auto-update on confirmed or cancelled booking
+    const handleStorageUpdate = (e: StorageEvent) => {
+      if (e.key === "ps_bookings_version") {
+        clearAdminClientCache();
+        refreshBookings(currentDate.getFullYear(), currentDate.getMonth() + 1, true);
+      }
+    };
+    const handleLocalUpdate = () => {
+      clearAdminClientCache();
+      refreshBookings(currentDate.getFullYear(), currentDate.getMonth() + 1, true);
+    };
+    window.addEventListener("storage", handleStorageUpdate);
+    window.addEventListener("ps_booking_changed", handleLocalUpdate);
+
+    // Dynamic Real-time Background Polling: refresh every 10 seconds while tab is active
+    const timer = window.setInterval(refreshWhileVisible, 10000);
+    const facilitiesTimer = window.setInterval(refreshFacilitiesWhileVisible, 60000);
     window.addEventListener("focus", refreshWhileVisible);
     document.addEventListener("visibilitychange", refreshWhileVisible);
     return () => {
@@ -83,6 +98,8 @@ export default function AdminCalendarPage() {
       window.clearInterval(facilitiesTimer);
       window.removeEventListener("focus", refreshWhileVisible);
       document.removeEventListener("visibilitychange", refreshWhileVisible);
+      window.removeEventListener("storage", handleStorageUpdate);
+      window.removeEventListener("ps_booking_changed", handleLocalUpdate);
     };
   }, []);
 
@@ -102,12 +119,16 @@ export default function AdminCalendarPage() {
     refreshBookings(y, m);
   }, [currentDate.getFullYear(), currentDate.getMonth()]);
 
-  const refreshBookings = async (targetYear = currentDate.getFullYear(), targetMonth = currentDate.getMonth() + 1) => {
+  const refreshBookings = async (
+    targetYear = currentDate.getFullYear(),
+    targetMonth = currentDate.getMonth() + 1,
+    force = false
+  ) => {
     const url = `/api/bookings?month=${targetMonth}&year=${targetYear}`;
     if (bookingsRefresh.current) return bookingsRefresh.current;
     bookingsRefresh.current = (async () => {
       try {
-        const data = await fetchAdminJson<any>(url);
+        const data = await fetchAdminJson<any>(url, { forceRefresh: force });
         if (data?.bookings) setBookings(data.bookings);
       } catch (err) {
         console.error("Calendar booking refresh error:", err);
@@ -300,44 +321,115 @@ export default function AdminCalendarPage() {
   const fullyBookedCount = selectedDayFacilities.filter((f) => f.isFullyBooked).length;
   const bookedCount = selectedDayFacilities.filter((f) => f.isBooked).length;
 
+  /**
+   * Dynamic Real-time Seat Availability Heatmap Tier Calculator
+   * Determines color intensity and visual badges based on the percentage of remaining facilities
+   * Used for both Super Admin and View-Only Admin sides
+   */
+  const getHeatmapTier = (remainingPct: number, availCount: number, isFullyBooked: boolean) => {
+    if (isFullyBooked || availCount === 0 || remainingPct === 0) {
+      // 0% Remaining: Fully Booked / Full Intensity Heat (Deep Rose / Red)
+      return {
+        level: "FULL_BOOKED",
+        cardTheme: "bg-rose-100/90 border-2 border-rose-400 text-rose-950 hover:bg-rose-200 hover:border-rose-500",
+        badge: (
+          <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-200 text-rose-950 border border-rose-400 shadow-2xs truncate block max-w-full">
+            🔴 સંપૂર્ણ બુક
+          </span>
+        ),
+        heatPill: "bg-rose-200 text-rose-900 border-rose-400 font-black",
+        gaugeColor: "bg-rose-600",
+        heatPctText: "0%",
+        labelGu: "સંપૂર્ણ બુક (0% ઉપલબ્ધ - હાઉસફુલ)",
+      };
+    }
+    if (remainingPct < 25) {
+      // 1% - 24% Remaining: High Heat, Almost Full (Soft Crimson / Coral)
+      return {
+        level: "CRITICAL",
+        cardTheme: "bg-rose-50/90 border-2 border-rose-300 text-rose-950 hover:bg-rose-100 hover:border-rose-400",
+        badge: (
+          <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs truncate block max-w-full">
+            🔥 માત્ર {availCount} ખાલી
+          </span>
+        ),
+        heatPill: "bg-rose-100 text-rose-800 border-rose-200 font-extrabold",
+        gaugeColor: "bg-rose-500",
+        heatPctText: `${remainingPct}%`,
+        labelGu: `માત્ર ${remainingPct}% ઉપલબ્ધ (છેલ્લી સુવિધા)`,
+      };
+    }
+    if (remainingPct < 50) {
+      // 25% - 49% Remaining: High Demand / Filling Fast (Warm Deep Orange)
+      return {
+        level: "LOW_AVAIL",
+        cardTheme: "bg-orange-50/90 border-2 border-orange-300 text-orange-950 hover:bg-orange-100 hover:border-orange-400",
+        badge: (
+          <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-900 border border-orange-300 shadow-2xs truncate block max-w-full">
+            🟠 {availCount} ખાલી
+          </span>
+        ),
+        heatPill: "bg-orange-100 text-orange-800 border-orange-200 font-extrabold",
+        gaugeColor: "bg-orange-500",
+        heatPctText: `${remainingPct}%`,
+        labelGu: `${remainingPct}% ઉપલબ્ધ (મર્યાદિત સુવિધા)`,
+      };
+    }
+    if (remainingPct < 75) {
+      // 50% - 74% Remaining: Moderate Availability (Warm Golden Amber)
+      return {
+        level: "MEDIUM_AVAIL",
+        cardTheme: "bg-amber-50/90 border-2 border-amber-300 text-amber-950 hover:bg-amber-100 hover:border-amber-400",
+        badge: (
+          <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs truncate block max-w-full">
+            🟡 {availCount} ખાલી
+          </span>
+        ),
+        heatPill: "bg-amber-100 text-amber-800 border-amber-200 font-extrabold",
+        gaugeColor: "bg-amber-500",
+        heatPctText: `${remainingPct}%`,
+        labelGu: `${remainingPct}% ઉપલબ્ધ (આંશિક બુક)`,
+      };
+    }
+    if (remainingPct < 100) {
+      // 75% - 99% Remaining: High Availability (Bright Leaf Green / Mint)
+      return {
+        level: "HIGH_AVAIL",
+        cardTheme: "bg-emerald-50/90 border-2 border-emerald-300 text-emerald-950 hover:bg-emerald-100 hover:border-emerald-400",
+        badge: (
+          <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs truncate block max-w-full">
+            🟢 {availCount} ખાલી
+          </span>
+        ),
+        heatPill: "bg-emerald-100 text-emerald-800 border-emerald-200 font-extrabold",
+        gaugeColor: "bg-emerald-500",
+        heatPctText: `${remainingPct}%`,
+        labelGu: `${remainingPct}% ઉપલબ્ધ (મોટાભાગે ખાલી)`,
+      };
+    }
+    // 100% Remaining: All Free / Cool Emerald
+    return {
+      level: "ALL_AVAIL",
+      cardTheme: "bg-emerald-50/60 border-2 border-emerald-200 text-emerald-950 hover:bg-emerald-100 hover:border-emerald-300",
+      badge: (
+        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100/90 text-emerald-900 border border-emerald-300/80 shadow-2xs truncate block max-w-full">
+          🟢 ખાલી
+        </span>
+      ),
+      heatPill: "bg-emerald-100/80 text-emerald-800 border-emerald-200 font-extrabold",
+      gaugeColor: "bg-emerald-500",
+      heatPctText: "100%",
+      labelGu: "૧૦૦% ઉપલબ્ધ (સંપૂર્ણ ખાલી)",
+    };
+  };
+
   const getFacilityEarliestStartMinutes = (item: any): number => {
     if (!item.bookings || item.bookings.length === 0) return 99999;
     return Math.min(...item.bookings.map((b: any) => getSlotStartMinutes(b.slot)));
   };
 
   const filteredDayFacilities = (() => {
-    if (!isSuper) {
-      // In View-Only Admin: strictly 2 states - Available (Green) or Booked (Red)
-      if (availabilityFilter === "ONLY_AVAILABLE") {
-        return selectedDayFacilities.filter((f) => f.isAvailable);
-      }
-      if (availabilityFilter === "ONLY_BOOKED") {
-        return selectedDayFacilities
-          .filter((f) => f.isBooked)
-          .sort((a, b) => getFacilityEarliestStartMinutes(a) - getFacilityEarliestStartMinutes(b));
-      }
-      if (availabilityFilter === "AVAILABLE_FIRST") {
-        return [...selectedDayFacilities].sort((a, b) => {
-          // Green slots first!
-          if (a.isAvailable !== b.isAvailable) {
-            return a.isAvailable ? -1 : 1;
-          }
-          if (a.isAvailable && b.isAvailable) {
-            return 0;
-          }
-          // After green slots: sort from morning to night!
-          return getFacilityEarliestStartMinutes(a) - getFacilityEarliestStartMinutes(b);
-        });
-      }
-      return [...selectedDayFacilities].sort((a, b) => {
-        if (a.isAvailable !== b.isAvailable) {
-          return a.isAvailable ? -1 : 1;
-        }
-        return getFacilityEarliestStartMinutes(a) - getFacilityEarliestStartMinutes(b);
-      });
-    }
-
-    // In Super Admin: Available (Green) first, then partial/booked sorted from Morning to Night!
+    // Both Super Admin & View-Only Admin: Available (Green) first, then partial/booked sorted from Morning to Night!
     if (availabilityFilter === "ONLY_AVAILABLE") {
       return selectedDayFacilities.filter((f) => f.isAvailable || f.isPartiallyBooked);
     }
@@ -620,31 +712,40 @@ export default function AdminCalendarPage() {
               <span><span className="sm:hidden">શનિ</span><span className="hidden sm:inline">શનિ (Sat)</span></span>
             </div>
 
-            {/* COLOR SCHEME & FACILITY LEGEND */}
-            <div className="mb-3 p-3 bg-white/80 backdrop-blur-sm rounded-2xl border border-slate-200/90 flex flex-wrap items-center justify-between gap-3 text-xs font-bold text-slate-700 shadow-2xs">
-              <div className="flex items-center space-x-3 flex-wrap gap-y-1.5">
-                <span className="text-[11px] font-black uppercase text-slate-400">સ્થિતિ:</span>
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
-                    🟢 ઉપલબ્ધ (ખાલી)
+            {/* REAL-TIME SEAT AVAILABILITY HEATMAP & COLOR SCHEME LEGEND */}
+            <div className="mb-3 p-3 bg-white/90 backdrop-blur-sm rounded-2xl border border-slate-200/90 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs font-bold text-slate-700 shadow-2xs">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 mr-1">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[11px] font-black uppercase text-slate-700 tracking-wider">
+                    હીટમેપ ઉપલબ્ધતા (Heatmap):
                   </span>
                 </div>
-                {isSuper && (
-                  <div className="flex items-center space-x-1.5">
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                      🟡 આંશિક સ્લોટ બુક
-                    </span>
-                  </div>
-                )}
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300">
-                    🔴 સંપૂર્ણ બુક
-                  </span>
-                </div>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 shadow-2xs">
+                  🟢 ૧૦૦% ખાલી
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 shadow-2xs">
+                  🟢 ૭૫%-૯૯%
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                  🟡 ૫૦%-૭૪%
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-orange-100 text-orange-900 border border-orange-300 shadow-2xs">
+                  🟠 ૨૫%-૪૯%
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300 shadow-2xs">
+                  🔥 ૧%-૨૪%
+                </span>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-200 text-rose-950 border border-rose-400 shadow-2xs">
+                  🔴 ૦% (સંપૂર્ણ બુક)
+                </span>
               </div>
 
               {/* Facility Dots Legend */}
-              <div className="flex items-center space-x-3 flex-wrap gap-y-1 text-[11px] text-slate-600">
+              <div className="flex items-center space-x-3 flex-wrap gap-y-1 text-[11px] text-slate-600 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
                 <span className="text-[11px] font-black uppercase text-slate-400">સુવિધાઓ:</span>
                 <span className="inline-flex items-center gap-1 font-semibold">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" /> 🌳 પ્લોટ
@@ -673,8 +774,15 @@ export default function AdminCalendarPage() {
                 const isBooked = dayBookings.length > 0;
                 const isSelected = selectedDate && selectedDate.getDate() === dayNum && selectedDate.getMonth() === month && selectedDate.getFullYear() === year;
                 const dayFacs = getFacilityAvailabilityForDate(dayDate);
+                const totalFacs = dayFacs.length || facilities.length || 8;
                 const dayAvail = dayFacs.filter((f) => f.isAvailable).length;
+                const dayPartial = dayFacs.filter((f) => f.isPartiallyBooked).length;
                 const dayIsFullyBooked = dayFacs.length > 0 && dayFacs.every((f) => f.isFullyBooked);
+
+                // Calculate exact remaining facility percentage (with partial bookings weighted at 0.5)
+                const effectiveRemaining = dayAvail + (dayPartial * 0.5);
+                const remainingPct = totalFacs > 0 ? Math.round((effectiveRemaining / totalFacs) * 100) : 100;
+                const heat = getHeatmapTier(remainingPct, dayAvail, dayIsFullyBooked);
 
                 // Booked facility types for dots
                 const bookedFacTypes = Array.from(
@@ -686,50 +794,11 @@ export default function AdminCalendarPage() {
                   )
                 );
 
-                // Green by default for available days (as requested: "i want green color as available not white")
-                let cardTheme = "bg-emerald-50/80 border-2 border-emerald-200 text-emerald-950 hover:bg-emerald-100 hover:border-emerald-300";
-                let badge = (
-                  <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-100/90 text-emerald-900 border border-emerald-300/80 shadow-2xs truncate block max-w-full">
-                    🟢 ખાલી
-                  </span>
-                );
-
-                if (!isSuper) {
-                  // View-Only Admin: Strictly Available (green) or Booked (rose)
-                  if (isBooked) {
-                    cardTheme = "bg-rose-50/80 border-2 border-rose-200 text-rose-950 hover:bg-rose-100 hover:border-rose-300";
-                    badge = (
-                      <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300/80 shadow-2xs truncate block max-w-full">
-                        🔴 બુકિંગ
-                      </span>
-                    );
-                  }
-                } else {
-                  // Super Admin: Green for available, Amber for partial slots/facilities, Rose for fully booked
-                  if (isBooked) {
-                    if (dayIsFullyBooked) {
-                      cardTheme = "bg-rose-50/80 border-2 border-rose-200 text-rose-950 hover:bg-rose-100 hover:border-rose-300";
-                      badge = (
-                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300/80 shadow-2xs truncate block max-w-full">
-                          🔴 સંપૂર્ણ બુક
-                        </span>
-                      );
-                    } else {
-                      cardTheme = "bg-amber-50/80 border-2 border-amber-200 text-amber-950 hover:bg-amber-100 hover:border-amber-300";
-                      badge = (
-                        <span className="text-[9px] sm:text-[10px] font-black px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300/80 shadow-2xs truncate block max-w-full">
-                          🟡 {dayAvail > 0 ? `${dayAvail} ખાલી` : "સમય બુક"}
-                        </span>
-                      );
-                    }
-                  }
-                }
-
                 return (
                   <button
                     type="button"
                     key={`day-${dayNum}`}
-                    aria-label={`${dayDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}: ${isBooked ? `${dayBookings.length} bookings, ${dayAvail} available` : "all available"}`}
+                    aria-label={`${dayDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}: ${heat.labelGu}`}
                     aria-pressed={Boolean(isSelected)}
                     onClick={() => {
                       setSelectedDate(dayDate);
@@ -740,40 +809,60 @@ export default function AdminCalendarPage() {
                         }
                       }
                     }}
-                    className={`min-w-0 min-h-[58px] sm:min-h-[78px] md:min-h-[92px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 text-center ${cardTheme} ${
+                    className={`min-w-0 min-h-[64px] sm:min-h-[82px] md:min-h-[96px] p-1.5 sm:p-2 rounded-xl sm:rounded-2xl transition-all duration-200 cursor-pointer flex flex-col items-center justify-between shadow-2xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 text-center ${heat.cardTheme} ${
                       isSelected
                         ? "ring-4 ring-amber-400 border-amber-500 shadow-md scale-[1.03] z-10"
                         : ""
                     }`}
                   >
+                    {/* Top: Day Number + Percentage Heat Tag */}
                     <div className="flex items-center justify-between w-full">
                       <span className="text-xs sm:text-base font-black leading-none text-slate-900 font-mono tabular-nums">
                         {dayNum}
                       </span>
+                      <span
+                        className={`text-[8px] sm:text-[9px] px-1 py-0.2 rounded border tabular-nums shadow-2xs ${heat.heatPill}`}
+                        title={`${heat.labelGu}`}
+                      >
+                        {heat.heatPctText}
+                      </span>
                     </div>
 
-                    {/* Badge */}
+                    {/* Middle: Badge */}
                     <div className="w-full my-auto">
-                      {badge}
+                      {heat.badge}
                     </div>
 
-                    {/* Facility Dots */}
-                    {bookedFacTypes.length > 0 && (
-                      <div className="flex items-center gap-1 pt-0.5 shrink-0">
-                        {bookedFacTypes.includes("PLOT") && (
-                          <span title="પાર્ટી પ્લોટ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 shadow-2xs" />
-                        )}
-                        {bookedFacTypes.includes("HALL") && (
-                          <span title="કોમ્યુનિટી હોલ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-600 ring-1 ring-blue-300 shadow-2xs" />
-                        )}
-                        {bookedFacTypes.includes("DORMITORY") && (
-                          <span title="ડોર્મિટરી" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-600 ring-1 ring-purple-300 shadow-2xs" />
-                        )}
-                        {bookedFacTypes.includes("ROOM") && (
-                          <span title="એસી ગેસ્ટ રૂમ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 shadow-2xs" />
-                        )}
+                    {/* Bottom: Booked Facility Dots + Micro Availability Gauge Bar */}
+                    <div className="w-full flex flex-col items-center gap-1 shrink-0 pt-0.5">
+                      {bookedFacTypes.length > 0 && (
+                        <div className="flex items-center gap-1">
+                          {bookedFacTypes.includes("PLOT") && (
+                            <span title="પાર્ટી પ્લોટ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 ring-1 ring-emerald-300 shadow-2xs" />
+                          )}
+                          {bookedFacTypes.includes("HALL") && (
+                            <span title="કોમ્યુનિટી હોલ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-blue-600 ring-1 ring-blue-300 shadow-2xs" />
+                          )}
+                          {bookedFacTypes.includes("DORMITORY") && (
+                            <span title="ડોર્મિટરી" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-purple-600 ring-1 ring-purple-300 shadow-2xs" />
+                          )}
+                          {bookedFacTypes.includes("ROOM") && (
+                            <span title="એસી ગેસ્ટ રૂમ" className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-amber-500 ring-1 ring-amber-300 shadow-2xs" />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Micro Availability Gauge Bar */}
+                      <div
+                        className="w-full bg-slate-200/80 rounded-full h-1 overflow-hidden"
+                        title={`${heat.labelGu}`}
+                      >
+                        <div
+                          className={`h-full transition-all duration-300 ${heat.gaugeColor}`}
+                          style={{ width: `${Math.max(4, remainingPct)}%` }}
+                        />
                       </div>
-                    )}
+                    </div>
                   </button>
                 );
               })}
@@ -792,30 +881,17 @@ export default function AdminCalendarPage() {
                   તારીખ વિગત (DAY DETAILS)
                 </span>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {!isSuper ? (
-                    <>
-                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        🟢 {availableCount} ખાલી
-                      </span>
-                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                        🔴 {bookedCount} બુક
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        🟢 {availableCount} ખાલી
-                      </span>
-                      {partialCount > 0 && (
-                        <span className="text-xs font-black px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-900 border border-yellow-300">
-                          🟡 {partialCount} આંશિક
-                        </span>
-                      )}
-                      <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                        🔴 {fullyBookedCount} પૂર્ણ બુક
-                      </span>
-                    </>
+                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                    🟢 {availableCount} સંપૂર્ણ ખાલી
+                  </span>
+                  {partialCount > 0 && (
+                    <span className="text-xs font-black px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                      🟡 {partialCount} આંશિક સ્લોટ
+                    </span>
                   )}
+                  <span className="text-xs font-black px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
+                    🔴 {fullyBookedCount} પૂર્ણ બુક
+                  </span>
                 </div>
               </div>
 
@@ -829,6 +905,42 @@ export default function AdminCalendarPage() {
                     })
                   : "તારીખ પસંદ કરો"}
               </h3>
+
+              {/* Selected Day Availability Heat Gauge Meter */}
+              {selectedDate && (
+                <div className="pt-2 border-t border-slate-100 space-y-1">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-600">
+                    <span className="flex items-center gap-1.5">
+                      <span>હીટમેપ ઉપલબ્ધતા સ્કોર:</span>
+                      <strong className="text-slate-900 font-mono">
+                        {Math.round(((availableCount + partialCount * 0.5) / (selectedDayFacilities.length || 8)) * 100)}% બાકી
+                      </strong>
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-semibold">
+                      {availableCount} સુવિધા સંપૂર્ણ ખાલી
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200/90 rounded-full h-2 overflow-hidden shadow-inner">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        Math.round(((availableCount + partialCount * 0.5) / (selectedDayFacilities.length || 8)) * 100) >= 75
+                          ? "bg-emerald-500"
+                          : Math.round(((availableCount + partialCount * 0.5) / (selectedDayFacilities.length || 8)) * 100) >= 50
+                          ? "bg-amber-500"
+                          : Math.round(((availableCount + partialCount * 0.5) / (selectedDayFacilities.length || 8)) * 100) >= 25
+                          ? "bg-orange-500"
+                          : "bg-rose-500"
+                      }`}
+                      style={{
+                        width: `${Math.max(
+                          4,
+                          Math.round(((availableCount + partialCount * 0.5) / (selectedDayFacilities.length || 8)) * 100)
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Bus Seat Layout Overview (Mini Map) */}
@@ -843,11 +955,11 @@ export default function AdminCalendarPage() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {selectedDayFacilities.map((item) => {
                   const isGreen = item.isAvailable;
-                  const showAsYellow = isSuper && item.isPartiallyBooked;
+                  const showAsYellow = item.isPartiallyBooked;
 
                   let seatBg = "bg-rose-100 border-rose-300 text-rose-950 hover:bg-rose-200";
                   let dotBg = "#ef4444";
-                  let badgeText = isSuper && item.isFullyBooked ? "પૂર્ણ બુક" : "બુક";
+                  let badgeText = item.isFullyBooked ? "પૂર્ણ બુક" : "બુક";
 
                   if (isGreen) {
                     seatBg = "bg-emerald-100 border-emerald-300 text-emerald-950 hover:bg-emerald-200";
@@ -887,22 +999,14 @@ export default function AdminCalendarPage() {
               </div>
             </div>
 
-            {/* Filter Tabs: Available First by Default */}
+            {/* Filter Tabs: Available First by Default (For both Super Admin and View-Only Admin) */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 text-xs">
-              {(isSuper
-                ? [
-                    { id: "AVAILABLE_FIRST", label: `🟢 ઉપલબ્ધ પ્રથમ (${availableCount + partialCount} ખાલી/આંશિક)` },
-                    { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત સંપૂર્ણ ખાલી (${availableCount})` },
-                    { id: "ONLY_BOOKED", label: `🔴 બુક થયેલ (${bookedCount})` },
-                    { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
-                  ]
-                : [
-                    { id: "AVAILABLE_FIRST", label: `🟢 ખાલી પ્રથમ (${availableCount} ખાલી)` },
-                    { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત ખાલી (${availableCount})` },
-                    { id: "ONLY_BOOKED", label: `🔴 ફક્ત બુક (${bookedCount})` },
-                    { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
-                  ]
-              ).map((tab) => (
+              {[
+                { id: "AVAILABLE_FIRST", label: `🟢 ઉપલબ્ધ પ્રથમ (${availableCount + partialCount} ખાલી/આંશિક)` },
+                { id: "ONLY_AVAILABLE", label: `🟢 ફક્ત સંપૂર્ણ ખાલી (${availableCount})` },
+                { id: "ONLY_BOOKED", label: `🔴 બુક થયેલ (${bookedCount})` },
+                { id: "ALL", label: `બધી સુવિધાઓ (${selectedDayFacilities.length})` },
+              ].map((tab) => (
                 <button
                   key={tab.id}
                   type="button"

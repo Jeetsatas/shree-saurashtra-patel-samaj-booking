@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { fetchAdminJson, getAdminCachedData, clearAdminClientCache } from "@/lib/admin-client-cache";
+import { fetchAdminJson, getAdminCachedData, clearAdminClientCache, notifyBookingsUpdated } from "@/lib/admin-client-cache";
 import {
   doSlotsOverlap,
   parseSlotTimeRange,
@@ -1357,7 +1357,9 @@ function BookingsManagementContent() {
       }
 
       closeCreateModal();
+      clearAdminClientCache();
       refreshBookings();
+      notifyBookingsUpdated();
     } catch (err: any) {
       setCreateError(err.message || "Failed to create booking");
     } finally {
@@ -1391,6 +1393,8 @@ function BookingsManagementContent() {
         setBookings(previousBookings);
         const err = await res.json();
         alert(err.error || "Failed to update booking status");
+      } else {
+        notifyBookingsUpdated();
       }
     } catch (err) {
       // Revert on network failure
@@ -1592,6 +1596,7 @@ function BookingsManagementContent() {
 
       clearAdminClientCache();
       refreshBookings();
+      notifyBookingsUpdated();
       setSelectedBookingIds([]);
 
       setEditSuccess(
@@ -1670,6 +1675,7 @@ function BookingsManagementContent() {
       } else {
         clearAdminClientCache();
         refreshBookings();
+        notifyBookingsUpdated();
       }
     } catch (err) {
       // Revert on network failure
@@ -1731,7 +1737,9 @@ function BookingsManagementContent() {
         setBookings(previousBookings);
         alert(err.error || "Failed to delete selected bookings");
       } else {
+        clearAdminClientCache();
         refreshBookings();
+        notifyBookingsUpdated();
       }
     } catch (err) {
       setBookings(previousBookings);
