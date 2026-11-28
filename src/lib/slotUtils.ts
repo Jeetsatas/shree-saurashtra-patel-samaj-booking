@@ -433,6 +433,7 @@ export interface DepositLedgerEntry {
   paymentMode?: string; // CASH_AT_OFFICE | UPI_BANK_TRANSFER | CHEQUE
   refNo?: string;
   notes?: string;
+  reverseRemark?: string; // Explicit remark for reverse entry
   performedByName?: string;
   createdAt: string;
 }
@@ -444,6 +445,7 @@ export interface DepositRecord {
   incomeRecognized: number;
   lastUpdatedDate: string;
   lastActionNote?: string;
+  lastReverseRemark?: string; // Latest reverse entry remark
   history: DepositLedgerEntry[];
 }
 

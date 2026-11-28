@@ -221,6 +221,7 @@ export async function GET(req: NextRequest) {
         depositAmount: bDep,
         depositStatus: depStatus,
         depositRecord: depRecord,
+        reverseRemark: depRecord?.lastReverseRemark || "",
         totalPayable,
       };
     });
@@ -238,6 +239,7 @@ export async function GET(req: NextRequest) {
         depositAmount: g.deposit,
         depositStatus: g.depositStatus,
         depositRecord: g.depositRecord,
+        reverseRemark: g.depositRecord?.lastReverseRemark || "",
       };
     });
 
@@ -304,7 +306,11 @@ export async function GET(req: NextRequest) {
             ? "REFUNDED (Returned to Party)"
             : "HELD (Active Caution Deposit)"
         ),
-        escapeCsv(g.depositRecord?.lastActionNote || g.depositRecord?.history?.[0]?.notes || "-"),
+        escapeCsv(
+          g.depositRecord?.lastReverseRemark
+            ? `[REVERSE ENTRY REMARK]: ${g.depositRecord.lastReverseRemark}`
+            : g.depositRecord?.lastActionNote || g.depositRecord?.history?.[0]?.notes || "-"
+        ),
         g.net.toFixed(2),
         g.totalJama.toFixed(2),
         g.netRemaining.toFixed(2),
@@ -373,7 +379,9 @@ export async function GET(req: NextRequest) {
           g.depositStatus === "FORFEITED_TO_INCOME"
             ? `Transferred ₹${g.deposit} Caution Deposit to Trust Income (Unclaimed/Forfeited)`
             : g.depositStatus === "REVERSED_REFUND"
-            ? `Reverse Entry: Reversal of ₹${g.deposit} from Trust Income to Party Deposit Refund`
+            ? `Reverse Entry: Reversal of ₹${g.deposit} from Trust Income to Party Deposit Refund${
+                g.depositRecord?.lastReverseRemark ? ` [Remark: ${g.depositRecord.lastReverseRemark}]` : ""
+              }`
             : g.depositStatus === "REFUNDED"
             ? `Refunded ₹${g.deposit} Caution Deposit to Party`
             : `Held ₹${g.deposit} Caution Deposit`

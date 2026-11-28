@@ -193,6 +193,7 @@ function AdminPaymentStatusContent() {
   const [depositPaymentMode, setDepositPaymentMode] = useState<string>("CASH_AT_OFFICE");
   const [depositRefNoInput, setDepositRefNoInput] = useState<string>("");
   const [depositNotesInput, setDepositNotesInput] = useState<string>("");
+  const [reverseRemarkInput, setReverseRemarkInput] = useState<string>("");
   const [savingDeposit, setSavingDeposit] = useState(false);
   const [depositError, setDepositError] = useState("");
   const [depositSuccess, setDepositSuccess] = useState("");
@@ -571,6 +572,10 @@ function AdminPaymentStatusContent() {
     setDepositPaymentMode("CASH_AT_OFFICE");
     setDepositRefNoInput("");
     setDepositNotesInput("");
+    setReverseRemarkInput(
+      party.depositRecord?.lastReverseRemark ||
+      "પાર્ટી પાછળથી અસલ રસીદ સાથે ડિપોઝિટ લેવા આવેલ હોવાથી આવકમાંથી રિવર્સ એન્ટ્રી કરી રિફંડ આપેલ."
+    );
     setDepositError("");
     setDepositSuccess("");
   };
@@ -614,13 +619,19 @@ function AdminPaymentStatusContent() {
         incomeRecognized = 0;
       }
 
+      const defaultReverseRemark = "પાર્ટી પાછળથી ડિપોઝિટ લેવા આવતા આવકમાંથી રિવર્સ એન્ટ્રી કરીને રિફંડ આપેલ.";
+      const finalReverseRemark =
+        depositActionMode === "REVERSE_TO_REFUND"
+          ? reverseRemarkInput.trim() || defaultReverseRemark
+          : undefined;
+
       const defaultNotes =
         depositActionMode === "REFUND"
           ? `કાર્યક્રમ પૂર્ણ થયા બાદ પાર્ટીને ₹${amt.toLocaleString("en-IN")} ડિપોઝિટ પરત આપેલ.`
           : depositActionMode === "FORFEIT_TO_INCOME"
           ? `પાર્ટીનો કોઈ સંપર્ક કે દાવો ન હોવાથી ₹${amt.toLocaleString("en-IN")} ડિપોઝિટ ટ્રસ્ટ આવકમાં જમા કરેલ.`
           : depositActionMode === "REVERSE_TO_REFUND"
-          ? `[REVERSE ENTRY] પાર્ટી પાછળથી ડિપોઝિટ લેવા આવતા આવકમાંથી ₹${amt.toLocaleString("en-IN")} રિવર્સ એન્ટ્રી કરી રિફંડ આપેલ.`
+          ? `[REVERSE ENTRY] ${finalReverseRemark}`
           : `ડિપોઝિટ સ્થિતિ અનામત તરીકે રીસેટ કરેલ.`;
 
       const newLedgerEntry: DepositLedgerEntry = {
@@ -632,6 +643,7 @@ function AdminPaymentStatusContent() {
         paymentMode: depositPaymentMode,
         refNo: depositRefNoInput.trim() || undefined,
         notes: depositNotesInput.trim() || defaultNotes,
+        reverseRemark: finalReverseRemark,
         performedByName: currentUser?.name || "Admin",
         createdAt: nowIso,
       };
@@ -646,6 +658,7 @@ function AdminPaymentStatusContent() {
         incomeRecognized,
         lastUpdatedDate: dateStr,
         lastActionNote: newLedgerEntry.notes,
+        lastReverseRemark: finalReverseRemark,
         history: updatedHistory,
       };
 
@@ -1547,6 +1560,14 @@ function AdminPaymentStatusContent() {
                                     ? "↩️ પાર્ટીને પરત કરેલ"
                                     : "🛡️ અનામત ચાલુ"}
                                 </span>
+                                {activeParty.depositStatus === "REVERSED_REFUND" && activeParty.depositRecord?.lastReverseRemark && (
+                                  <span
+                                    className="text-[9px] text-purple-900 font-semibold block truncate mt-0.5"
+                                    title={activeParty.depositRecord.lastReverseRemark}
+                                  >
+                                    રીમાર્ક: {activeParty.depositRecord.lastReverseRemark}
+                                  </span>
+                                )}
                               </div>
                             );
                           })()}
@@ -2533,26 +2554,83 @@ function AdminPaymentStatusContent() {
                   </div>
                 )}
 
-                <div>
-                  <label className="text-[11px] font-bold text-slate-700 block mb-1">
-                    નોંધ / કારણ (Remarks / Reason) *
-                  </label>
-                  <input
-                    type="text"
-                    value={depositNotesInput}
-                    onChange={(e) => setDepositNotesInput(e.target.value)}
-                    placeholder={
-                      depositActionMode === "REFUND"
-                        ? "કાર્યક્રમ પૂર્ણ થયા બાદ ડિપોઝિટ પાર્ટીને રોકડ/બેંકથી પરત આપેલ."
-                        : depositActionMode === "FORFEIT_TO_INCOME"
-                        ? "પાર્ટીનો કોઈ સંપર્ક કે દાવો ન હોવાથી ટ્રસ્ટ આવકમાં જમા."
-                        : depositActionMode === "REVERSE_TO_REFUND"
-                        ? "પાર્ટી પાછળથી ડિપોઝિટ લેવા આવતા આવકમાંથી રિવર્સ એન્ટ્રી કરીને રિફંડ આપેલ."
-                        : "અનામત ચાલુ તરીકે સેટ કરેલ."
-                    }
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-600"
-                  />
-                </div>
+                {/* Dedicated Reverse Entry Remark Option */}
+                {depositActionMode === "REVERSE_TO_REFUND" ? (
+                  <div className="p-3.5 rounded-2xl bg-purple-50/90 border-2 border-purple-300 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                        <Undo2 className="w-4 h-4 text-purple-700" />
+                        <span>રિવર્સ એન્ટ્રી રીમાર્ક / સત્તાવાર કારણ (Reverse Entry Remark) *</span>
+                      </label>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 border border-purple-300">
+                        ઓડિટમાં સત્તાવાર નોંધાશે
+                      </span>
+                    </div>
+
+                    <p className="text-[11px] text-purple-900/90 leading-relaxed font-medium">
+                      પાર્ટી પાછળથી ડિપોઝિટ લેવા આવેલ હોવાથી આવકમાંથી રકમ રિવર્સ કરી રિફંડ આપવાનું કારણ દાખલ કરો:
+                    </p>
+
+                    {/* Quick Preset Remark Options */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-purple-900 mr-1">ઝડપી વિકલ્પો:</span>
+                      {[
+                        "પાર્ટી પાછળથી અસલ રસીદ સાથે ડિપોઝિટ લેવા આવેલ",
+                        "ટ્રસ્ટી મંડળની મંજૂરીથી આવકમાંથી રિવર્સલ & રિફંડ",
+                        "સમય મર્યાદા બાદ અરજદાર રૂબરૂ ઉપસ્થિત થયા",
+                        "ઓડિટ સુધારણા / એકાઉન્ટ રિવર્સલ",
+                      ].map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => {
+                            setReverseRemarkInput(preset);
+                            setDepositNotesInput(`[REVERSE ENTRY] ${preset}`);
+                          }}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                            reverseRemarkInput === preset
+                              ? "bg-purple-700 text-white border-purple-800 shadow-2xs"
+                              : "bg-white hover:bg-purple-100 text-purple-900 border-purple-200"
+                          }`}
+                        >
+                          📌 {preset}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div>
+                      <textarea
+                        rows={2}
+                        value={reverseRemarkInput}
+                        onChange={(e) => {
+                          setReverseRemarkInput(e.target.value);
+                          setDepositNotesInput(`[REVERSE ENTRY] ${e.target.value}`);
+                        }}
+                        placeholder="દા.ત. પાર્ટી અસલ રસીદ સાથે ડિપોઝિટ લેવા આવતા ટ્રસ્ટીની મંજૂરીથી આવકમાંથી રિવર્સ એન્ટ્રી કરી રોકડ/બેંકથી રિફંડ આપેલ."
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-purple-300 text-xs text-purple-950 font-medium focus:outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700 block mb-1">
+                      નોંધ / કારણ (Remarks / Reason) *
+                    </label>
+                    <input
+                      type="text"
+                      value={depositNotesInput}
+                      onChange={(e) => setDepositNotesInput(e.target.value)}
+                      placeholder={
+                        depositActionMode === "REFUND"
+                          ? "કાર્યક્રમ પૂર્ણ થયા બાદ ડિપોઝિટ પાર્ટીને રોકડ/બેંકથી પરત આપેલ."
+                          : depositActionMode === "FORFEIT_TO_INCOME"
+                          ? "પાર્ટીનો કોઈ સંપર્ક કે દાવો ન હોવાથી ટ્રસ્ટ આવકમાં જમા."
+                          : "અનામત ચાલુ તરીકે સેટ કરેલ."
+                      }
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-600"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Deposit History Log (Audit Trail) */}
@@ -2596,7 +2674,13 @@ function AdminPaymentStatusContent() {
                                 : "🛡️ અનામત"}
                             </span>
                           </div>
-                          {h.notes && (
+                          {h.reverseRemark && (
+                            <div className="p-1.5 rounded-lg bg-purple-50 border border-purple-200 text-purple-950 text-[11px] font-bold flex items-center gap-1.5">
+                              <Undo2 className="w-3 h-3 text-purple-700 shrink-0" />
+                              <span>રિવર્સ રીમાર્ક: {h.reverseRemark}</span>
+                            </div>
+                          )}
+                          {h.notes && !h.reverseRemark && (
                             <p className="text-[11px] text-slate-600">
                               {h.notes}
                             </p>

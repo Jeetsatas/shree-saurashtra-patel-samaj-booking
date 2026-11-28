@@ -748,6 +748,14 @@ function AuditReportsContent() {
                               ? "🔄 રિવર્સ રિફંડ"
                               : "🛡️ અનામત"}
                           </span>
+                          {(g.reverseRemark || g.depositRecord?.lastReverseRemark) && (
+                            <div
+                              className="mt-1 text-[9px] font-medium text-purple-900 bg-purple-100/90 px-1.5 py-0.5 rounded border border-purple-200 text-left max-w-[140px] truncate"
+                              title={g.reverseRemark || g.depositRecord?.lastReverseRemark}
+                            >
+                              રીમાર્ક: {g.reverseRemark || g.depositRecord?.lastReverseRemark}
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -960,6 +968,14 @@ function AuditReportsContent() {
                               ? "💰 આવકમાં"
                               : "🔄 રિવર્સ"}
                           </span>
+                        )}
+                        {(b.reverseRemark || b.depositRecord?.lastReverseRemark) && (
+                          <div
+                            className="mt-1 text-[9px] font-medium text-purple-900 bg-purple-100/90 px-1.5 py-0.5 rounded border border-purple-200 text-left max-w-[130px] truncate"
+                            title={b.reverseRemark || b.depositRecord?.lastReverseRemark}
+                          >
+                            રીમાર્ક: {b.reverseRemark || b.depositRecord?.lastReverseRemark}
+                          </div>
                         )}
                       </td>
 
