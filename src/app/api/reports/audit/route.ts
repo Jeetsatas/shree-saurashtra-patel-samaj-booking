@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma, withDbRetry } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { parseJamaEntries } from "@/lib/slotUtils";
+import { groupBookingsByParty, parseJamaEntries, PartyBookingGroup } from "@/lib/slotUtils";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +16,9 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const yearParam = searchParams.get("year") || new Date().getFullYear().toString();
+    const yearParam = searchParams.get("year") || "ALL"; // default ALL to match Payment Stithi
     const monthParam = searchParams.get("month"); // "1" - "12" or "ALL"
-    const statusParam = searchParams.get("status") || "CONFIRMED"; // default CONFIRMED for audit
+    const statusParam = searchParams.get("status") || "ALL"; // default ALL for complete audit
     const format = searchParams.get("format") || "json"; // "json" | "csv_ca" | "csv_tally"
 
     const where: any = {};
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       where.status = statusParam;
     }
 
-    // Date / Year filter
+    // Date / Year filter (if not "ALL")
     if (yearParam && yearParam !== "ALL") {
       const year = parseInt(yearParam, 10);
       if (monthParam && monthParam !== "ALL") {
@@ -41,9 +41,16 @@ export async function GET(req: NextRequest) {
         const end = new Date(year, 11, 31, 23, 59, 59);
         where.startDate = { gte: start, lte: end };
       }
+    } else if (monthParam && monthParam !== "ALL") {
+      // If month is specified without year, use current year
+      const curYear = new Date().getFullYear();
+      const month = parseInt(monthParam, 10);
+      const start = new Date(curYear, month - 1, 1, 0, 0, 0);
+      const end = new Date(curYear, month, 0, 23, 59, 59);
+      where.startDate = { gte: start, lte: end };
     }
 
-    const [bookings, facilities] = await Promise.all([
+    const [allRawBookings, facilities] = await Promise.all([
       withDbRetry(() =>
         prisma.booking.findMany({
           where,
@@ -56,15 +63,36 @@ export async function GET(req: NextRequest) {
       withDbRetry(() => prisma.facility.findMany({ orderBy: { id: "asc" } })),
     ]);
 
-    // Financial & Operational Metrics
+    // Group bookings into Parties (THE EXACT SAME ENGINE AS PAYMENT STITHI)
+    const partyGroups: PartyBookingGroup[] = groupBookingsByParty(allRawBookings);
+
+    // Compute Party-Synchronized Financial Totals
     let grossRent = 0;
     let totalDiscounts = 0;
     let netRevenue = 0;
     let totalDepositsHeld = 0;
+    let totalBilled = 0;
     let totalReceivedJama = 0;
     let pendingBalance = 0;
+    let paidCount = 0;
+    let partialCount = 0;
+    let pendingCount = 0;
 
-    const eventCounts: Record<string, { count: number; revenue: number }> = {};
+    for (const g of partyGroups) {
+      grossRent += g.total;
+      totalDiscounts += g.discountAmount;
+      netRevenue += g.totalWithDiscount;
+      totalDepositsHeld += g.deposit;
+      totalBilled += g.net;
+      totalReceivedJama += g.totalJama;
+      pendingBalance += g.netRemaining;
+
+      if (g.paymentStatus === "PAID") paidCount++;
+      else if (g.paymentStatus === "PARTIAL") partialCount++;
+      else pendingCount++;
+    }
+
+    // Facility Stats
     const facilityStats: Record<
       string,
       {
@@ -89,7 +117,6 @@ export async function GET(req: NextRequest) {
     }
 
     // 12-Month Array for trend
-    const targetYear = yearParam !== "ALL" ? parseInt(yearParam, 10) : new Date().getFullYear();
     const gujaratiMonths = [
       "જાન્યુઆરી",
       "ફેબ્રુઆરી",
@@ -126,11 +153,13 @@ export async function GET(req: NextRequest) {
       bookingsCount: 0,
       revenue: 0,
       deposits: 0,
-      // Traditional Gujarati Saurashtra peak wedding/event seasons: Nov, Dec, Jan, Feb, May
       isPeakSeason: [0, 1, 4, 10, 11].includes(idx),
     }));
 
-    const enrichedBookings = bookings.map((b) => {
+    const eventCounts: Record<string, { count: number; revenue: number }> = {};
+
+    // Single booking enrichment
+    const enrichedBookings = allRawBookings.map((b) => {
       const bFacAmt = Number(b.facilityAmount ?? b.totalAmount ?? 0);
       const bDisc = Number(b.discountAmount ?? 0);
       const bServAmt = Number(b.servicesAmount ?? 0);
@@ -139,31 +168,12 @@ export async function GET(req: NextRequest) {
       const bDep = Number(b.depositAmount ?? 0);
       const totalPayable = bNet + bDep;
 
-      const jamaList = parseJamaEntries(b.notes);
-      let bJama = 0;
-      if (jamaList.length > 0) {
-        bJama = jamaList.reduce((sum, j) => sum + (Number(j.amount) || 0), 0);
-      } else if (b.paymentStatus === "PAID") {
-        bJama = totalPayable;
-      }
-
-      const bRemaining = Math.max(0, totalPayable - bJama);
-
       if (b.status !== "CANCELLED") {
-        grossRent += bGross;
-        totalDiscounts += bDisc;
-        netRevenue += bNet;
-        totalDepositsHeld += bDep;
-        totalReceivedJama += bJama;
-        pendingBalance += bRemaining;
-
-        // Facility Stats
         if (b.facilityId && facilityStats[b.facilityId]) {
           facilityStats[b.facilityId].bookingsCount += 1;
           facilityStats[b.facilityId].revenue += bNet;
         }
 
-        // Monthly Stats
         const bDate = new Date(b.startDate);
         const mIdx = bDate.getMonth();
         if (monthlyTrends[mIdx]) {
@@ -172,7 +182,6 @@ export async function GET(req: NextRequest) {
           monthlyTrends[mIdx].deposits += bDep;
         }
 
-        // Event Type Stats
         const ev = b.eventType || "Other";
         if (!eventCounts[ev]) eventCounts[ev] = { count: 0, revenue: 0 };
         eventCounts[ev].count += 1;
@@ -184,37 +193,45 @@ export async function GET(req: NextRequest) {
         grossAmount: bGross,
         netAmount: bNet,
         totalPayable,
-        jamaAmount: bJama,
-        remainingAmount: bRemaining,
       };
     });
 
-    // CA Audit CSV Format
+    const enrichedPartyGroups = partyGroups.map((g) => {
+      const firstB = g.bookings[0];
+      return {
+        ...g,
+        primaryBookingId: firstB?.id || "",
+        primaryBookingNumber: firstB?.bookingNumber || "",
+        bookingNumbers: g.bookings.map((b) => b.bookingNumber).join(", "),
+        facilityNames: g.bookings.map((b) => b.facility?.name).filter(Boolean).join(" + "),
+        slotsCount: g.bookings.length,
+      };
+    });
+
+    // CA Audit CSV Format (Party-level accurate to Payment Stithi)
     if (format === "csv_ca") {
       const headers = [
         "Voucher Date",
-        "Booking Number",
-        "Customer Name",
+        "Primary Booking No",
+        "All Linked Booking Nos",
+        "Party Customer Name",
         "Phone Number",
         "Address / Village",
-        "Facility Code",
-        "Facility Name",
+        "Booked Facilities",
+        "Slots Count",
         "Event Type",
-        "Event Start Date",
-        "Event End Date",
-        "Time Slot",
+        "Event Dates Range",
         "Gross Facility Rent (INR)",
         "Trust Concession / Discount (INR)",
-        "Net Taxable Value (INR)",
+        "Net Taxable Rent (INR)",
         "GST Rate (%)",
         "CGST (INR)",
         "SGST (INR)",
-        "Refundable Caution Deposit (INR)",
-        "Total Voucher Value (INR)",
+        "Caution Deposit (INR)",
+        "Net Billed Value (INR)",
         "Total Jama Received (INR)",
-        "Balance Receivable (INR)",
+        "Net Remaining Balance (INR)",
         "Payment Status",
-        "Payment Mode & Ref",
         "Trust Registration No",
         "GST Registration Status",
       ];
@@ -225,30 +242,28 @@ export async function GET(req: NextRequest) {
         return `"${clean}"`;
       };
 
-      const rows = enrichedBookings.map((b) => [
-        escapeCsv(new Date(b.createdAt).toISOString().slice(0, 10)),
-        escapeCsv(b.bookingNumber),
-        escapeCsv(b.customerName),
-        escapeCsv(b.customerPhone),
-        escapeCsv(b.customerAddress || "Nikol, Ahmedabad"),
-        escapeCsv(b.facility?.code || ""),
-        escapeCsv(b.facility?.name || ""),
-        escapeCsv(b.eventType),
-        escapeCsv(new Date(b.startDate).toISOString().slice(0, 10)),
-        escapeCsv(new Date(b.endDate || b.startDate).toISOString().slice(0, 10)),
-        escapeCsv(b.slot),
-        b.grossAmount.toFixed(2),
-        (Number(b.discountAmount) || 0).toFixed(2),
-        b.netAmount.toFixed(2),
+      const rows = enrichedPartyGroups.map((g) => [
+        escapeCsv(new Date(g.dateRange.startDate).toISOString().slice(0, 10)),
+        escapeCsv(g.primaryBookingNumber),
+        escapeCsv(g.bookingNumbers),
+        escapeCsv(g.customerName),
+        escapeCsv(g.customerPhone),
+        escapeCsv(g.customerAddress || "Nikol, Ahmedabad"),
+        escapeCsv(g.facilityNames),
+        g.slotsCount,
+        escapeCsv(g.eventType || "Wedding"),
+        escapeCsv(g.dateRange.label),
+        g.total.toFixed(2),
+        g.discountAmount.toFixed(2),
+        g.totalWithDiscount.toFixed(2),
         escapeCsv("0% (Registration Pending)"),
         "0.00",
         "0.00",
-        (Number(b.depositAmount) || 0).toFixed(2),
-        b.totalPayable.toFixed(2),
-        b.jamaAmount.toFixed(2),
-        b.remainingAmount.toFixed(2),
-        escapeCsv(b.paymentStatus),
-        escapeCsv(`${b.paymentMethod || "CASH"} ${b.paymentRefNo || ""}`.trim()),
+        g.deposit.toFixed(2),
+        g.net.toFixed(2),
+        g.totalJama.toFixed(2),
+        g.netRemaining.toFixed(2),
+        escapeCsv(g.paymentStatus),
         escapeCsv("E/15894/Ahmedabad (Charitable Trust)"),
         escapeCsv("Pending"),
       ]);
@@ -276,7 +291,9 @@ export async function GET(req: NextRequest) {
         "Net Rent Amount",
         "Deposit Ledger (Caution Deposit)",
         "Deposit Amount",
-        "Total Amount",
+        "Total Billed Amount",
+        "Total Jama Received",
+        "Balance Due",
         "Narration",
         "GST Note",
       ];
@@ -287,18 +304,20 @@ export async function GET(req: NextRequest) {
         return `"${clean}"`;
       };
 
-      const rows = enrichedBookings.map((b) => [
-        escapeCsv(new Date(b.startDate).toISOString().slice(0, 10)),
+      const rows = enrichedPartyGroups.map((g) => [
+        escapeCsv(new Date(g.dateRange.startDate).toISOString().slice(0, 10)),
         escapeCsv("Sales / Booking Receipt"),
-        escapeCsv(b.bookingNumber),
-        escapeCsv(`${b.customerName} (${b.customerPhone})`),
-        escapeCsv(`Hall Rent Income - ${b.facility?.name || "Samaj Facility"}`),
-        b.netAmount.toFixed(2),
+        escapeCsv(g.primaryBookingNumber),
+        escapeCsv(`${g.customerName} (${g.customerPhone})`),
+        escapeCsv(`Hall Rent Income - ${g.facilityNames}`),
+        g.totalWithDiscount.toFixed(2),
         escapeCsv("Refundable Caution Deposit Liability"),
-        (Number(b.depositAmount) || 0).toFixed(2),
-        b.totalPayable.toFixed(2),
+        g.deposit.toFixed(2),
+        g.net.toFixed(2),
+        g.totalJama.toFixed(2),
+        g.netRemaining.toFixed(2),
         escapeCsv(
-          `Booking for ${b.facility?.name} on ${new Date(b.startDate).toLocaleDateString("en-IN")}, Event: ${b.eventType}, Phone: ${b.customerPhone}`
+          `Party ${g.customerName}, Dates: ${g.dateRange.label}, Bookings: ${g.bookingNumbers}, Event: ${g.eventType}`
         ),
         escapeCsv("Charitable Trust - GST Registration Pending"),
       ]);
@@ -335,16 +354,22 @@ export async function GET(req: NextRequest) {
         phone: "+91 98250 12345 / 079-22985600",
       },
       summary: {
-        totalBookings: bookings.length,
-        confirmedCount: bookings.filter((b) => b.status === "CONFIRMED").length,
-        cancelledCount: bookings.filter((b) => b.status === "CANCELLED").length,
+        totalParties: partyGroups.length,
+        totalBookings: allRawBookings.length,
+        confirmedCount: allRawBookings.filter((b) => b.status === "CONFIRMED").length,
+        cancelledCount: allRawBookings.filter((b) => b.status === "CANCELLED").length,
         grossRent,
         totalDiscounts,
         netRevenue,
         totalDepositsHeld,
+        totalBilled,
         totalReceivedJama,
         pendingBalance,
+        paidCount,
+        partialCount,
+        pendingCount,
       },
+      partyGroups: enrichedPartyGroups,
       monthlyTrends,
       facilityBreakdown: facilityList,
       eventBreakdown: eventCounts,

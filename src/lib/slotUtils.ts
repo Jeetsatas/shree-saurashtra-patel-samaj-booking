@@ -687,10 +687,24 @@ export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
       g.latestJamaDate = jamaList[0].date;
     }
 
-    // Status evaluation
-    if (g.netRemaining <= 0 && g.net > 0) {
+    // Status evaluation (honors manual trustee audit and automated jama calculation)
+    const anyBookingHasManualPaid = g.bookings.some((b) => {
+      const s = (b.paymentStatus || "").toUpperCase().trim();
+      return (
+        s === "PAID" ||
+        s === "PAID_FULL" ||
+        s === "PAID_CASH" ||
+        s === "PAID_ONLINE" ||
+        s === "COMPLETED"
+      );
+    });
+    const anyBookingHasManualPartial = g.bookings.some(
+      (b) => (b.paymentStatus || "").toUpperCase().trim() === "PARTIAL"
+    );
+
+    if (anyBookingHasManualPaid || (g.netRemaining <= 0 && g.net > 0)) {
       g.paymentStatus = "PAID";
-    } else if (totalJama > 0) {
+    } else if (anyBookingHasManualPartial || totalJama > 0) {
       g.paymentStatus = "PARTIAL";
     } else {
       g.paymentStatus = "PENDING";

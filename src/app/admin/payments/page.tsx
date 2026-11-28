@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import {
   CreditCard,
   Calendar as CalendarIcon,
@@ -35,8 +35,10 @@ import {
   Tag,
   ArrowUpRight,
   RefreshCw,
+  BarChart3,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { fetchAdminJson, getAdminCachedData } from "@/lib/admin-client-cache";
 import {
   isFullDaySlot,
@@ -105,7 +107,8 @@ function formatPaymentMode(mode?: string | null): string {
   }
 }
 
-export default function AdminPaymentStatusPage() {
+function AdminPaymentStatusContent() {
+  const searchParams = useSearchParams();
   const [currentUser, setCurrentUser] = useState<any | null>(() => {
     return getAdminCachedData<any>("/api/auth/me")?.user || null;
   });
@@ -124,6 +127,14 @@ export default function AdminPaymentStatusPage() {
   const [partyStatusFilter, setPartyStatusFilter] = useState<"ALL" | "PENDING" | "PARTIAL" | "PAID">("ALL");
   const [selectedPartyKey, setSelectedPartyKey] = useState<string | null>(null);
   const [alphabetFilter, setAlphabetFilter] = useState<string>("ALL");
+
+  // Sync search query if passed from Audit & Analytics page (?party=...)
+  useEffect(() => {
+    const partyParam = searchParams.get("party");
+    if (partyParam) {
+      setPartySearchQuery(partyParam);
+    }
+  }, [searchParams]);
 
   // Calendar State
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
@@ -827,6 +838,15 @@ export default function AdminPaymentStatusPage() {
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
+
+              <Link
+                href="/admin/reports"
+                className="px-3 py-1.5 rounded-xl border border-blue-200 bg-blue-50/80 hover:bg-blue-100 text-blue-900 text-xs font-bold transition flex items-center gap-1.5 shadow-2xs shrink-0 cursor-pointer"
+                title="વાર્ષિક ઓડિટ, CA રજિસ્ટર અને એનાલિટિક્સ રિપોર્ટ જુઓ"
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-blue-700" />
+                <span>વાર્ષિક ઓડિટ & એનાલિટિક્સ</span>
+              </Link>
             </div>
           </div>
         </div>
@@ -1221,6 +1241,15 @@ export default function AdminPaymentStatusPage() {
                             <Shield className="w-3.5 h-3.5 text-slate-600" />
                             <span>ઓડિટ</span>
                           </button>
+
+                          <Link
+                            href={`/admin/reports?party=${encodeURIComponent(activeParty.customerPhone || activeParty.customerName)}`}
+                            className="px-3 py-1.5 rounded-xl text-xs font-bold text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                            title="આ પાર્ટીનો સત્તાવાર ઓડિટ રેકોર્ડ જુઓ"
+                          >
+                            <BarChart3 className="w-3.5 h-3.5 text-blue-700" />
+                            <span>ઓડિટ રજિસ્ટર</span>
+                          </Link>
 
                           <button
                             type="button"
@@ -2306,5 +2335,19 @@ export default function AdminPaymentStatusPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminPaymentStatusPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-800"></div>
+        </div>
+      }
+    >
+      <AdminPaymentStatusContent />
+    </Suspense>
   );
 }
