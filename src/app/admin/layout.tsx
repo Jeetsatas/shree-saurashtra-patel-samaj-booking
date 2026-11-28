@@ -24,6 +24,7 @@ import {
   Plus,
   CreditCard,
   MessageSquarePlus,
+  BarChart3,
 } from "lucide-react";
 
 interface AdminUser {
@@ -317,6 +318,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                           </div>
                         </Link>
                         <Link
+                          href="/admin/reports"
+                          onClick={() => setTrustMenuOpen(false)}
+                          className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
+                        >
+                          <BarChart3 className="w-4 h-4 mr-2.5 text-blue-600" />
+                          <div>
+                            <div className="font-bold">ઓડિટ અને એનાલિટિક્સ (Audit Reports)</div>
+                            <div className="text-[10px] text-slate-400">CA Audit, Tally CSV અને આવક ચાર્ટ</div>
+                          </div>
+                        </Link>
+                        <Link
                           href="/admin/facilities"
                           onClick={() => setTrustMenuOpen(false)}
                           className="flex items-center px-3.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-blue-700 transition"
@@ -527,6 +539,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <div className="px-3 py-1 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     વહીવટ અને સેટિંગ્સ (Settings)
                   </div>
+                  <Link
+                    href="/admin/reports"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center px-3.5 py-2.5 rounded-xl text-sm text-slate-700 hover:bg-slate-100 min-h-[44px]"
+                  >
+                    <BarChart3 className="w-4 h-4 mr-3 text-blue-600" />
+                    <span>ઓડિટ અને એનાલિટિક્સ (Audit Reports)</span>
+                  </Link>
                   <Link
                     href="/admin/facilities"
                     onClick={() => setMobileMenuOpen(false)}

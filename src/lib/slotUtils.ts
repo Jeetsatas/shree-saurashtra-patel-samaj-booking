@@ -524,14 +524,29 @@ export interface PartyBookingGroup {
 }
 
 /**
+ * Converts Gujarati numerals (૦-૯) to standard ASCII digits (0-9)
+ */
+export function normalizeGujaratiDigits(str?: string | null): string {
+  if (!str) return "";
+  return str.replace(/[૦-૯]/g, (d) => String(d.charCodeAt(0) - 0x0a66));
+}
+
+/**
  * Groups bookings by Party (Customer & Event Dates session) for comprehensive
- * financial accounting in પેમેન્ટ સ્થિતિ (Payment Status).
+ * financial accounting in પેમેન્ટ સ્થિતિ (Payment Status) and Party-Wise views.
  */
 export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
   const activeBookings = (allBookings || []).filter((b) => b.status !== "CANCELLED");
 
-  // Helper to normalize phone
-  const cleanPhone = (p?: string | null) => (p || "").replace(/\D/g, "");
+  // Helper to normalize phone (converting Gujarati numerals ૦-૯ to 0-9 first)
+  const cleanPhone = (p?: string | null) => normalizeGujaratiDigits(p).replace(/\D/g, "");
+
+  // Helper to normalize name (removing honorific prefixes like શ્રી/Shree)
+  const cleanName = (n?: string | null) =>
+    (n || "")
+      .replace(/^(શ્રી|shree|mr\.?|mrs\.?)\s+/i, "")
+      .trim()
+      .toLowerCase();
 
   // Sort chronologically
   const sorted = [...activeBookings].sort(
@@ -542,16 +557,16 @@ export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
 
   for (const b of sorted) {
     const phone = cleanPhone(b.customerPhone);
-    const name = (b.customerName || "").trim().toLowerCase();
+    const bCleanName = cleanName(b.customerName);
     const bStart = new Date(b.startDate).getTime();
 
-    // Find an existing group where phone matches (or name matches if no phone)
-    // and event start is within 10 days of the group's range
+    // Find an existing group where phone matches OR name matches
+    // and event start is within 14 days of the group's range
     let targetGroup = groups.find((g) => {
       const gPhone = cleanPhone(g.customerPhone);
-      const gName = (g.customerName || "").trim().toLowerCase();
-      const phoneMatch = phone && gPhone && phone === gPhone;
-      const nameMatch = !phone && !gPhone && name && gName && name === gName;
+      const gCleanName = cleanName(g.customerName);
+      const phoneMatch = Boolean(phone && gPhone && phone === gPhone);
+      const nameMatch = Boolean(bCleanName && gCleanName && bCleanName === gCleanName);
 
       if (!phoneMatch && !nameMatch) return false;
 
@@ -560,7 +575,11 @@ export function groupBookingsByParty(allBookings: any[]): PartyBookingGroup[] {
       const diffStart = Math.abs(bStart - groupStart) / (1000 * 60 * 60 * 24);
       const diffEnd = Math.abs(bStart - groupEnd) / (1000 * 60 * 60 * 24);
 
-      return diffStart <= 12 || diffEnd <= 12;
+      // Same phone within 30 days or same name within 14 days
+      if (phoneMatch && (diffStart <= 30 || diffEnd <= 30)) return true;
+      if (nameMatch && (diffStart <= 14 || diffEnd <= 14)) return true;
+
+      return false;
     });
 
     if (!targetGroup) {

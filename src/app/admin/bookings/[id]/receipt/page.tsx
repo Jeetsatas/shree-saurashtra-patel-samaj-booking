@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
-import { useParams } from "next/navigation";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { Printer, ArrowLeft, Building2, Edit3, Users, FileText } from "lucide-react";
 import Link from "next/link";
 import {
@@ -12,13 +12,17 @@ import {
   PartyBookingGroup,
 } from "@/lib/slotUtils";
 
-export default function BookingReceiptPage() {
+function BookingReceiptContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
+  const urlMode = searchParams.get("mode");
+  const initialMode = urlMode === "single" ? "SINGLE" : "ALL";
+
   const [booking, setBooking] = useState<any>(null);
   const [allBookings, setAllBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [slipMode, setSlipMode] = useState<"ALL" | "SINGLE">("ALL");
+  const [slipMode, setSlipMode] = useState<"ALL" | "SINGLE">(initialMode);
 
   useEffect(() => {
     fetchBooking();
@@ -507,15 +511,16 @@ export default function BookingReceiptPage() {
         </div>
 
         {/* Rules for Receipt */}
-        <div className="text-[10px] text-slate-600 space-y-1 mb-10 border-t border-slate-200 pt-3">
-          <p className="font-bold text-slate-800">મહત્વની શરતો (Trust Guidelines):</p>
-          <p>1. સમગ્ર સંકુલમાં શુદ્ધ શાકાહારી ભોજન જ માન્ય છે. વ્યસન કે દારૂબંધીનું ચુસ્ત પાલન કરવું.</p>
-          <p>2. રાત્રે ૧૦:૦૦ વાગ્યા પછી લાઉડસ્પીકર કે ડીજે સંપૂર્ણ બંધ રાખવું.</p>
-          <p>3. હોલ/ડોમેટ્રી જમા કરાવતી વખતે સફાઈ ચકાસીને અનામત ડિપોઝિટ ૩ દિવસમાં પરત મળશે.</p>
+        <div className="text-[10px] text-slate-600 space-y-1 mb-8 border-t border-slate-200 pt-3">
+          <p className="font-bold text-slate-800">મહત્વની શરતો (Trust Guidelines & Rules):</p>
+          <p>1. સમગ્ર સંકુલમાં શુદ્ધ શાકાહારી ભોજન જ માન્ય છે. ધૂમ્રપાન, તમાકુ કે દારૂબંધીનું ચુસ્ત પાલન કરવું ફરજિયાત છે.</p>
+          <p>2. રાત્રે ૧૦:૦૦ વાગ્યા પછી લાઉડસ્પીકર, બેન્ડ-વાજા કે ડીજે સંપૂર્ણ બંધ રાખવું.</p>
+          <p>3. હોલ/રૂમ/ડોરમેટ્રી જમા કરાવતી વખતે સફાઈ અને માલ-સામાન ચકાસીને અનામત ડિપોઝિટ ૩ દિવસમાં પરત મળશે.</p>
+          <p>4. સંસ્થા સાર્વજનિક ધર્માદા ટ્રસ્ટ (Reg No: E/15894/Ahmedabad) હેઠળ નોંધાયેલ છે. જીએસટી નોંધણી હાલ પ્રક્રિયામાં (GST Registration: Pending) છે.</p>
         </div>
 
         {/* Signatures */}
-        <div className="grid grid-cols-2 gap-8 text-xs pt-8 border-t border-dashed border-slate-300">
+        <div className="grid grid-cols-2 gap-8 text-xs pt-6 border-t border-dashed border-slate-300">
           <div className="text-center">
             <div className="h-12"></div>
             <div className="border-t border-slate-400 pt-1 font-bold text-slate-800">
@@ -535,5 +540,19 @@ export default function BookingReceiptPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BookingReceiptPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-800"></div>
+        </div>
+      }
+    >
+      <BookingReceiptContent />
+    </Suspense>
   );
 }
